@@ -15,20 +15,45 @@ public class HomesGUIListener implements Listener {
 
     private final HomeManager homeManager;
     private final HomesGUI homesGUI;
+    private final ConfirmDeleteGUI confirmDeleteGUI;
     private final Messages messages;
 
-    public HomesGUIListener(HomeManager homeManager, HomesGUI homesGUI, Messages messages) {
+    public HomesGUIListener(HomeManager homeManager, HomesGUI homesGUI, ConfirmDeleteGUI confirmDeleteGUI, Messages messages) {
         this.homeManager = homeManager;
         this.homesGUI = homesGUI;
+        this.confirmDeleteGUI = confirmDeleteGUI;
         this.messages = messages;
     }
 
     @EventHandler
     public void onClick(InventoryClickEvent event) {
-        if (!(event.getInventory().getHolder() instanceof PoppyHomesHolder)) {
+        if (event.getInventory().getHolder() instanceof PoppyHomesHolder) {
+            handleHomesClick(event);
+        } else if (event.getInventory().getHolder() instanceof PoppyConfirmDeleteHolder holder) {
+            handleConfirmClick(event, holder);
+        }
+    }
+
+    private void handleHomesClick(InventoryClickEvent event) {
+        event.setCancelled(true);
+
+        if (!(event.getWhoClicked() instanceof Player player)) {
             return;
         }
 
+        Home home = homeFromItem(player, event.getCurrentItem());
+        if (home == null) {
+            return;
+        }
+
+        if (event.isLeftClick()) {
+            teleport(player, home);
+        } else if (event.isRightClick()) {
+            confirmDeleteGUI.open(player, home);
+        }
+    }
+
+    private void handleConfirmClick(InventoryClickEvent event, PoppyConfirmDeleteHolder holder) {
         event.setCancelled(true);
 
         if (!(event.getWhoClicked() instanceof Player player)) {
@@ -40,24 +65,35 @@ public class HomesGUIListener implements Listener {
             return;
         }
 
-        ItemMeta meta = clicked.getItemMeta();
-        String homeName = meta.getPersistentDataContainer().get(homesGUI.getHomeNameKey(), PersistentDataType.STRING);
-        if (homeName == null) {
+        String action = clicked.getItemMeta().getPersistentDataContainer()
+                .get(confirmDeleteGUI.getActionKey(), PersistentDataType.STRING);
+        if (action == null) {
             return;
         }
 
-        Home home = homeManager.getHome(player.getUniqueId(), homeName);
-        if (home == null) {
-            return;
-        }
-
-        if (event.isLeftClick()) {
-            teleport(player, home);
-        } else if (event.isRightClick()) {
-            homeManager.removeHome(player.getUniqueId(), home.getName());
-            player.sendMessage(messages.get("delhome.success", "home", home.getName()));
+        if (action.equals(ConfirmDeleteGUI.ACTION_CONFIRM)) {
+            String homeName = holder.getHomeName();
+            Home home = homeManager.getHome(player.getUniqueId(), homeName);
+            if (home != null) {
+                homeManager.removeHome(player.getUniqueId(), homeName);
+                player.sendMessage(messages.get("delhome.success", "home", home.getName()));
+            }
+            homesGUI.open(player, homeManager);
+        } else if (action.equals(ConfirmDeleteGUI.ACTION_CANCEL)) {
             homesGUI.open(player, homeManager);
         }
+    }
+
+    private Home homeFromItem(Player player, ItemStack item) {
+        if (item == null || item.getItemMeta() == null) {
+            return null;
+        }
+        ItemMeta meta = item.getItemMeta();
+        String homeName = meta.getPersistentDataContainer().get(homesGUI.getHomeNameKey(), PersistentDataType.STRING);
+        if (homeName == null) {
+            return null;
+        }
+        return homeManager.getHome(player.getUniqueId(), homeName);
     }
 
     private void teleport(Player player, Home home) {

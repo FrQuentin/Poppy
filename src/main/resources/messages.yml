@@ -26,3 +26,10 @@ gui:
   lore-teleport: "&aLeft-click to teleport"
   lore-delete: "&9Right-click to delete"
   filler: "&7CMD: &f/sethome [name]"
+
+confirm:
+  title: "&8Delete home?"
+  question: "&cDelete {home}?"
+  warning: "&7This action cannot be undone."
+  "yes": "&aYes, delete it"
+  "no": "&cNo, cancel"

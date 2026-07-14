@@ -1,0 +1,25 @@
+name: Poppy
+version: '${version}'
+
+main: fr.quentin.poppy.Poppy
+api-version: '26.2'
+load: POSTWORLD
+
+commands:
+  sethome:
+    description: Create a new home at your current location.
+    usage: /sethome <home>
+  home:
+    description: Teleport to one of your homes, or open the homes menu.
+    usage: /home [home]
+  delhome:
+    description: Delete one of your homes.
+    usage: /delhome <home>
+  homes:
+    description: Open the GUI listing all your homes.
+    usage: /homes
+
+permissions:
+  poppy.use:
+    description: Allows use of all Poppy home commands.
+    default: true

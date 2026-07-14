@@ -1,0 +1,28 @@
+general:
+  only-player: "&4[!] Only players can use this command."
+  world-not-loaded: "&4[!] The world for this home isn't loaded right now."
+
+sethome:
+  usage: "&4[!] Usage: &r/sethome <home>"
+  already-exists: "&4[!] You already have a home named {home}!"
+  full: "&4[!] You can't have more than {max} homes!"
+  success: "&a[!] You have created a new home, {home}!"
+
+home:
+  not-found: "&4[!] You don't have a home with this name!"
+  success: "&a[!] You have been teleported to your home, {home}!"
+
+delhome:
+  usage: "&4[!] Usage: &r/delhome <home>"
+  not-found: "&4[!] You don't have a home with the name {home}!"
+  success: "&4[!] You've deleted your home, {home}!"
+
+gui:
+  title: "&8Your Homes"
+  home-name: "&f{home}"
+  lore-created: "&7Created: &f{date}"
+  lore-world: "&7World: &f{world}"
+  lore-position: "&7Position: &f{x}, {y}, {z}"
+  lore-teleport: "&aLeft-click to teleport"
+  lore-delete: "&9Right-click to delete"
+  filler: "&7CMD: &f/sethome [name]"

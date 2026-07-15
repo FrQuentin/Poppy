@@ -4,11 +4,14 @@ import fr.quentin.poppy.commands.DelHomeCommand;
 import fr.quentin.poppy.commands.HomeCommand;
 import fr.quentin.poppy.commands.HomesCommand;
 import fr.quentin.poppy.commands.SetHomeCommand;
+import fr.quentin.poppy.commands.SetSpawnCommand;
+import fr.quentin.poppy.commands.SpawnCommand;
 import fr.quentin.poppy.gui.ConfirmDeleteGUI;
 import fr.quentin.poppy.gui.ConfirmOverwriteGUI;
 import fr.quentin.poppy.gui.HomesGUI;
 import fr.quentin.poppy.gui.HomesGUIListener;
 import fr.quentin.poppy.manager.HomeManager;
+import fr.quentin.poppy.manager.SpawnManager;
 import fr.quentin.poppy.manager.TeleportManager;
 import fr.quentin.poppy.util.Messages;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -28,6 +31,7 @@ public final class Poppy extends JavaPlugin {
         ConfirmDeleteGUI confirmDeleteGUI = new ConfirmDeleteGUI(this, messages);
         ConfirmOverwriteGUI confirmOverwriteGUI = new ConfirmOverwriteGUI(this, messages);
         TeleportManager teleportManager = new TeleportManager(this, messages);
+        SpawnManager spawnManager = new SpawnManager(this);
 
         getCommand("sethome").setExecutor(new SetHomeCommand(homeManager, confirmOverwriteGUI, messages));
 
@@ -40,6 +44,9 @@ public final class Poppy extends JavaPlugin {
         getCommand("delhome").setTabCompleter(delHomeCommand);
 
         getCommand("homes").setExecutor(new HomesCommand(homeManager, homesGUI, messages));
+
+        getCommand("setspawn").setExecutor(new SetSpawnCommand(spawnManager, messages));
+        getCommand("spawn").setExecutor(new SpawnCommand(spawnManager, teleportManager, messages));
 
         getServer().getPluginManager().registerEvents(
                 new HomesGUIListener(homeManager, homesGUI, confirmDeleteGUI, confirmOverwriteGUI, teleportManager, messages), this);

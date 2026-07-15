@@ -34,11 +34,15 @@ public class TeleportManager implements Listener {
     }
 
     public void requestTeleport(Player player, Home home) {
+        requestTeleport(player, home, "home.success");
+    }
+
+    public void requestTeleport(Player player, Home home, String successMessagePath) {
         UUID uuid = player.getUniqueId();
         cancelPending(uuid);
 
         if (warmupSeconds <= 0) {
-            teleportNow(player, home);
+            teleportNow(player, home, successMessagePath);
             return;
         }
 
@@ -58,7 +62,7 @@ public class TeleportManager implements Listener {
                 if (remaining <= 0) {
                     pendingTasks.remove(uuid);
                     startLocations.remove(uuid);
-                    teleportNow(player, home);
+                    teleportNow(player, home, successMessagePath);
                     cancel();
                     return;
                 }
@@ -119,7 +123,7 @@ public class TeleportManager implements Listener {
         startLocations.remove(uuid);
     }
 
-    private void teleportNow(Player player, Home home) {
+    private void teleportNow(Player player, Home home, String successMessagePath) {
         Location location = home.toLocation();
         if (location == null) {
             player.sendMessage(messages.get("general.world-not-loaded"));
@@ -127,6 +131,6 @@ public class TeleportManager implements Listener {
         }
 
         player.teleport(location);
-        player.sendMessage(messages.get("home.success", "home", home.getName()));
+        player.sendMessage(messages.get(successMessagePath, "home", home.getName()));
     }
 }

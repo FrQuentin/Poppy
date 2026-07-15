@@ -18,8 +18,19 @@ commands:
   homes:
     description: Open the GUI listing all your homes.
     usage: /homes
+  setspawn:
+    description: Set the server spawn point at your current location.
+    usage: /setspawn
+    permission: poppy.setspawn
+    permission-message: "&4[!] You don't have permission to do this."
+  spawn:
+    description: Teleport back to the server spawn point.
+    usage: /spawn
 
 permissions:
   poppy.use:
     description: Allows use of all Poppy home commands.
     default: true
+  poppy.setspawn:
+    description: Allows setting the server spawn point.
+    default: op

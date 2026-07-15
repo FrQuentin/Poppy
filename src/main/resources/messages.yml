@@ -44,3 +44,8 @@ confirm-overwrite:
 teleport:
   warmup-actionbar: "&eTeleporting in {seconds}..."
   cancelled-move: "&4[!] Teleportation cancelled because you moved!"
+
+spawn:
+  set: "&a[!] The spawn point has been set!"
+  not-set: "&4[!] No spawn point has been set yet!"
+  success: "&a[!] You have been teleported to spawn!"

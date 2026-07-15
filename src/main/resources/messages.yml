@@ -40,3 +40,7 @@ confirm-overwrite:
   warning: "&7This will replace its saved location."
   "yes": "&aYes, overwrite it"
   "no": "&cNo, cancel"
+
+teleport:
+  warmup-actionbar: "&eTeleporting in {seconds}..."
+  cancelled-move: "&4[!] Teleportation cancelled because you moved!"

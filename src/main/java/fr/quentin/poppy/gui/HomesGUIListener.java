@@ -1,6 +1,7 @@
 package fr.quentin.poppy.gui;
 
 import fr.quentin.poppy.manager.HomeManager;
+import fr.quentin.poppy.manager.TeleportManager;
 import fr.quentin.poppy.model.Home;
 import fr.quentin.poppy.util.Messages;
 import org.bukkit.entity.Player;
@@ -18,13 +19,15 @@ public class HomesGUIListener implements Listener {
     private final ConfirmDeleteGUI confirmDeleteGUI;
     private final ConfirmOverwriteGUI confirmOverwriteGUI;
     private final Messages messages;
+    private final TeleportManager teleportManager;
 
     public HomesGUIListener(HomeManager homeManager, HomesGUI homesGUI, ConfirmDeleteGUI confirmDeleteGUI,
-                            ConfirmOverwriteGUI confirmOverwriteGUI, Messages messages) {
+                            ConfirmOverwriteGUI confirmOverwriteGUI, TeleportManager teleportManager, Messages messages) {
         this.homeManager = homeManager;
         this.homesGUI = homesGUI;
         this.confirmDeleteGUI = confirmDeleteGUI;
         this.confirmOverwriteGUI = confirmOverwriteGUI;
+        this.teleportManager = teleportManager;
         this.messages = messages;
     }
 
@@ -129,14 +132,7 @@ public class HomesGUIListener implements Listener {
     }
 
     private void teleport(Player player, Home home) {
-        var location = home.toLocation();
-        if (location == null) {
-            player.sendMessage(messages.get("general.world-not-loaded"));
-            return;
-        }
-
         player.closeInventory();
-        player.teleport(location);
-        player.sendMessage(messages.get("home.success", "home", home.getName()));
+        teleportManager.requestTeleport(player, home);
     }
 }

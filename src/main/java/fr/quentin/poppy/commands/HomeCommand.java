@@ -2,9 +2,9 @@ package fr.quentin.poppy.commands;
 
 import fr.quentin.poppy.gui.HomesGUI;
 import fr.quentin.poppy.manager.HomeManager;
+import fr.quentin.poppy.manager.TeleportManager;
 import fr.quentin.poppy.model.Home;
 import fr.quentin.poppy.util.Messages;
-import org.bukkit.Location;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -18,11 +18,13 @@ public class HomeCommand implements CommandExecutor, TabCompleter {
 
     private final HomeManager homeManager;
     private final HomesGUI homesGUI;
+    private final TeleportManager teleportManager;
     private final Messages messages;
 
-    public HomeCommand(HomeManager homeManager, HomesGUI homesGUI, Messages messages) {
+    public HomeCommand(HomeManager homeManager, HomesGUI homesGUI, TeleportManager teleportManager, Messages messages) {
         this.homeManager = homeManager;
         this.homesGUI = homesGUI;
+        this.teleportManager = teleportManager;
         this.messages = messages;
     }
 
@@ -46,14 +48,7 @@ public class HomeCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        Location location = home.toLocation();
-        if (location == null) {
-            player.sendMessage(messages.get("general.world-not-loaded"));
-            return true;
-        }
-
-        player.teleport(location);
-        player.sendMessage(messages.get("home.success", "home", home.getName()));
+        teleportManager.requestTeleport(player, home);
         return true;
     }
 

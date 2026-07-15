@@ -9,6 +9,7 @@ import fr.quentin.poppy.gui.ConfirmOverwriteGUI;
 import fr.quentin.poppy.gui.HomesGUI;
 import fr.quentin.poppy.gui.HomesGUIListener;
 import fr.quentin.poppy.manager.HomeManager;
+import fr.quentin.poppy.manager.TeleportManager;
 import fr.quentin.poppy.util.Messages;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -19,15 +20,18 @@ public final class Poppy extends JavaPlugin {
 
     @Override
     public void onEnable() {
+        saveDefaultConfig();
+
         homeManager = new HomeManager(this);
         messages = new Messages(this);
         HomesGUI homesGUI = new HomesGUI(this, messages);
         ConfirmDeleteGUI confirmDeleteGUI = new ConfirmDeleteGUI(this, messages);
         ConfirmOverwriteGUI confirmOverwriteGUI = new ConfirmOverwriteGUI(this, messages);
+        TeleportManager teleportManager = new TeleportManager(this, messages);
 
         getCommand("sethome").setExecutor(new SetHomeCommand(homeManager, confirmOverwriteGUI, messages));
 
-        HomeCommand homeCommand = new HomeCommand(homeManager, homesGUI, messages);
+        HomeCommand homeCommand = new HomeCommand(homeManager, homesGUI, teleportManager, messages);
         getCommand("home").setExecutor(homeCommand);
         getCommand("home").setTabCompleter(homeCommand);
 
@@ -38,7 +42,8 @@ public final class Poppy extends JavaPlugin {
         getCommand("homes").setExecutor(new HomesCommand(homeManager, homesGUI, messages));
 
         getServer().getPluginManager().registerEvents(
-                new HomesGUIListener(homeManager, homesGUI, confirmDeleteGUI, confirmOverwriteGUI, messages), this);
+                new HomesGUIListener(homeManager, homesGUI, confirmDeleteGUI, confirmOverwriteGUI, teleportManager, messages), this);
+        getServer().getPluginManager().registerEvents(teleportManager, this);
 
         getLogger().info("Poppy has been enabled.");
     }

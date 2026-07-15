@@ -5,6 +5,7 @@ import fr.quentin.poppy.commands.HomeCommand;
 import fr.quentin.poppy.commands.HomesCommand;
 import fr.quentin.poppy.commands.SetHomeCommand;
 import fr.quentin.poppy.gui.ConfirmDeleteGUI;
+import fr.quentin.poppy.gui.ConfirmOverwriteGUI;
 import fr.quentin.poppy.gui.HomesGUI;
 import fr.quentin.poppy.gui.HomesGUIListener;
 import fr.quentin.poppy.manager.HomeManager;
@@ -22,8 +23,9 @@ public final class Poppy extends JavaPlugin {
         messages = new Messages(this);
         HomesGUI homesGUI = new HomesGUI(this, messages);
         ConfirmDeleteGUI confirmDeleteGUI = new ConfirmDeleteGUI(this, messages);
+        ConfirmOverwriteGUI confirmOverwriteGUI = new ConfirmOverwriteGUI(this, messages);
 
-        getCommand("sethome").setExecutor(new SetHomeCommand(homeManager, messages));
+        getCommand("sethome").setExecutor(new SetHomeCommand(homeManager, confirmOverwriteGUI, messages));
 
         HomeCommand homeCommand = new HomeCommand(homeManager, homesGUI, messages);
         getCommand("home").setExecutor(homeCommand);
@@ -35,7 +37,8 @@ public final class Poppy extends JavaPlugin {
 
         getCommand("homes").setExecutor(new HomesCommand(homeManager, homesGUI, messages));
 
-        getServer().getPluginManager().registerEvents(new HomesGUIListener(homeManager, homesGUI, confirmDeleteGUI, messages), this);
+        getServer().getPluginManager().registerEvents(
+                new HomesGUIListener(homeManager, homesGUI, confirmDeleteGUI, confirmOverwriteGUI, messages), this);
 
         getLogger().info("Poppy has been enabled.");
     }

@@ -1,5 +1,6 @@
 package fr.quentin.poppy.commands;
 
+import fr.quentin.poppy.gui.ConfirmOverwriteGUI;
 import fr.quentin.poppy.manager.HomeManager;
 import fr.quentin.poppy.model.Home;
 import fr.quentin.poppy.util.Messages;
@@ -11,10 +12,12 @@ import org.bukkit.entity.Player;
 public class SetHomeCommand implements CommandExecutor {
 
     private final HomeManager homeManager;
+    private final ConfirmOverwriteGUI confirmOverwriteGUI;
     private final Messages messages;
 
-    public SetHomeCommand(HomeManager homeManager, Messages messages) {
+    public SetHomeCommand(HomeManager homeManager, ConfirmOverwriteGUI confirmOverwriteGUI, Messages messages) {
         this.homeManager = homeManager;
+        this.confirmOverwriteGUI = confirmOverwriteGUI;
         this.messages = messages;
     }
 
@@ -33,7 +36,8 @@ public class SetHomeCommand implements CommandExecutor {
         String name = args[0];
 
         if (homeManager.hasHome(player.getUniqueId(), name)) {
-            player.sendMessage(messages.get("sethome.already-exists", "home", name));
+            Home pending = Home.fromLocation(name, player.getLocation());
+            confirmOverwriteGUI.open(player, pending);
             return true;
         }
 

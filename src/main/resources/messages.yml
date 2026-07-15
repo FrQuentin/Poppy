@@ -33,3 +33,10 @@ confirm:
   warning: "&7This action cannot be undone."
   "yes": "&aYes, delete it"
   "no": "&cNo, cancel"
+
+confirm-overwrite:
+  title: "&8Overwrite home?"
+  question: "&eOverwrite {home}?"
+  warning: "&7This will replace its saved location."
+  "yes": "&aYes, overwrite it"
+  "no": "&cNo, cancel"

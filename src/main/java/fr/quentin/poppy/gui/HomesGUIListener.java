@@ -16,12 +16,15 @@ public class HomesGUIListener implements Listener {
     private final HomeManager homeManager;
     private final HomesGUI homesGUI;
     private final ConfirmDeleteGUI confirmDeleteGUI;
+    private final ConfirmOverwriteGUI confirmOverwriteGUI;
     private final Messages messages;
 
-    public HomesGUIListener(HomeManager homeManager, HomesGUI homesGUI, ConfirmDeleteGUI confirmDeleteGUI, Messages messages) {
+    public HomesGUIListener(HomeManager homeManager, HomesGUI homesGUI, ConfirmDeleteGUI confirmDeleteGUI,
+                            ConfirmOverwriteGUI confirmOverwriteGUI, Messages messages) {
         this.homeManager = homeManager;
         this.homesGUI = homesGUI;
         this.confirmDeleteGUI = confirmDeleteGUI;
+        this.confirmOverwriteGUI = confirmOverwriteGUI;
         this.messages = messages;
     }
 
@@ -30,7 +33,9 @@ public class HomesGUIListener implements Listener {
         if (event.getInventory().getHolder() instanceof PoppyHomesHolder) {
             handleHomesClick(event);
         } else if (event.getInventory().getHolder() instanceof PoppyConfirmDeleteHolder holder) {
-            handleConfirmClick(event, holder);
+            handleConfirmDeleteClick(event, holder);
+        } else if (event.getInventory().getHolder() instanceof PoppyConfirmOverwriteHolder holder) {
+            handleConfirmOverwriteClick(event, holder);
         }
     }
 
@@ -53,7 +58,7 @@ public class HomesGUIListener implements Listener {
         }
     }
 
-    private void handleConfirmClick(InventoryClickEvent event, PoppyConfirmDeleteHolder holder) {
+    private void handleConfirmDeleteClick(InventoryClickEvent event, PoppyConfirmDeleteHolder holder) {
         event.setCancelled(true);
 
         if (!(event.getWhoClicked() instanceof Player player)) {
@@ -82,6 +87,33 @@ public class HomesGUIListener implements Listener {
         } else if (action.equals(ConfirmDeleteGUI.ACTION_CANCEL)) {
             homesGUI.open(player, homeManager);
         }
+    }
+
+    private void handleConfirmOverwriteClick(InventoryClickEvent event, PoppyConfirmOverwriteHolder holder) {
+        event.setCancelled(true);
+
+        if (!(event.getWhoClicked() instanceof Player player)) {
+            return;
+        }
+
+        ItemStack clicked = event.getCurrentItem();
+        if (clicked == null || clicked.getItemMeta() == null) {
+            return;
+        }
+
+        String action = clicked.getItemMeta().getPersistentDataContainer()
+                .get(confirmOverwriteGUI.getActionKey(), PersistentDataType.STRING);
+        if (action == null) {
+            return;
+        }
+
+        if (action.equals(ConfirmOverwriteGUI.ACTION_CONFIRM)) {
+            Home pending = holder.getPendingHome();
+            homeManager.addHome(player.getUniqueId(), pending);
+            player.sendMessage(messages.get("sethome.success", "home", pending.getName()));
+        }
+
+        player.closeInventory();
     }
 
     private Home homeFromItem(Player player, ItemStack item) {

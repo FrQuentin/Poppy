@@ -26,6 +26,12 @@ commands:
   spawn:
     description: Teleport back to the server spawn point.
     usage: /spawn
+  sharehome:
+    description: Share one of your homes in chat with a clickable teleport link.
+    usage: /sharehome <home>
+  poppygoto:
+    description: Internal command used by /sharehome links. Don't run this manually.
+    usage: /poppygoto <token>
 
 permissions:
   poppy.use:

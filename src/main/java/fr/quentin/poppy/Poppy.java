@@ -3,14 +3,17 @@ package fr.quentin.poppy;
 import fr.quentin.poppy.commands.DelHomeCommand;
 import fr.quentin.poppy.commands.HomeCommand;
 import fr.quentin.poppy.commands.HomesCommand;
+import fr.quentin.poppy.commands.PoppyGotoCommand;
 import fr.quentin.poppy.commands.SetHomeCommand;
 import fr.quentin.poppy.commands.SetSpawnCommand;
+import fr.quentin.poppy.commands.ShareHomeCommand;
 import fr.quentin.poppy.commands.SpawnCommand;
 import fr.quentin.poppy.gui.ConfirmDeleteGUI;
 import fr.quentin.poppy.gui.ConfirmOverwriteGUI;
 import fr.quentin.poppy.gui.HomesGUI;
 import fr.quentin.poppy.gui.HomesGUIListener;
 import fr.quentin.poppy.manager.HomeManager;
+import fr.quentin.poppy.manager.ShareManager;
 import fr.quentin.poppy.manager.SpawnManager;
 import fr.quentin.poppy.manager.TeleportManager;
 import fr.quentin.poppy.util.Messages;
@@ -32,6 +35,7 @@ public final class Poppy extends JavaPlugin {
         ConfirmOverwriteGUI confirmOverwriteGUI = new ConfirmOverwriteGUI(this, messages);
         TeleportManager teleportManager = new TeleportManager(this, messages);
         SpawnManager spawnManager = new SpawnManager(this);
+        ShareManager shareManager = new ShareManager(this);
 
         getCommand("sethome").setExecutor(new SetHomeCommand(homeManager, confirmOverwriteGUI, messages));
 
@@ -47,6 +51,11 @@ public final class Poppy extends JavaPlugin {
 
         getCommand("setspawn").setExecutor(new SetSpawnCommand(spawnManager, messages));
         getCommand("spawn").setExecutor(new SpawnCommand(spawnManager, teleportManager, messages));
+
+        ShareHomeCommand shareHomeCommand = new ShareHomeCommand(homeManager, shareManager, messages);
+        getCommand("sharehome").setExecutor(shareHomeCommand);
+        getCommand("sharehome").setTabCompleter(shareHomeCommand);
+        getCommand("poppygoto").setExecutor(new PoppyGotoCommand(shareManager, teleportManager, messages));
 
         getServer().getPluginManager().registerEvents(
                 new HomesGUIListener(homeManager, homesGUI, confirmDeleteGUI, confirmOverwriteGUI, teleportManager, messages), this);

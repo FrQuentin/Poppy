@@ -49,3 +49,12 @@ spawn:
   set: "&a[!] The spawn point has been set!"
   not-set: "&4[!] No spawn point has been set yet!"
   success: "&a[!] You have been teleported to spawn!"
+
+sharehome:
+  usage: "&4[!] Usage: &r/sharehome <home>"
+  not-found: "&4[!] You don't have a home with this name!"
+  broadcast-prefix: "&a{player} has shared the home &f\"{home}\"&a. "
+  click-text: "&e&nClick here to teleport&r"
+  click-hover: "&7Teleport to {home}"
+  expired: "&4[!] This shared home link has expired!"
+  teleport-success: "&a[!] You have been teleported to the shared home, {home}!"

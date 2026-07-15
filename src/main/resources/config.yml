@@ -6,3 +6,6 @@ teleport-warmup-seconds: 3
 
 # If true, moving (even one block) or taking damage during the warmup cancels the teleport.
 cancel-on-move: true
+
+# How long (in seconds) a /sharehome link stays clickable before it expires.
+sharehome-expiry-seconds: 300

@@ -22,17 +22,16 @@ import fr.quentin.poppy.manager.TeleportManager;
 import fr.quentin.poppy.util.Messages;
 import org.bukkit.plugin.java.JavaPlugin;
 
-public final class Poppy extends JavaPlugin {
+import java.util.Objects;
 
-    private HomeManager homeManager;
-    private Messages messages;
+public final class Poppy extends JavaPlugin {
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
 
-        homeManager = new HomeManager(this);
-        messages = new Messages(this);
+        HomeManager homeManager = new HomeManager(this);
+        Messages messages = new Messages(this);
         HomesGUI homesGUI = new HomesGUI(this, messages);
         ConfirmDeleteGUI confirmDeleteGUI = new ConfirmDeleteGUI(this, messages);
         ConfirmOverwriteGUI confirmOverwriteGUI = new ConfirmOverwriteGUI(this, messages);
@@ -41,27 +40,27 @@ public final class Poppy extends JavaPlugin {
         SpawnManager spawnManager = new SpawnManager(this);
         ShareManager shareManager = new ShareManager(this);
 
-        getCommand("sethome").setExecutor(new SetHomeCommand(homeManager, confirmOverwriteGUI, messages));
+        Objects.requireNonNull(getCommand("sethome")).setExecutor(new SetHomeCommand(homeManager, confirmOverwriteGUI, messages));
 
         HomeCommand homeCommand = new HomeCommand(homeManager, homesGUI, teleportManager, messages);
-        getCommand("home").setExecutor(homeCommand);
-        getCommand("home").setTabCompleter(homeCommand);
+        Objects.requireNonNull(getCommand("home")).setExecutor(homeCommand);
+        Objects.requireNonNull(getCommand("home")).setTabCompleter(homeCommand);
 
         DelHomeCommand delHomeCommand = new DelHomeCommand(homeManager, messages);
-        getCommand("delhome").setExecutor(delHomeCommand);
-        getCommand("delhome").setTabCompleter(delHomeCommand);
+        Objects.requireNonNull(getCommand("delhome")).setExecutor(delHomeCommand);
+        Objects.requireNonNull(getCommand("delhome")).setTabCompleter(delHomeCommand);
 
-        getCommand("homes").setExecutor(new HomesCommand(homeManager, homesGUI, messages));
+        Objects.requireNonNull(getCommand("homes")).setExecutor(new HomesCommand(homeManager, homesGUI, messages));
 
-        getCommand("setspawn").setExecutor(new SetSpawnCommand(spawnManager, messages));
-        getCommand("spawn").setExecutor(new SpawnCommand(spawnManager, teleportManager, messages));
+        Objects.requireNonNull(getCommand("setspawn")).setExecutor(new SetSpawnCommand(spawnManager, messages));
+        Objects.requireNonNull(getCommand("spawn")).setExecutor(new SpawnCommand(spawnManager, teleportManager, messages));
 
         ShareHomeCommand shareHomeCommand = new ShareHomeCommand(homeManager, shareManager, messages);
-        getCommand("sharehome").setExecutor(shareHomeCommand);
-        getCommand("sharehome").setTabCompleter(shareHomeCommand);
-        getCommand("poppygoto").setExecutor(new PoppyGotoCommand(shareManager, teleportManager, messages));
+        Objects.requireNonNull(getCommand("sharehome")).setExecutor(shareHomeCommand);
+        Objects.requireNonNull(getCommand("sharehome")).setTabCompleter(shareHomeCommand);
+        Objects.requireNonNull(getCommand("poppygoto")).setExecutor(new PoppyGotoCommand(shareManager, teleportManager, messages));
 
-        getCommand("back").setExecutor(new BackCommand(backManager, teleportManager, messages));
+        Objects.requireNonNull(getCommand("back")).setExecutor(new BackCommand(backManager, teleportManager, messages));
 
         getServer().getPluginManager().registerEvents(
                 new HomesGUIListener(homeManager, homesGUI, confirmDeleteGUI, confirmOverwriteGUI, teleportManager, messages), this);

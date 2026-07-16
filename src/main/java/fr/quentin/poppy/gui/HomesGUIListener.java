@@ -84,7 +84,7 @@ public class HomesGUIListener implements Listener {
             Home home = homeManager.getHome(player.getUniqueId(), homeName);
             if (home != null) {
                 homeManager.removeHome(player.getUniqueId(), homeName);
-                player.sendMessage(messages.get("delhome.success", "home", home.getName()));
+                player.sendMessage(messages.get("delhome.success", "home", home.name()));
             }
             homesGUI.open(player, homeManager);
         } else if (action.equals(ConfirmDeleteGUI.ACTION_CANCEL)) {
@@ -113,7 +113,7 @@ public class HomesGUIListener implements Listener {
         if (action.equals(ConfirmOverwriteGUI.ACTION_CONFIRM)) {
             Home pending = holder.getPendingHome();
             homeManager.addHome(player.getUniqueId(), pending);
-            player.sendMessage(messages.get("sethome.success", "home", pending.getName()));
+            player.sendMessage(messages.get("sethome.success", "home", pending.name()));
         }
 
         player.closeInventory();

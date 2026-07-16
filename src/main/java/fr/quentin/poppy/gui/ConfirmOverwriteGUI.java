@@ -47,7 +47,7 @@ public final class ConfirmOverwriteGUI {
 
         ItemStack info = new ItemStack(Material.PAPER);
         ItemMeta infoMeta = info.getItemMeta();
-        infoMeta.displayName(messages.get("confirm-overwrite.question", "home", pendingHome.getName()));
+        infoMeta.displayName(messages.get("confirm-overwrite.question", "home", pendingHome.name()));
         infoMeta.lore(List.of(messages.get("confirm-overwrite.warning")));
         info.setItemMeta(infoMeta);
         inventory.setItem(4, info);

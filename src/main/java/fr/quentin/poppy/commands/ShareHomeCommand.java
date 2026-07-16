@@ -13,6 +13,7 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
+import org.jspecify.annotations.NonNull;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,7 +31,7 @@ public class ShareHomeCommand implements CommandExecutor, TabCompleter {
     }
 
     @Override
-    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+    public boolean onCommand(@NonNull CommandSender sender, @NonNull Command command, @NonNull String label, String @NonNull [] args) {
         if (!(sender instanceof Player player)) {
             sender.sendMessage(messages.get("general.only-player"));
             return true;
@@ -50,25 +51,25 @@ public class ShareHomeCommand implements CommandExecutor, TabCompleter {
 
         String token = shareManager.share(home);
 
-        Component prefix = messages.get("sharehome.broadcast-prefix", "player", player.getName(), "home", home.getName());
-        Component clickText = messages.get("sharehome.click-text", "home", home.getName())
+        Component prefix = messages.get("sharehome.broadcast-prefix", "player", player.getName(), "home", home.name());
+        Component clickText = messages.get("sharehome.click-text", "home", home.name())
                 .clickEvent(ClickEvent.runCommand("/poppygoto " + token))
-                .hoverEvent(HoverEvent.showText(messages.get("sharehome.click-hover", "home", home.getName())));
+                .hoverEvent(HoverEvent.showText(messages.get("sharehome.click-hover", "home", home.name())));
 
         Bukkit.getServer().sendMessage(prefix.append(clickText));
         return true;
     }
 
     @Override
-    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+    public List<String> onTabComplete(@NonNull CommandSender sender, @NonNull Command command, @NonNull String alias, String @NonNull [] args) {
         if (!(sender instanceof Player player) || args.length != 1) {
             return List.of();
         }
         List<String> suggestions = new ArrayList<>();
         String partial = args[0].toLowerCase();
         for (Home home : homeManager.getHomes(player.getUniqueId()).values()) {
-            if (home.getName().toLowerCase().startsWith(partial)) {
-                suggestions.add(home.getName());
+            if (home.name().toLowerCase().startsWith(partial)) {
+                suggestions.add(home.name());
             }
         }
         return suggestions;

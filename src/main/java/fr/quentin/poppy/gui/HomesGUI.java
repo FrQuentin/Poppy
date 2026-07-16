@@ -29,12 +29,10 @@ public final class HomesGUI {
 
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("MMMM d, yyyy", Locale.ENGLISH);
 
-    private final Plugin plugin;
     private final Messages messages;
     private final NamespacedKey homeNameKey;
 
     public HomesGUI(Plugin plugin, Messages messages) {
-        this.plugin = plugin;
         this.messages = messages;
         this.homeNameKey = new NamespacedKey(plugin, "home_name");
     }
@@ -78,24 +76,24 @@ public final class HomesGUI {
         SkullMeta meta = (SkullMeta) item.getItemMeta();
 
         meta.setOwningPlayer(owner);
-        meta.displayName(messages.get("gui.home-name", "home", home.getName()));
+        meta.displayName(messages.get("gui.home-name", "home", home.name()));
 
-        String date = DATE_FORMAT.format(Instant.ofEpochMilli(home.getCreatedAt()).atZone(ZoneId.systemDefault()));
-        String worldLabel = worldLabel(home.getWorldName());
+        String date = DATE_FORMAT.format(Instant.ofEpochMilli(home.createdAt()).atZone(ZoneId.systemDefault()));
+        String worldLabel = worldLabel(home.worldName());
 
         List<Component> lore = new ArrayList<>();
         lore.add(messages.get("gui.lore-created", "date", date));
         lore.add(messages.get("gui.lore-world", "world", worldLabel));
         lore.add(messages.get("gui.lore-position",
-                "x", String.valueOf((int) home.getX()),
-                "y", String.valueOf((int) home.getY()),
-                "z", String.valueOf((int) home.getZ())));
+                "x", String.valueOf((int) home.x()),
+                "y", String.valueOf((int) home.y()),
+                "z", String.valueOf((int) home.z())));
         lore.add(Component.empty());
         lore.add(messages.get("gui.lore-teleport"));
         lore.add(messages.get("gui.lore-delete"));
 
         meta.lore(lore);
-        meta.getPersistentDataContainer().set(homeNameKey, PersistentDataType.STRING, home.getName());
+        meta.getPersistentDataContainer().set(homeNameKey, PersistentDataType.STRING, home.name());
 
         item.setItemMeta(meta);
         return item;

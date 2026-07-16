@@ -57,7 +57,7 @@ public class HomeManager {
     }
 
     public void addHome(UUID uuid, Home home) {
-        getHomes(uuid).put(home.getName().toLowerCase(), home);
+        getHomes(uuid).put(home.name().toLowerCase(), home);
         save(uuid);
     }
 
@@ -111,14 +111,14 @@ public class HomeManager {
         for (Map.Entry<String, Home> entry : homes.entrySet()) {
             Home home = entry.getValue();
             ConfigurationSection homeSection = homesSection.createSection(entry.getKey());
-            homeSection.set("name", home.getName());
-            homeSection.set("world", home.getWorldName());
-            homeSection.set("x", home.getX());
-            homeSection.set("y", home.getY());
-            homeSection.set("z", home.getZ());
-            homeSection.set("yaw", home.getYaw());
-            homeSection.set("pitch", home.getPitch());
-            homeSection.set("created", home.getCreatedAt());
+            homeSection.set("name", home.name());
+            homeSection.set("world", home.worldName());
+            homeSection.set("x", home.x());
+            homeSection.set("y", home.y());
+            homeSection.set("z", home.z());
+            homeSection.set("yaw", home.yaw());
+            homeSection.set("pitch", home.pitch());
+            homeSection.set("created", home.createdAt());
         }
 
         try {

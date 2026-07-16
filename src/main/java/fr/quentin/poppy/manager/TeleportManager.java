@@ -90,9 +90,6 @@ public class TeleportManager implements Listener {
         }
 
         Location to = event.getTo();
-        if (to == null) {
-            return;
-        }
 
         if (from.getBlockX() != to.getBlockX() || from.getBlockY() != to.getBlockY() || from.getBlockZ() != to.getBlockZ()) {
             cancelPending(uuid);
@@ -134,6 +131,6 @@ public class TeleportManager implements Listener {
 
         backManager.recordLocation(player);
         player.teleport(location);
-        player.sendMessage(messages.get(successMessagePath, "home", home.getName()));
+        player.sendMessage(messages.get(successMessagePath, "home", home.name()));
     }
 }

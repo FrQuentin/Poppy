@@ -33,7 +33,7 @@ public final class ConfirmDeleteGUI {
     }
 
     public void open(Player player, Home home) {
-        PoppyConfirmDeleteHolder holder = new PoppyConfirmDeleteHolder(home.getName());
+        PoppyConfirmDeleteHolder holder = new PoppyConfirmDeleteHolder(home.name());
         Inventory inventory = Bukkit.createInventory(holder, 9, messages.get("confirm.title"));
         holder.setInventory(inventory);
 
@@ -47,7 +47,7 @@ public final class ConfirmDeleteGUI {
 
         ItemStack info = new ItemStack(Material.PAPER);
         ItemMeta infoMeta = info.getItemMeta();
-        infoMeta.displayName(messages.get("confirm.question", "home", home.getName()));
+        infoMeta.displayName(messages.get("confirm.question", "home", home.name()));
         infoMeta.lore(List.of(messages.get("confirm.warning")));
         info.setItemMeta(infoMeta);
         inventory.setItem(4, info);

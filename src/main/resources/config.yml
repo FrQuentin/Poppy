@@ -1,3 +1,4 @@
+# Config.yml
 # Delay (in seconds) before a /home teleport actually happens.
 # The player sees a countdown in their action bar and the teleport is
 # cancelled if they move or take damage during the warmup.

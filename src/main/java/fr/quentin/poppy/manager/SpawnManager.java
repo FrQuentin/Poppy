@@ -67,13 +67,13 @@ public class SpawnManager {
 
     private void save() {
         YamlConfiguration config = new YamlConfiguration();
-        config.set("world", cachedSpawn.getWorldName());
-        config.set("x", cachedSpawn.getX());
-        config.set("y", cachedSpawn.getY());
-        config.set("z", cachedSpawn.getZ());
-        config.set("yaw", cachedSpawn.getYaw());
-        config.set("pitch", cachedSpawn.getPitch());
-        config.set("created", cachedSpawn.getCreatedAt());
+        config.set("world", cachedSpawn.worldName());
+        config.set("x", cachedSpawn.x());
+        config.set("y", cachedSpawn.y());
+        config.set("z", cachedSpawn.z());
+        config.set("yaw", cachedSpawn.yaw());
+        config.set("pitch", cachedSpawn.pitch());
+        config.set("created", cachedSpawn.createdAt());
 
         try {
             config.save(file);

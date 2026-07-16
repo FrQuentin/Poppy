@@ -14,12 +14,10 @@ import java.io.File;
  */
 public class Messages {
 
-    private final JavaPlugin plugin;
     private final File file;
     private YamlConfiguration config;
 
     public Messages(JavaPlugin plugin) {
-        this.plugin = plugin;
         this.file = new File(plugin.getDataFolder(), "messages.yml");
 
         if (!file.exists()) {

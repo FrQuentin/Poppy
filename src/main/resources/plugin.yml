@@ -32,6 +32,9 @@ commands:
   poppygoto:
     description: Internal command used by /sharehome links. Don't run this manually.
     usage: /poppygoto <token>
+  back:
+    description: Teleport back to your location before your last teleport, or where you died.
+    usage: /back
 
 permissions:
   poppy.use:

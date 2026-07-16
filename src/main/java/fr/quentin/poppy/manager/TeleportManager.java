@@ -22,13 +22,15 @@ public class TeleportManager implements Listener {
     private final Messages messages;
     private final int warmupSeconds;
     private final boolean cancelOnMove;
+    private final BackManager backManager;
 
     private final Map<UUID, BukkitTask> pendingTasks = new HashMap<>();
     private final Map<UUID, Location> startLocations = new HashMap<>();
 
-    public TeleportManager(JavaPlugin plugin, Messages messages) {
+    public TeleportManager(JavaPlugin plugin, Messages messages, BackManager backManager) {
         this.plugin = plugin;
         this.messages = messages;
+        this.backManager = backManager;
         this.warmupSeconds = Math.max(0, plugin.getConfig().getInt("teleport-warmup-seconds", 3));
         this.cancelOnMove = plugin.getConfig().getBoolean("cancel-on-move", true);
     }
@@ -130,6 +132,7 @@ public class TeleportManager implements Listener {
             return;
         }
 
+        backManager.recordLocation(player);
         player.teleport(location);
         player.sendMessage(messages.get(successMessagePath, "home", home.getName()));
     }

@@ -1,5 +1,6 @@
 package fr.quentin.poppy;
 
+import fr.quentin.poppy.commands.BackCommand;
 import fr.quentin.poppy.commands.DelHomeCommand;
 import fr.quentin.poppy.commands.HomeCommand;
 import fr.quentin.poppy.commands.HomesCommand;
@@ -12,6 +13,8 @@ import fr.quentin.poppy.gui.ConfirmDeleteGUI;
 import fr.quentin.poppy.gui.ConfirmOverwriteGUI;
 import fr.quentin.poppy.gui.HomesGUI;
 import fr.quentin.poppy.gui.HomesGUIListener;
+import fr.quentin.poppy.manager.BackListener;
+import fr.quentin.poppy.manager.BackManager;
 import fr.quentin.poppy.manager.HomeManager;
 import fr.quentin.poppy.manager.ShareManager;
 import fr.quentin.poppy.manager.SpawnManager;
@@ -33,7 +36,8 @@ public final class Poppy extends JavaPlugin {
         HomesGUI homesGUI = new HomesGUI(this, messages);
         ConfirmDeleteGUI confirmDeleteGUI = new ConfirmDeleteGUI(this, messages);
         ConfirmOverwriteGUI confirmOverwriteGUI = new ConfirmOverwriteGUI(this, messages);
-        TeleportManager teleportManager = new TeleportManager(this, messages);
+        BackManager backManager = new BackManager();
+        TeleportManager teleportManager = new TeleportManager(this, messages, backManager);
         SpawnManager spawnManager = new SpawnManager(this);
         ShareManager shareManager = new ShareManager(this);
 
@@ -57,9 +61,12 @@ public final class Poppy extends JavaPlugin {
         getCommand("sharehome").setTabCompleter(shareHomeCommand);
         getCommand("poppygoto").setExecutor(new PoppyGotoCommand(shareManager, teleportManager, messages));
 
+        getCommand("back").setExecutor(new BackCommand(backManager, teleportManager, messages));
+
         getServer().getPluginManager().registerEvents(
                 new HomesGUIListener(homeManager, homesGUI, confirmDeleteGUI, confirmOverwriteGUI, teleportManager, messages), this);
         getServer().getPluginManager().registerEvents(teleportManager, this);
+        getServer().getPluginManager().registerEvents(new BackListener(this, backManager), this);
 
         getLogger().info("Poppy has been enabled.");
     }

@@ -1,14 +1,6 @@
 package fr.quentin.poppy;
 
-import fr.quentin.poppy.commands.BackCommand;
-import fr.quentin.poppy.commands.DelHomeCommand;
-import fr.quentin.poppy.commands.HomeCommand;
-import fr.quentin.poppy.commands.HomesCommand;
-import fr.quentin.poppy.commands.PoppyGotoCommand;
-import fr.quentin.poppy.commands.SetHomeCommand;
-import fr.quentin.poppy.commands.SetSpawnCommand;
-import fr.quentin.poppy.commands.ShareHomeCommand;
-import fr.quentin.poppy.commands.SpawnCommand;
+import fr.quentin.poppy.commands.*;
 import fr.quentin.poppy.gui.ConfirmDeleteGUI;
 import fr.quentin.poppy.gui.ConfirmOverwriteGUI;
 import fr.quentin.poppy.gui.HomesGUI;
@@ -66,6 +58,8 @@ public final class Poppy extends JavaPlugin {
                 new HomesGUIListener(homeManager, homesGUI, confirmDeleteGUI, confirmOverwriteGUI, teleportManager, messages), this);
         getServer().getPluginManager().registerEvents(teleportManager, this);
         getServer().getPluginManager().registerEvents(new BackListener(this, backManager), this);
+
+        Objects.requireNonNull(getCommand("rtp")).setExecutor(new RtpCommand(this, teleportManager, messages));
 
         getLogger().info("Poppy has been enabled.");
     }

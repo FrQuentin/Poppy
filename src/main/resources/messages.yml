@@ -63,3 +63,8 @@ sharehome:
 back:
   not-found: "&4[!] You don't have anywhere to go back to!"
   success: "&a[!] You have been teleported back!"
+
+rtp:
+  success: "&a[!] You have been randomly teleported!"
+  failed: "&4[!] Couldn't find a safe spot, try again!"
+  cooldown: "&4[!] You must wait {seconds}s before using /rtp again!"

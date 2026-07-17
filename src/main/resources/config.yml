@@ -13,3 +13,11 @@ sharehome-expiry-seconds: 300
 
 # If true, dying also records a /back point (so you can return to where you died).
 back-on-death: true
+
+# /rtp settings: teleports the player to a random safe spot around their world's spawn.
+rtp-min-radius: 100
+rtp-max-radius: 5000
+# How many random spots to try before giving up and telling the player to try again.
+rtp-max-attempts: 20
+# Cooldown (in seconds) between two /rtp uses. Set to 0 to disable.
+rtp-cooldown-seconds: 30

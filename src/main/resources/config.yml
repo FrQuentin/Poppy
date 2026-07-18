@@ -28,3 +28,8 @@ trash-size: 27
 # Toggle Poppy's custom join/quit chat messages. Set to false if another plugin already handles these.
 custom-join-message: true
 custom-quit-message: true
+
+# If true, shows each player's health (in hearts) next to their name in the tab list.
+show-health-in-tab: true
+# How often (in ticks, 20 = 1 second) the tab list health is refreshed.
+tab-health-update-interval-ticks: 20

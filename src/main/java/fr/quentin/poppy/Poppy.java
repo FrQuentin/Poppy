@@ -2,6 +2,7 @@ package fr.quentin.poppy;
 
 import fr.quentin.poppy.commands.*;
 import fr.quentin.poppy.gui.*;
+import fr.quentin.poppy.listeners.JoinQuitListener;
 import fr.quentin.poppy.manager.BackListener;
 import fr.quentin.poppy.manager.BackManager;
 import fr.quentin.poppy.manager.HomeManager;
@@ -61,6 +62,7 @@ public final class Poppy extends JavaPlugin {
         getServer().getPluginManager().registerEvents(teleportManager, this);
         getServer().getPluginManager().registerEvents(new BackListener(this, backManager), this);
         getServer().getPluginManager().registerEvents(new TrashListener(this, messages), this);
+        getServer().getPluginManager().registerEvents(new JoinQuitListener(this, messages), this);
 
         getLogger().info("Poppy has been enabled.");
     }

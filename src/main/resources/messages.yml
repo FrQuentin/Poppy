@@ -70,3 +70,7 @@ rtp:
   success: "&a[!] You have been randomly teleported!"
   failed: "&4[!] Couldn't find a safe spot, try again!"
   cooldown: "&4[!] You must wait {seconds}s before using /rtp again!"
+
+trash:
+  title: "&8Trash"
+  emptied: "&7Trash emptied."

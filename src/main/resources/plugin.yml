@@ -53,6 +53,11 @@ commands:
     usage: /rtp
     permission: poppy.rtp
     permission-message: "&4[!] You don't have permission to do this."
+  trash:
+    description: Open a trash can - anything left inside when you close it is deleted.
+    usage: /trash
+    permission: poppy.trash
+    permission-message: "&4[!] You don't have permission to do this."
 
 permissions:
   poppy.*:
@@ -94,4 +99,7 @@ permissions:
     default: true
   poppy.rtp:
     description: Allows random-teleporting into the wilderness with /rtp.
+    default: true
+  poppy.trash:
+    description: Allows opening a trash can with /trash.
     default: true

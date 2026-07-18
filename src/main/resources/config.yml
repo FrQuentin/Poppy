@@ -21,3 +21,6 @@ rtp-max-radius: 5000
 rtp-max-attempts: 20
 # Cooldown (in seconds) between two /rtp uses. Set to 0 to disable.
 rtp-cooldown-seconds: 30
+
+# Size of the /trash inventory in slots. Must be a multiple of 9, between 9 and 54.
+trash-size: 27

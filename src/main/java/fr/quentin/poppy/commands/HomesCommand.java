@@ -3,26 +3,25 @@ package fr.quentin.poppy.commands;
 import fr.quentin.poppy.gui.HomesGUI;
 import fr.quentin.poppy.manager.HomeManager;
 import fr.quentin.poppy.util.Messages;
+import fr.quentin.poppy.util.SafeCommand;
 import org.bukkit.command.Command;
-import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
-import org.jspecify.annotations.NonNull;
+import org.bukkit.plugin.java.JavaPlugin;
 
-public class HomesCommand implements CommandExecutor {
+public class HomesCommand extends SafeCommand {
 
     private final HomeManager homeManager;
     private final HomesGUI homesGUI;
-    private final Messages messages;
 
-    public HomesCommand(HomeManager homeManager, HomesGUI homesGUI, Messages messages) {
+    public HomesCommand(JavaPlugin plugin, HomeManager homeManager, HomesGUI homesGUI, Messages messages) {
+        super(plugin, messages);
         this.homeManager = homeManager;
         this.homesGUI = homesGUI;
-        this.messages = messages;
     }
 
     @Override
-    public boolean onCommand(@NonNull CommandSender sender, @NonNull Command command, @NonNull String label, String @NonNull [] args) {
+    protected boolean execute(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player player)) {
             sender.sendMessage(messages.get("general.only-player"));
             return true;

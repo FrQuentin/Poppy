@@ -4,26 +4,25 @@ import fr.quentin.poppy.gui.ConfirmOverwriteGUI;
 import fr.quentin.poppy.manager.HomeManager;
 import fr.quentin.poppy.model.Home;
 import fr.quentin.poppy.util.Messages;
+import fr.quentin.poppy.util.SafeCommand;
 import org.bukkit.command.Command;
-import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
-import org.jspecify.annotations.NonNull;
+import org.bukkit.plugin.java.JavaPlugin;
 
-public class SetHomeCommand implements CommandExecutor {
+public class SetHomeCommand extends SafeCommand {
 
     private final HomeManager homeManager;
     private final ConfirmOverwriteGUI confirmOverwriteGUI;
-    private final Messages messages;
 
-    public SetHomeCommand(HomeManager homeManager, ConfirmOverwriteGUI confirmOverwriteGUI, Messages messages) {
+    public SetHomeCommand(JavaPlugin plugin, HomeManager homeManager, ConfirmOverwriteGUI confirmOverwriteGUI, Messages messages) {
+        super(plugin, messages);
         this.homeManager = homeManager;
         this.confirmOverwriteGUI = confirmOverwriteGUI;
-        this.messages = messages;
     }
 
     @Override
-    public boolean onCommand(@NonNull CommandSender sender, @NonNull Command command, @NonNull String label, String @NonNull [] args) {
+    protected boolean execute(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player player)) {
             sender.sendMessage(messages.get("general.only-player"));
             return true;

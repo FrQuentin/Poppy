@@ -4,26 +4,25 @@ import fr.quentin.poppy.manager.SpawnManager;
 import fr.quentin.poppy.manager.TeleportManager;
 import fr.quentin.poppy.model.Home;
 import fr.quentin.poppy.util.Messages;
+import fr.quentin.poppy.util.SafeCommand;
 import org.bukkit.command.Command;
-import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
-import org.jspecify.annotations.NonNull;
+import org.bukkit.plugin.java.JavaPlugin;
 
-public class SpawnCommand implements CommandExecutor {
+public class SpawnCommand extends SafeCommand {
 
     private final SpawnManager spawnManager;
     private final TeleportManager teleportManager;
-    private final Messages messages;
 
-    public SpawnCommand(SpawnManager spawnManager, TeleportManager teleportManager, Messages messages) {
+    public SpawnCommand(JavaPlugin plugin, SpawnManager spawnManager, TeleportManager teleportManager, Messages messages) {
+        super(plugin, messages);
         this.spawnManager = spawnManager;
         this.teleportManager = teleportManager;
-        this.messages = messages;
     }
 
     @Override
-    public boolean onCommand(@NonNull CommandSender sender, @NonNull Command command, @NonNull String label, String @NonNull [] args) {
+    protected boolean execute(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player player)) {
             sender.sendMessage(messages.get("general.only-player"));
             return true;

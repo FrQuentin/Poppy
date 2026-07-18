@@ -4,26 +4,25 @@ import fr.quentin.poppy.manager.ShareManager;
 import fr.quentin.poppy.manager.TeleportManager;
 import fr.quentin.poppy.model.Home;
 import fr.quentin.poppy.util.Messages;
+import fr.quentin.poppy.util.SafeCommand;
 import org.bukkit.command.Command;
-import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
-import org.jspecify.annotations.NonNull;
+import org.bukkit.plugin.java.JavaPlugin;
 
-public class PoppyGotoCommand implements CommandExecutor {
+public class PoppyGotoCommand extends SafeCommand {
 
     private final ShareManager shareManager;
     private final TeleportManager teleportManager;
-    private final Messages messages;
 
-    public PoppyGotoCommand(ShareManager shareManager, TeleportManager teleportManager, Messages messages) {
+    public PoppyGotoCommand(JavaPlugin plugin, ShareManager shareManager, TeleportManager teleportManager, Messages messages) {
+        super(plugin, messages);
         this.shareManager = shareManager;
         this.teleportManager = teleportManager;
-        this.messages = messages;
     }
 
     @Override
-    public boolean onCommand(@NonNull CommandSender sender, @NonNull Command command, @NonNull String label, String @NonNull [] args) {
+    protected boolean execute(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player player) || args.length != 1) {
             return true;
         }

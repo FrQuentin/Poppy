@@ -15,6 +15,7 @@ import org.bukkit.scheduler.BukkitTask;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.logging.Level;
 
 public class TeleportManager implements Listener {
 
@@ -55,22 +56,28 @@ public class TeleportManager implements Listener {
 
             @Override
             public void run() {
-                if (!player.isOnline()) {
+                try {
+                    if (!player.isOnline()) {
+                        cancelPending(uuid);
+                        cancel();
+                        return;
+                    }
+
+                    if (remaining <= 0) {
+                        pendingTasks.remove(uuid);
+                        startLocations.remove(uuid);
+                        teleportNow(player, home, successMessagePath);
+                        cancel();
+                        return;
+                    }
+
+                    player.sendActionBar(messages.get("teleport.warmup-actionbar", "seconds", String.valueOf(remaining)));
+                    remaining--;
+                } catch (Exception e) {
+                    plugin.getLogger().log(Level.SEVERE, "Error during teleport warmup for " + player.getName(), e);
                     cancelPending(uuid);
                     cancel();
-                    return;
                 }
-
-                if (remaining <= 0) {
-                    pendingTasks.remove(uuid);
-                    startLocations.remove(uuid);
-                    teleportNow(player, home, successMessagePath);
-                    cancel();
-                    return;
-                }
-
-                player.sendActionBar(messages.get("teleport.warmup-actionbar", "seconds", String.valueOf(remaining)));
-                remaining--;
             }
         }.runTaskTimer(plugin, 0L, 20L);
 
@@ -79,38 +86,49 @@ public class TeleportManager implements Listener {
 
     @EventHandler
     public void onMove(PlayerMoveEvent event) {
-        if (!cancelOnMove) {
-            return;
-        }
+        try {
+            if (!cancelOnMove) {
+                return;
+            }
 
-        UUID uuid = event.getPlayer().getUniqueId();
-        Location from = startLocations.get(uuid);
-        if (from == null) {
-            return;
-        }
+            UUID uuid = event.getPlayer().getUniqueId();
+            Location from = startLocations.get(uuid);
+            if (from == null) {
+                return;
+            }
 
-        Location to = event.getTo();
+            Location to = event.getTo();
+            if (to == null) {
+                return;
+            }
 
-        if (from.getBlockX() != to.getBlockX() || from.getBlockY() != to.getBlockY() || from.getBlockZ() != to.getBlockZ()) {
-            cancelPending(uuid);
-            event.getPlayer().sendMessage(messages.get("teleport.cancelled-move"));
+            if (from.getBlockX() != to.getBlockX() || from.getBlockY() != to.getBlockY() || from.getBlockZ() != to.getBlockZ()) {
+                cancelPending(uuid);
+                event.getPlayer().sendMessage(messages.get("teleport.cancelled-move"));
+            }
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE, "Error in TeleportManager#onMove for " + event.getPlayer().getName(), e);
         }
     }
 
     @EventHandler
     public void onDamage(EntityDamageEvent event) {
-        if (!cancelOnMove) {
-            return;
-        }
+        try {
+            if (!cancelOnMove) {
+                return;
+            }
 
-        if (!(event.getEntity() instanceof Player player)) {
-            return;
-        }
+            if (!(event.getEntity() instanceof Player player)) {
+                return;
+            }
 
-        UUID uuid = player.getUniqueId();
-        if (pendingTasks.containsKey(uuid)) {
-            cancelPending(uuid);
-            player.sendMessage(messages.get("teleport.cancelled-move"));
+            UUID uuid = player.getUniqueId();
+            if (pendingTasks.containsKey(uuid)) {
+                cancelPending(uuid);
+                player.sendMessage(messages.get("teleport.cancelled-move"));
+            }
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE, "Error in TeleportManager#onDamage", e);
         }
     }
 

@@ -5,32 +5,32 @@ import fr.quentin.poppy.manager.HomeManager;
 import fr.quentin.poppy.manager.TeleportManager;
 import fr.quentin.poppy.model.Home;
 import fr.quentin.poppy.util.Messages;
+import fr.quentin.poppy.util.SafeCommand;
 import org.bukkit.command.Command;
-import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
+import org.bukkit.plugin.java.JavaPlugin;
 import org.jspecify.annotations.NonNull;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class HomeCommand implements CommandExecutor, TabCompleter {
+public class HomeCommand extends SafeCommand implements TabCompleter {
 
     private final HomeManager homeManager;
     private final HomesGUI homesGUI;
     private final TeleportManager teleportManager;
-    private final Messages messages;
 
-    public HomeCommand(HomeManager homeManager, HomesGUI homesGUI, TeleportManager teleportManager, Messages messages) {
+    public HomeCommand(JavaPlugin plugin, HomeManager homeManager, HomesGUI homesGUI, TeleportManager teleportManager, Messages messages) {
+        super(plugin, messages);
         this.homeManager = homeManager;
         this.homesGUI = homesGUI;
         this.teleportManager = teleportManager;
-        this.messages = messages;
     }
 
     @Override
-    public boolean onCommand(@NonNull CommandSender sender, @NonNull Command command, @NonNull String label, String @NonNull [] args) {
+    protected boolean execute(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player player)) {
             sender.sendMessage(messages.get("general.only-player"));
             return true;

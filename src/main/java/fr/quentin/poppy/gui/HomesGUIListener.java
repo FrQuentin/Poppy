@@ -11,18 +11,23 @@ import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.plugin.java.JavaPlugin;
+
+import java.util.logging.Level;
 
 public class HomesGUIListener implements Listener {
 
+    private final JavaPlugin plugin;
     private final HomeManager homeManager;
     private final HomesGUI homesGUI;
     private final ConfirmDeleteGUI confirmDeleteGUI;
     private final ConfirmOverwriteGUI confirmOverwriteGUI;
-    private final Messages messages;
     private final TeleportManager teleportManager;
+    private final Messages messages;
 
-    public HomesGUIListener(HomeManager homeManager, HomesGUI homesGUI, ConfirmDeleteGUI confirmDeleteGUI,
+    public HomesGUIListener(JavaPlugin plugin, HomeManager homeManager, HomesGUI homesGUI, ConfirmDeleteGUI confirmDeleteGUI,
                             ConfirmOverwriteGUI confirmOverwriteGUI, TeleportManager teleportManager, Messages messages) {
+        this.plugin = plugin;
         this.homeManager = homeManager;
         this.homesGUI = homesGUI;
         this.confirmDeleteGUI = confirmDeleteGUI;
@@ -33,18 +38,34 @@ public class HomesGUIListener implements Listener {
 
     @EventHandler
     public void onClick(InventoryClickEvent event) {
-        if (event.getInventory().getHolder() instanceof PoppyHomesHolder) {
-            handleHomesClick(event);
-        } else if (event.getInventory().getHolder() instanceof PoppyConfirmDeleteHolder holder) {
-            handleConfirmDeleteClick(event, holder);
-        } else if (event.getInventory().getHolder() instanceof PoppyConfirmOverwriteHolder holder) {
-            handleConfirmOverwriteClick(event, holder);
+        boolean isPoppyGui = event.getInventory().getHolder() instanceof PoppyHomesHolder
+                || event.getInventory().getHolder() instanceof PoppyConfirmDeleteHolder
+                || event.getInventory().getHolder() instanceof PoppyConfirmOverwriteHolder;
+
+        if (!isPoppyGui) {
+            return;
+        }
+
+        event.setCancelled(true);
+
+        try {
+            if (event.getInventory().getHolder() instanceof PoppyHomesHolder) {
+                handleHomesClick(event);
+            } else if (event.getInventory().getHolder() instanceof PoppyConfirmDeleteHolder holder) {
+                handleConfirmDeleteClick(event, holder);
+            } else if (event.getInventory().getHolder() instanceof PoppyConfirmOverwriteHolder holder) {
+                handleConfirmOverwriteClick(event, holder);
+            }
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE, "Error handling a click in a Poppy GUI for " + event.getWhoClicked().getName(), e);
+            if (event.getWhoClicked() instanceof Player player) {
+                player.sendMessage(messages.get("general.error"));
+                player.closeInventory();
+            }
         }
     }
 
     private void handleHomesClick(InventoryClickEvent event) {
-        event.setCancelled(true);
-
         if (!(event.getWhoClicked() instanceof Player player)) {
             return;
         }
@@ -66,8 +87,6 @@ public class HomesGUIListener implements Listener {
     }
 
     private void handleConfirmDeleteClick(InventoryClickEvent event, PoppyConfirmDeleteHolder holder) {
-        event.setCancelled(true);
-
         if (!(event.getWhoClicked() instanceof Player player)) {
             return;
         }
@@ -97,8 +116,6 @@ public class HomesGUIListener implements Listener {
     }
 
     private void handleConfirmOverwriteClick(InventoryClickEvent event, PoppyConfirmOverwriteHolder holder) {
-        event.setCancelled(true);
-
         if (!(event.getWhoClicked() instanceof Player player)) {
             return;
         }

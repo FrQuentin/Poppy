@@ -4,34 +4,34 @@ import fr.quentin.poppy.manager.HomeManager;
 import fr.quentin.poppy.manager.ShareManager;
 import fr.quentin.poppy.model.Home;
 import fr.quentin.poppy.util.Messages;
+import fr.quentin.poppy.util.SafeCommand;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
-import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
+import org.bukkit.plugin.java.JavaPlugin;
 import org.jspecify.annotations.NonNull;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class ShareHomeCommand implements CommandExecutor, TabCompleter {
+public class ShareHomeCommand extends SafeCommand implements TabCompleter {
 
     private final HomeManager homeManager;
     private final ShareManager shareManager;
-    private final Messages messages;
 
-    public ShareHomeCommand(HomeManager homeManager, ShareManager shareManager, Messages messages) {
+    public ShareHomeCommand(JavaPlugin plugin, HomeManager homeManager, ShareManager shareManager, Messages messages) {
+        super(plugin, messages);
         this.homeManager = homeManager;
         this.shareManager = shareManager;
-        this.messages = messages;
     }
 
     @Override
-    public boolean onCommand(@NonNull CommandSender sender, @NonNull Command command, @NonNull String label, String @NonNull [] args) {
+    protected boolean execute(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player player)) {
             sender.sendMessage(messages.get("general.only-player"));
             return true;

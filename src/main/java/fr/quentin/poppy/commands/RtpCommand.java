@@ -3,26 +3,24 @@ package fr.quentin.poppy.commands;
 import fr.quentin.poppy.manager.TeleportManager;
 import fr.quentin.poppy.model.Home;
 import fr.quentin.poppy.util.Messages;
+import fr.quentin.poppy.util.SafeCommand;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.command.Command;
-import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.jspecify.annotations.NonNull;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
-public class RtpCommand implements CommandExecutor {
+public class RtpCommand extends SafeCommand {
 
     private final TeleportManager teleportManager;
-    private final Messages messages;
     private final int minRadius;
     private final int maxRadius;
     private final int maxAttempts;
@@ -31,8 +29,8 @@ public class RtpCommand implements CommandExecutor {
     private final Map<UUID, Long> lastUse = new HashMap<>();
 
     public RtpCommand(JavaPlugin plugin, TeleportManager teleportManager, Messages messages) {
+        super(plugin, messages);
         this.teleportManager = teleportManager;
-        this.messages = messages;
         this.minRadius = Math.max(0, plugin.getConfig().getInt("rtp-min-radius", 100));
         this.maxRadius = Math.max(minRadius + 1, plugin.getConfig().getInt("rtp-max-radius", 5000));
         this.maxAttempts = Math.max(1, plugin.getConfig().getInt("rtp-max-attempts", 20));
@@ -40,7 +38,7 @@ public class RtpCommand implements CommandExecutor {
     }
 
     @Override
-    public boolean onCommand(@NonNull CommandSender sender, @NonNull Command command, @NonNull String label, String @NonNull [] args) {
+    protected boolean execute(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player player)) {
             sender.sendMessage(messages.get("general.only-player"));
             return true;

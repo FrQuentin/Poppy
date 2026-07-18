@@ -57,6 +57,10 @@ public class HomesGUIListener implements Listener {
         if (event.isLeftClick()) {
             teleport(player, home);
         } else if (event.isRightClick()) {
+            if (!player.hasPermission("poppy.delhome")) {
+                player.sendMessage(messages.get("general.no-permission"));
+                return;
+            }
             confirmDeleteGUI.open(player, home);
         }
     }

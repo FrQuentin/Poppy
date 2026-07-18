@@ -109,10 +109,6 @@ public class RtpCommand implements CommandExecutor {
         if (feet.getType().isSolid() || head.getType().isSolid()) {
             return false;
         }
-        if (feet.isLiquid() || head.isLiquid()) {
-            return false;
-        }
-
-        return true;
+        return !feet.isLiquid() && !head.isLiquid();
     }
 }

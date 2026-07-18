@@ -1,6 +1,5 @@
 name: Poppy
 version: '${version}'
-
 main: fr.quentin.poppy.Poppy
 api-version: '26.2'
 load: POSTWORLD
@@ -9,15 +8,23 @@ commands:
   sethome:
     description: Create a new home at your current location.
     usage: /sethome <home>
+    permission: poppy.sethome
+    permission-message: "&4[!] You don't have permission to do this."
   home:
     description: Teleport to one of your homes, or open the homes menu.
     usage: /home [home]
+    permission: poppy.home
+    permission-message: "&4[!] You don't have permission to do this."
   delhome:
     description: Delete one of your homes.
     usage: /delhome <home>
+    permission: poppy.delhome
+    permission-message: "&4[!] You don't have permission to do this."
   homes:
     description: Open the GUI listing all your homes.
     usage: /homes
+    permission: poppy.homes
+    permission-message: "&4[!] You don't have permission to do this."
   setspawn:
     description: Set the server spawn point at your current location.
     usage: /setspawn
@@ -26,23 +33,65 @@ commands:
   spawn:
     description: Teleport back to the server spawn point.
     usage: /spawn
+    permission: poppy.spawn
+    permission-message: "&4[!] You don't have permission to do this."
   sharehome:
     description: Share one of your homes in chat with a clickable teleport link.
     usage: /sharehome <home>
+    permission: poppy.sharehome
+    permission-message: "&4[!] You don't have permission to do this."
   poppygoto:
     description: Internal command used by /sharehome links. Don't run this manually.
     usage: /poppygoto <token>
   back:
     description: Teleport back to your location before your last teleport, or where you died.
     usage: /back
+    permission: poppy.back
+    permission-message: "&4[!] You don't have permission to do this."
   rtp:
     description: Teleport to a random safe location in the wilderness.
     usage: /rtp
+    permission: poppy.rtp
+    permission-message: "&4[!] You don't have permission to do this."
 
 permissions:
-  poppy.use:
-    description: Allows use of all Poppy home commands.
+  poppy.*:
+    description: Grants access to every Poppy command, including admin ones.
+    default: op
+    children:
+      poppy.sethome: true
+      poppy.home: true
+      poppy.delhome: true
+      poppy.homes: true
+      poppy.setspawn: true
+      poppy.spawn: true
+      poppy.sharehome: true
+      poppy.back: true
+      poppy.rtp: true
+  poppy.sethome:
+    description: Allows creating homes with /sethome.
+    default: true
+  poppy.home:
+    description: Allows teleporting to a home with /home.
+    default: true
+  poppy.delhome:
+    description: Allows deleting homes with /delhome (and via the /homes GUI).
+    default: true
+  poppy.homes:
+    description: Allows opening the /homes GUI.
     default: true
   poppy.setspawn:
     description: Allows setting the server spawn point.
     default: op
+  poppy.spawn:
+    description: Allows teleporting to the server spawn point with /spawn.
+    default: true
+  poppy.sharehome:
+    description: Allows sharing homes in chat with /sharehome.
+    default: true
+  poppy.back:
+    description: Allows returning to the previous location with /back.
+    default: true
+  poppy.rtp:
+    description: Allows random-teleporting into the wilderness with /rtp.
+    default: true

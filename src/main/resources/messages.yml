@@ -78,3 +78,7 @@ trash:
 join-quit:
   join: "&a[!] The player {player} has joined the server."
   quit: "&4[!] The player {player} has left the server."
+
+afk:
+  now-afk: "&6[!] The player {player} is now AFK!"
+  no-longer-afk: "&6[!] The player {player} is no longer AFK!"

@@ -58,6 +58,11 @@ commands:
     usage: /trash
     permission: poppy.trash
     permission-message: "&4[!] You don't have permission to do this."
+  afk:
+    description: Toggle your AFK status, broadcast to the whole server.
+    usage: /afk
+    permission: poppy.afk
+    permission-message: "&4[!] You don't have permission to do this."
 
 permissions:
   poppy.*:
@@ -102,4 +107,7 @@ permissions:
     default: true
   poppy.trash:
     description: Allows opening a trash can with /trash.
+    default: true
+  poppy.afk:
+    description: Allows toggling AFK status with /afk.
     default: true

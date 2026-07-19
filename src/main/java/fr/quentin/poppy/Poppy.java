@@ -1,9 +1,27 @@
 package fr.quentin.poppy;
 
-import fr.quentin.poppy.commands.*;
-import fr.quentin.poppy.gui.*;
+import fr.quentin.poppy.commands.AfkCommand;
+import fr.quentin.poppy.commands.BackCommand;
+import fr.quentin.poppy.commands.DelHomeCommand;
+import fr.quentin.poppy.commands.HomeCommand;
+import fr.quentin.poppy.commands.HomesCommand;
+import fr.quentin.poppy.commands.PoppyGotoCommand;
+import fr.quentin.poppy.commands.RtpCommand;
+import fr.quentin.poppy.commands.SetHomeCommand;
+import fr.quentin.poppy.commands.SetSpawnCommand;
+import fr.quentin.poppy.commands.ShareHomeCommand;
+import fr.quentin.poppy.commands.SpawnCommand;
+import fr.quentin.poppy.commands.TrashCommand;
+import fr.quentin.poppy.gui.ConfirmDeleteGUI;
+import fr.quentin.poppy.gui.ConfirmOverwriteGUI;
+import fr.quentin.poppy.gui.HomesGUI;
+import fr.quentin.poppy.gui.HomesGUIListener;
+import fr.quentin.poppy.gui.TrashGUI;
+import fr.quentin.poppy.gui.TrashListener;
 import fr.quentin.poppy.listeners.JoinQuitListener;
 import fr.quentin.poppy.listeners.TabHealthListener;
+import fr.quentin.poppy.manager.AfkListener;
+import fr.quentin.poppy.manager.AfkManager;
 import fr.quentin.poppy.manager.BackListener;
 import fr.quentin.poppy.manager.BackManager;
 import fr.quentin.poppy.manager.HomeManager;
@@ -31,6 +49,7 @@ public final class Poppy extends JavaPlugin {
         SpawnManager spawnManager = new SpawnManager(this);
         ShareManager shareManager = new ShareManager(this);
         TrashGUI trashGUI = new TrashGUI(this, messages);
+        AfkManager afkManager = new AfkManager();
 
         Objects.requireNonNull(getCommand("sethome")).setExecutor(new SetHomeCommand(this, homeManager, confirmOverwriteGUI, messages));
 
@@ -58,13 +77,16 @@ public final class Poppy extends JavaPlugin {
 
         Objects.requireNonNull(getCommand("trash")).setExecutor(new TrashCommand(this, trashGUI, messages));
 
+        Objects.requireNonNull(getCommand("afk")).setExecutor(new AfkCommand(this, afkManager, messages));
+
         getServer().getPluginManager().registerEvents(
                 new HomesGUIListener(this, homeManager, homesGUI, confirmDeleteGUI, confirmOverwriteGUI, teleportManager, messages), this);
         getServer().getPluginManager().registerEvents(teleportManager, this);
         getServer().getPluginManager().registerEvents(new BackListener(this, backManager), this);
         getServer().getPluginManager().registerEvents(new TrashListener(this, messages), this);
         getServer().getPluginManager().registerEvents(new JoinQuitListener(this, messages), this);
-        getServer().getPluginManager().registerEvents(new TabHealthListener(this), this);
+        getServer().getPluginManager().registerEvents(new TabHealthListener(this, afkManager), this);
+        getServer().getPluginManager().registerEvents(new AfkListener(this, afkManager, messages), this);
 
         getLogger().info("Poppy has been enabled.");
     }

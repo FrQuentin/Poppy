@@ -1,5 +1,6 @@
 package fr.quentin.poppy.listeners;
 
+import fr.quentin.poppy.manager.AfkManager;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
@@ -17,10 +18,12 @@ import java.util.logging.Level;
 public class TabHealthListener implements Listener {
 
     private final JavaPlugin plugin;
+    private final AfkManager afkManager;
     private final boolean enabled;
 
-    public TabHealthListener(JavaPlugin plugin) {
+    public TabHealthListener(JavaPlugin plugin, AfkManager afkManager) {
         this.plugin = plugin;
+        this.afkManager = afkManager;
         this.enabled = plugin.getConfig().getBoolean("show-health-in-tab", true);
 
         if (enabled) {
@@ -59,12 +62,17 @@ public class TabHealthListener implements Listener {
 
     private void updatePlayer(Player player) {
         double heartsRaw = player.getHealth() / 2.0;
-        double hearts = Math.round(heartsRaw * 2) / 2.0; // nearest half-heart
+        double hearts = Math.round(heartsRaw * 2) / 2.0;
         String heartsText = (hearts == Math.floor(hearts)) ? String.valueOf((int) hearts) : String.valueOf(hearts);
 
         NamedTextColor color = healthColor(player.getHealth(), maxHealth(player));
 
-        Component listName = player.displayName()
+        Component prefix = afkManager.isAfk(player.getUniqueId())
+                ? Component.text("[AFK] ", NamedTextColor.GRAY)
+                : Component.empty();
+
+        Component listName = prefix
+                .append(player.displayName())
                 .append(Component.text("  \u2764 " + heartsText, color));
 
         player.playerListName(listName);

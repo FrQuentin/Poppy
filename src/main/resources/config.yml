@@ -43,3 +43,6 @@ combat-tag-seconds: 10
 # /afk still works as a manual toggle regardless of this setting.
 afk-auto-enabled: true
 afk-auto-minutes: 5
+
+# Toggle Poppy's custom "unknown command" message (replaces vanilla's "Unknown command").
+custom-unknown-command-message: true

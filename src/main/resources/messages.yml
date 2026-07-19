@@ -4,6 +4,7 @@ general:
   world-not-loaded: "&4[!] The world for this home isn't loaded right now."
   no-permission: "&4[!] You don't have permission to do this."
   error: "&4[!] An unexpected error occurred, please contact an admin."
+  unknown-command: "&4[!] This command doesn't exist, or does it?"
 
 sethome:
   usage: "&4[!] Usage: &r/sethome <home>"

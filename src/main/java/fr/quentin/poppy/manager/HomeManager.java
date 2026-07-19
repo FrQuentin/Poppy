@@ -1,24 +1,18 @@
 package fr.quentin.poppy.manager;
 
 import fr.quentin.poppy.model.Home;
+import org.bukkit.Bukkit;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.logging.Level;
 
-/**
- * Loads, caches and persists every player's homes as one YAML file per player,
- * stored under plugins/Poppy/homes/<uuid>.yml
- */
 public class HomeManager {
 
-    /** Double chest = 54 slots, so a player can't have more than 54 homes. */
     public static final int MAX_HOMES = 54;
 
     private final JavaPlugin plugin;
@@ -37,9 +31,6 @@ public class HomeManager {
         return new File(homesFolder, uuid.toString() + ".yml");
     }
 
-    /**
-     * Returns the (mutable, cached) map of home name -> Home for a player, loading it from disk on first access.
-     */
     public LinkedHashMap<String, Home> getHomes(UUID uuid) {
         return cache.computeIfAbsent(uuid, this::load);
     }
@@ -64,6 +55,21 @@ public class HomeManager {
     public void removeHome(UUID uuid, String name) {
         getHomes(uuid).remove(name.toLowerCase());
         save(uuid);
+    }
+
+    /**
+     * Suggests home names for tab-completion: every home whose name starts with the given
+     * (case-insensitive) prefix. Shared by every command that takes a home name argument.
+     */
+    public List<String> suggestHomeNames(UUID uuid, String prefix) {
+        String partial = prefix.toLowerCase();
+        List<String> suggestions = new ArrayList<>();
+        for (Home home : getHomes(uuid).values()) {
+            if (home.name().toLowerCase().startsWith(partial)) {
+                suggestions.add(home.name());
+            }
+        }
+        return suggestions;
     }
 
     private LinkedHashMap<String, Home> load(UUID uuid) {
@@ -105,6 +111,20 @@ public class HomeManager {
             return;
         }
 
+        YamlConfiguration config = buildConfig(homes);
+        File file = fileFor(uuid);
+
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> writeToDisk(config, file, uuid));
+    }
+
+    public void saveAllSync() {
+        for (Map.Entry<UUID, LinkedHashMap<String, Home>> entry : cache.entrySet()) {
+            YamlConfiguration config = buildConfig(entry.getValue());
+            writeToDisk(config, fileFor(entry.getKey()), entry.getKey());
+        }
+    }
+
+    private YamlConfiguration buildConfig(LinkedHashMap<String, Home> homes) {
         YamlConfiguration config = new YamlConfiguration();
         ConfigurationSection homesSection = config.createSection("homes");
 
@@ -121,10 +141,28 @@ public class HomeManager {
             homeSection.set("created", home.createdAt());
         }
 
+        return config;
+    }
+
+    private void writeToDisk(YamlConfiguration config, File file, UUID uuid) {
         try {
-            config.save(fileFor(uuid));
+            config.save(file);
         } catch (IOException e) {
             plugin.getLogger().log(Level.SEVERE, "Could not save homes for " + uuid, e);
         }
+    }
+
+    /**
+     * Called when a player leaves: flushes their homes to disk synchronously
+     * (so nothing is lost if the server stops right after) and evicts them
+     * from the in-memory cache to avoid an unbounded memory leak over time.
+     */
+    public void unload(UUID uuid) {
+        LinkedHashMap<String, Home> homes = cache.get(uuid);
+        if (homes == null) {
+            return;
+        }
+        writeToDisk(buildConfig(homes), fileFor(uuid), uuid);
+        cache.remove(uuid);
     }
 }

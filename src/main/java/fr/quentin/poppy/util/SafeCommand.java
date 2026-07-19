@@ -3,6 +3,7 @@ package fr.quentin.poppy.util;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jspecify.annotations.NonNull;
 
@@ -32,4 +33,16 @@ public abstract class SafeCommand implements CommandExecutor {
     }
 
     protected abstract boolean execute(CommandSender sender, Command command, String label, String[] args) throws Exception;
+
+    /**
+     * Returns the sender as a Player, or sends the "only players" message and returns null
+     * if it's console/a command block. Callers should return true right after a null check.
+     */
+    protected Player requirePlayer(CommandSender sender) {
+        if (sender instanceof Player player) {
+            return player;
+        }
+        sender.sendMessage(messages.get("general.only-player"));
+        return null;
+    }
 }

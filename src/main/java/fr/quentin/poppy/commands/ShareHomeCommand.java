@@ -32,8 +32,8 @@ public class ShareHomeCommand extends SafeCommand implements TabCompleter {
 
     @Override
     protected boolean execute(CommandSender sender, Command command, String label, String[] args) {
-        if (!(sender instanceof Player player)) {
-            sender.sendMessage(messages.get("general.only-player"));
+        Player player = requirePlayer(sender);
+        if (player == null) {
             return true;
         }
 
@@ -65,13 +65,6 @@ public class ShareHomeCommand extends SafeCommand implements TabCompleter {
         if (!(sender instanceof Player player) || args.length != 1) {
             return List.of();
         }
-        List<String> suggestions = new ArrayList<>();
-        String partial = args[0].toLowerCase();
-        for (Home home : homeManager.getHomes(player.getUniqueId()).values()) {
-            if (home.name().toLowerCase().startsWith(partial)) {
-                suggestions.add(home.name());
-            }
-        }
-        return suggestions;
+        return homeManager.suggestHomeNames(player.getUniqueId(), args[0]);
     }
 }

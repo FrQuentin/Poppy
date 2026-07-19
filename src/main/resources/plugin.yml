@@ -78,6 +78,8 @@ permissions:
       poppy.sharehome: true
       poppy.back: true
       poppy.rtp: true
+      poppy.trash: true
+      poppy.afk: true
   poppy.sethome:
     description: Allows creating homes with /sethome.
     default: true

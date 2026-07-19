@@ -11,6 +11,9 @@ import org.bukkit.block.Block;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.HashMap;
@@ -18,7 +21,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
-public class RtpCommand extends SafeCommand {
+public class RtpCommand extends SafeCommand implements Listener {
 
     private final TeleportManager teleportManager;
     private final int minRadius;
@@ -39,8 +42,8 @@ public class RtpCommand extends SafeCommand {
 
     @Override
     protected boolean execute(CommandSender sender, Command command, String label, String[] args) {
-        if (!(sender instanceof Player player)) {
-            sender.sendMessage(messages.get("general.only-player"));
+        Player player = requirePlayer(sender);
+        if (player == null) {
             return true;
         }
 
@@ -50,17 +53,50 @@ public class RtpCommand extends SafeCommand {
             return true;
         }
 
-        Location target = findSafeLocation(player.getWorld().getSpawnLocation());
-        if (target == null) {
+        attemptFindSafeLocation(player, player.getWorld().getSpawnLocation(), maxAttempts);
+        return true;
+    }
+
+    /**
+     * Tries one random candidate at a time, loading its chunk asynchronously so we never
+     * force-generate terrain on the main thread. Recurses (still off the hot path) until
+     * a safe spot is found or attempts run out.
+     */
+    private void attemptFindSafeLocation(Player player, Location center, int attemptsLeft) {
+        if (attemptsLeft <= 0) {
             player.sendMessage(messages.get("rtp.failed"));
-            return true;
+            return;
         }
 
-        lastUse.put(player.getUniqueId(), System.currentTimeMillis());
+        World world = center.getWorld();
+        double angle = ThreadLocalRandom.current().nextDouble(0, Math.PI * 2);
+        double distance = ThreadLocalRandom.current().nextDouble(minRadius, maxRadius);
+        int x = (int) (center.getX() + Math.cos(angle) * distance);
+        int z = (int) (center.getZ() + Math.sin(angle) * distance);
 
-        Home rtpHome = Home.fromLocation("rtp", target);
-        teleportManager.requestTeleport(player, rtpHome, "rtp.success");
-        return true;
+        // getChunkAtAsync loads (or generates) the chunk off-thread and completes its
+        // future back on the main thread, so it's safe to touch Bukkit API in thenAccept.
+        world.getChunkAtAsync(x >> 4, z >> 4).thenAccept(chunk -> {
+            if (!player.isOnline()) {
+                return;
+            }
+
+            int y = world.getHighestBlockYAt(x, z);
+            Location candidate = new Location(world, x + 0.5, y + 1, z + 0.5);
+
+            if (isSafe(candidate)) {
+                lastUse.put(player.getUniqueId(), System.currentTimeMillis());
+                Home rtpHome = Home.fromLocation("rtp", candidate);
+                teleportManager.requestTeleport(player, rtpHome, "rtp.success");
+            } else {
+                attemptFindSafeLocation(player, center, attemptsLeft - 1);
+            }
+        });
+    }
+
+    @EventHandler
+    public void onQuit(PlayerQuitEvent event) {
+        lastUse.remove(event.getPlayer().getUniqueId());
     }
 
     private long cooldownRemaining(UUID uuid) {
@@ -73,26 +109,6 @@ public class RtpCommand extends SafeCommand {
         }
         long remainingMillis = cooldownMillis - (System.currentTimeMillis() - last);
         return remainingMillis <= 0 ? 0 : (remainingMillis / 1000) + 1;
-    }
-
-    private Location findSafeLocation(Location center) {
-        World world = center.getWorld();
-
-        for (int i = 0; i < maxAttempts; i++) {
-            double angle = ThreadLocalRandom.current().nextDouble(0, Math.PI * 2);
-            double distance = ThreadLocalRandom.current().nextDouble(minRadius, maxRadius);
-            int x = (int) (center.getX() + Math.cos(angle) * distance);
-            int z = (int) (center.getZ() + Math.sin(angle) * distance);
-
-            int y = world.getHighestBlockYAt(x, z);
-            Location candidate = new Location(world, x + 0.5, y + 1, z + 0.5);
-
-            if (isSafe(candidate)) {
-                return candidate;
-            }
-        }
-
-        return null;
     }
 
     private boolean isSafe(Location location) {

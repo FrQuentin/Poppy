@@ -22,8 +22,8 @@ public class HomesCommand extends SafeCommand {
 
     @Override
     protected boolean execute(CommandSender sender, Command command, String label, String[] args) {
-        if (!(sender instanceof Player player)) {
-            sender.sendMessage(messages.get("general.only-player"));
+        Player player = requirePlayer(sender);
+        if (player == null) {
             return true;
         }
 

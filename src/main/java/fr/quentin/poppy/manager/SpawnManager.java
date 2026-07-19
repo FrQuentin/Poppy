@@ -1,6 +1,7 @@
 package fr.quentin.poppy.manager;
 
 import fr.quentin.poppy.model.Home;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -66,15 +67,35 @@ public class SpawnManager {
     }
 
     private void save() {
-        YamlConfiguration config = new YamlConfiguration();
-        config.set("world", cachedSpawn.worldName());
-        config.set("x", cachedSpawn.x());
-        config.set("y", cachedSpawn.y());
-        config.set("z", cachedSpawn.z());
-        config.set("yaw", cachedSpawn.yaw());
-        config.set("pitch", cachedSpawn.pitch());
-        config.set("created", cachedSpawn.createdAt());
+        if (cachedSpawn == null) {
+            return;
+        }
 
+        YamlConfiguration config = buildConfig(cachedSpawn);
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> writeToDisk(config));
+    }
+
+    public void saveSync() {
+        if (cachedSpawn == null) {
+            return;
+        }
+
+        writeToDisk(buildConfig(cachedSpawn));
+    }
+
+    private YamlConfiguration buildConfig(Home spawn) {
+        YamlConfiguration config = new YamlConfiguration();
+        config.set("world", spawn.worldName());
+        config.set("x", spawn.x());
+        config.set("y", spawn.y());
+        config.set("z", spawn.z());
+        config.set("yaw", spawn.yaw());
+        config.set("pitch", spawn.pitch());
+        config.set("created", spawn.createdAt());
+        return config;
+    }
+
+    private void writeToDisk(YamlConfiguration config) {
         try {
             config.save(file);
         } catch (IOException e) {

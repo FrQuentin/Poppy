@@ -21,17 +21,7 @@ import fr.quentin.poppy.gui.TrashListener;
 import fr.quentin.poppy.listeners.JoinQuitListener;
 import fr.quentin.poppy.listeners.TabHealthListener;
 import fr.quentin.poppy.listeners.UnknownCommandListener;
-import fr.quentin.poppy.manager.AfkListener;
-import fr.quentin.poppy.manager.AfkManager;
-import fr.quentin.poppy.manager.AutoAfkTask;
-import fr.quentin.poppy.manager.BackListener;
-import fr.quentin.poppy.manager.BackManager;
-import fr.quentin.poppy.manager.CombatListener;
-import fr.quentin.poppy.manager.CombatManager;
-import fr.quentin.poppy.manager.HomeManager;
-import fr.quentin.poppy.manager.ShareManager;
-import fr.quentin.poppy.manager.SpawnManager;
-import fr.quentin.poppy.manager.TeleportManager;
+import fr.quentin.poppy.manager.*;
 import fr.quentin.poppy.util.Messages;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -39,11 +29,16 @@ import java.util.Objects;
 
 public final class Poppy extends JavaPlugin {
 
+    private HomeManager homeManager;
+    private SpawnManager spawnManager;
+
     @Override
     public void onEnable() {
         saveDefaultConfig();
 
-        HomeManager homeManager = new HomeManager(this);
+        homeManager = new HomeManager(this);
+        spawnManager = new SpawnManager(this);
+
         Messages messages = new Messages(this);
         HomesGUI homesGUI = new HomesGUI(this, messages);
         ConfirmDeleteGUI confirmDeleteGUI = new ConfirmDeleteGUI(this, messages);
@@ -51,7 +46,6 @@ public final class Poppy extends JavaPlugin {
         BackManager backManager = new BackManager();
         CombatManager combatManager = new CombatManager(getConfig().getLong("combat-tag-seconds", 10));
         TeleportManager teleportManager = new TeleportManager(this, messages, backManager, combatManager);
-        SpawnManager spawnManager = new SpawnManager(this);
         ShareManager shareManager = new ShareManager(this);
         TrashGUI trashGUI = new TrashGUI(this, messages);
         AfkManager afkManager = new AfkManager();
@@ -78,7 +72,9 @@ public final class Poppy extends JavaPlugin {
 
         Objects.requireNonNull(getCommand("back")).setExecutor(new BackCommand(this, backManager, teleportManager, messages));
 
-        Objects.requireNonNull(getCommand("rtp")).setExecutor(new RtpCommand(this, teleportManager, messages));
+        RtpCommand rtpCommand = new RtpCommand(this, teleportManager, messages);
+        Objects.requireNonNull(getCommand("rtp")).setExecutor(rtpCommand);
+        getServer().getPluginManager().registerEvents(rtpCommand, this);
 
         Objects.requireNonNull(getCommand("trash")).setExecutor(new TrashCommand(this, trashGUI, messages));
 
@@ -94,6 +90,7 @@ public final class Poppy extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new AfkListener(this, afkManager, messages), this);
         getServer().getPluginManager().registerEvents(new CombatListener(this, combatManager), this);
         getServer().getPluginManager().registerEvents(new UnknownCommandListener(this, messages), this);
+        getServer().getPluginManager().registerEvents(new HomeCacheListener(homeManager), this);
 
         if (getConfig().getBoolean("afk-auto-enabled", true)) {
             new AutoAfkTask(this, afkManager, messages).runTaskTimer(this, 20L * 60, 20L * 60);
@@ -104,6 +101,12 @@ public final class Poppy extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (homeManager != null) {
+            homeManager.saveAllSync();
+        }
+        if (spawnManager != null) {
+            spawnManager.saveSync();
+        }
         getLogger().info("Poppy has been disabled.");
     }
 }

@@ -8,6 +8,14 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
+/**
+ * Holds short-lived tokens created by /sharehome, each mapped to the shared
+ * {@link Home}. A token is the only access control for the click-to-teleport
+ * link — see {@link fr.quentin.poppy.commands.PoppyGotoCommand} — so it's
+ * scoped to {@code sharehome-expiry-seconds} (config.yml, 300s by default,
+ * minimum 30s) and self-removes via a scheduled task rather than lingering
+ * in memory.
+ */
 public class ShareManager {
 
     private final JavaPlugin plugin;

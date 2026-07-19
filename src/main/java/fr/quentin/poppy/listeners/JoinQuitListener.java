@@ -7,9 +7,16 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.jspecify.annotations.NonNull;
 
 import java.util.logging.Level;
 
+/**
+ * Replaces the vanilla join/quit chat messages with Poppy's own, each
+ * independently toggleable via {@code custom-join-message} /
+ * {@code custom-quit-message} in config.yml — useful when another plugin
+ * (e.g. a chat formatter) already handles these.
+ */
 public class JoinQuitListener implements Listener {
 
     private final JavaPlugin plugin;
@@ -25,7 +32,7 @@ public class JoinQuitListener implements Listener {
     }
 
     @EventHandler
-    public void onJoin(PlayerJoinEvent event) {
+    public void onJoin(@NonNull PlayerJoinEvent event) {
         if (!customJoin) {
             return;
         }
@@ -39,7 +46,7 @@ public class JoinQuitListener implements Listener {
     }
 
     @EventHandler
-    public void onQuit(PlayerQuitEvent event) {
+    public void onQuit(@NonNull PlayerQuitEvent event) {
         if (!customQuit) {
             return;
         }

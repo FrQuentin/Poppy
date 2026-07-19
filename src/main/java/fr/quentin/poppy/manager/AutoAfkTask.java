@@ -9,6 +9,12 @@ import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.logging.Level;
 
+/**
+ * Periodic task (runs every minute regardless of {@code afk-auto-minutes},
+ * see {@code Poppy#onEnable}) that marks players AFK once they've been
+ * inactive for the configured duration. Manual {@code /afk} toggles still
+ * work independently — see {@link fr.quentin.poppy.commands.AfkCommand}.
+ */
 public class AutoAfkTask extends BukkitRunnable {
 
     private final JavaPlugin plugin;
@@ -26,8 +32,8 @@ public class AutoAfkTask extends BukkitRunnable {
 
     @Override
     public void run() {
-        try {
-            for (Player player : Bukkit.getOnlinePlayers()) {
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            try {
                 if (afkManager.isAfk(player.getUniqueId())) {
                     continue;
                 }
@@ -37,9 +43,9 @@ public class AutoAfkTask extends BukkitRunnable {
                     Component broadcast = messages.get("afk.now-afk", "player", player.getName());
                     Bukkit.getServer().sendMessage(broadcast);
                 }
+            } catch (Exception e) {
+                plugin.getLogger().log(Level.SEVERE, "Error in AutoAfkTask for " + player.getName(), e);
             }
-        } catch (Exception e) {
-            plugin.getLogger().log(Level.SEVERE, "Error in AutoAfkTask", e);
         }
     }
 }

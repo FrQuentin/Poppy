@@ -10,6 +10,8 @@ cancel-on-move: true
 
 # How long (in seconds) a /sharehome link stays clickable before it expires.
 sharehome-expiry-seconds: 300
+# Cooldown (in seconds) between two /sharehome uses. Set to 0 to disable.
+sharehome-cooldown-seconds: 30
 
 # If true, dying also records a /back point (so you can return to where you died).
 back-on-death: true

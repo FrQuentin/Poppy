@@ -9,7 +9,16 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.jspecify.annotations.NonNull;
 
+/**
+ * Handles /afk: toggles the sender's AFK status and broadcasts the change
+ * to the whole server. The actual AFK state is tracked by {@link AfkManager};
+ * this class is only responsible for the command entry point and the message.
+ *
+ * @see fr.quentin.poppy.manager.AfkListener AfkListener, which clears AFK automatically on movement
+ * @see fr.quentin.poppy.manager.AutoAfkTask AutoAfkTask, which sets AFK automatically after inactivity
+ */
 public class AfkCommand extends SafeCommand {
 
     private final AfkManager afkManager;
@@ -20,7 +29,7 @@ public class AfkCommand extends SafeCommand {
     }
 
     @Override
-    protected boolean execute(CommandSender sender, Command command, String label, String[] args) {
+    protected boolean execute(@NonNull CommandSender sender, @NonNull Command command, @NonNull String label, String @NonNull [] args) {
         Player player = requirePlayer(sender);
         if (player == null) {
             return true;

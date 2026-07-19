@@ -2,11 +2,17 @@ package fr.quentin.poppy.gui;
 
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
-import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 
 /**
  * Marker holder so the click listener can recognize a /homes inventory
  * without relying on the title (which can be localized/changed).
+ *
+ * <p>Two-step construction: {@link #setInventory(Inventory)} must be called
+ * immediately after the constructor, before this holder is attached to any
+ * inventory that could be read from — {@link HomesGUI#open} does this
+ * correctly. {@link #getInventory()} is {@code @NonNull} on the trust that
+ * this ordering is respected.
  */
 public class PoppyHomesHolder implements InventoryHolder {
 
@@ -17,7 +23,7 @@ public class PoppyHomesHolder implements InventoryHolder {
     }
 
     @Override
-    public @NotNull Inventory getInventory() {
+    public @NonNull Inventory getInventory() {
         return inventory;
     }
 }

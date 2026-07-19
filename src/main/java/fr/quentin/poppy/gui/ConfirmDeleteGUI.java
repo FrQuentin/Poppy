@@ -15,6 +15,13 @@ import org.bukkit.plugin.Plugin;
 
 import java.util.List;
 
+/**
+ * Builds the small 9-slot "are you sure?" GUI shown before deleting a home,
+ * reachable via /delhome's confirmation step or a right-click in the
+ * /homes GUI. The chosen action is read back from the clicked item's
+ * {@link PersistentDataType#STRING} value under {@link #getActionKey()} —
+ * see {@link HomesGUIListener#handleConfirmDeleteClick}.
+ */
 public final class ConfirmDeleteGUI {
 
     public static final String ACTION_CONFIRM = "confirm";

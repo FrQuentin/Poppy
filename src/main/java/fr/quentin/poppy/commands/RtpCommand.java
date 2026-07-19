@@ -5,6 +5,7 @@ import fr.quentin.poppy.model.Home;
 import fr.quentin.poppy.util.Messages;
 import fr.quentin.poppy.util.PoppyStats;
 import fr.quentin.poppy.util.SafeCommand;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
@@ -16,12 +17,24 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.jspecify.annotations.NonNull;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.logging.Level;
 
+/**
+ * Handles /rtp: teleports the sender to a random safe spot around their
+ * world's spawn, within the configured min/max radius.
+ *
+ * <p>Chunk lookups go through {@link World#getChunkAtAsync(int, int)} rather
+ * than the synchronous {@code getChunkAt}, so an unexplored area doesn't
+ * force chunk generation on the main thread and stall the server — this
+ * matters a lot here since the default 5000-block max radius routinely
+ * lands outside already-generated terrain.
+ */
 public class RtpCommand extends SafeCommand implements Listener {
 
     private final TeleportManager teleportManager;
@@ -44,7 +57,7 @@ public class RtpCommand extends SafeCommand implements Listener {
     }
 
     @Override
-    protected boolean execute(CommandSender sender, Command command, String label, String[] args) {
+    protected boolean execute(@NonNull CommandSender sender, @NonNull Command command, @NonNull String label, String @NonNull [] args) {
         Player player = requirePlayer(sender);
         if (player == null) {
             return true;
@@ -77,23 +90,34 @@ public class RtpCommand extends SafeCommand implements Listener {
         int x = (int) (center.getX() + Math.cos(angle) * distance);
         int z = (int) (center.getZ() + Math.sin(angle) * distance);
 
-        world.getChunkAtAsync(x >> 4, z >> 4).thenAccept(chunk -> {
-            if (!player.isOnline()) {
-                return;
-            }
+        world.getChunkAtAsync(x >> 4, z >> 4)
+                .thenAccept(chunk -> {
+                    if (!player.isOnline()) {
+                        return;
+                    }
 
-            int y = world.getHighestBlockYAt(x, z);
-            Location candidate = new Location(world, x + 0.5, y + 1, z + 0.5);
+                    int y = world.getHighestBlockYAt(x, z);
+                    Location candidate = new Location(world, x + 0.5, y + 1, z + 0.5);
 
-            if (isSafe(candidate)) {
-                lastUse.put(player.getUniqueId(), System.currentTimeMillis());
-                stats.incrementRtpUsed();
-                Home rtpHome = Home.fromLocation("rtp", candidate);
-                teleportManager.requestTeleport(player, rtpHome, "rtp.success");
-            } else {
-                attemptFindSafeLocation(player, center, attemptsLeft - 1);
-            }
-        });
+                    if (isSafe(candidate)) {
+                        lastUse.put(player.getUniqueId(), System.currentTimeMillis());
+                        stats.incrementRtpUsed();
+                        Home rtpHome = Home.fromLocation("rtp", candidate);
+                        teleportManager.requestTeleport(player, rtpHome, "rtp.success");
+                    } else {
+                        attemptFindSafeLocation(player, center, attemptsLeft - 1);
+                    }
+                })
+                .exceptionally(throwable -> {
+                    // thenAccept runs after execute(...) has already returned, so this is
+                    // outside SafeCommand's try/catch — without this handler an exception
+                    // here would just vanish silently inside the CompletableFuture.
+                    plugin.getLogger().log(Level.SEVERE, "Error resolving a /rtp location for " + player.getName(), throwable);
+                    if (player.isOnline()) {
+                        Bukkit.getScheduler().runTask(plugin, () -> player.sendMessage(messages.get("general.error")));
+                    }
+                    return null;
+                });
     }
 
     @EventHandler

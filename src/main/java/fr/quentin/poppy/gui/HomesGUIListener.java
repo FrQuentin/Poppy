@@ -16,6 +16,18 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.logging.Level;
 
+/**
+ * Handles clicks in all three Poppy inventory GUIs (the /homes list and its
+ * two confirmation screens), routed by the clicked inventory's
+ * {@link org.bukkit.inventory.InventoryHolder} marker type rather than by
+ * title, since titles can be re-themed in messages.yml without breaking
+ * this listener.
+ *
+ * <p>{@link #handleConfirmDeleteClick} and {@link #handleConfirmOverwriteClick}
+ * are {@code protected} rather than {@code private} to stay overridable/testable
+ * from a subclass; every other handler here has no reason to be exposed and
+ * stays {@code private}.
+ */
 public class HomesGUIListener implements Listener {
 
     private final JavaPlugin plugin;
@@ -89,7 +101,7 @@ public class HomesGUIListener implements Listener {
         }
     }
 
-    private void handleConfirmDeleteClick(InventoryClickEvent event, PoppyConfirmDeleteHolder holder) {
+    protected void handleConfirmDeleteClick(InventoryClickEvent event, PoppyConfirmDeleteHolder holder) {
         if (!(event.getWhoClicked() instanceof Player player)) {
             return;
         }
@@ -119,7 +131,7 @@ public class HomesGUIListener implements Listener {
         }
     }
 
-    private void handleConfirmOverwriteClick(InventoryClickEvent event, PoppyConfirmOverwriteHolder holder) {
+    protected void handleConfirmOverwriteClick(InventoryClickEvent event, PoppyConfirmOverwriteHolder holder) {
         if (!(event.getWhoClicked() instanceof Player player)) {
             return;
         }

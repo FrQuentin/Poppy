@@ -39,6 +39,18 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.Objects;
 
+/**
+ * Plugin entry point: wires every manager, GUI, command, and listener
+ * together in {@link #onEnable}, and flushes homes/spawn to disk in
+ * {@link #onDisable}.
+ *
+ * <p>Note that Bukkit fires {@link org.bukkit.event.player.PlayerQuitEvent}
+ * for every online player before {@code onDisable} runs, so by the time
+ * {@link #onDisable} calls {@link HomeManager#saveAllSync()},
+ * {@link HomeCacheListener} has typically already flushed and evicted every
+ * player's cache entry — {@code saveAllSync} is a safety net for anything
+ * left over (e.g. after an abnormal shutdown), not the primary save path.
+ */
 public final class Poppy extends JavaPlugin {
 
     private HomeManager homeManager;
@@ -105,7 +117,8 @@ public final class Poppy extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new AfkListener(this, afkManager, messages), this);
         getServer().getPluginManager().registerEvents(new CombatListener(this, combatManager), this);
         getServer().getPluginManager().registerEvents(new UnknownCommandListener(this, messages), this);
-        getServer().getPluginManager().registerEvents(new HomeCacheListener(homeManager), this);
+        getServer().getPluginManager().registerEvents(new HomeCacheListener(this, homeManager), this);
+        getServer().getPluginManager().registerEvents(shareHomeCommand, this);
 
         if (getConfig().getBoolean("afk-auto-enabled", true)) {
             new AutoAfkTask(this, afkManager, messages).runTaskTimer(this, 20L * 60, 20L * 60);

@@ -9,7 +9,13 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.jspecify.annotations.NonNull;
 
+/**
+ * Handles /spawn: teleports the sender to the server spawn point set via
+ * /setspawn, going through {@link TeleportManager} so the usual
+ * warmup/combat-tag rules apply.
+ */
 public class SpawnCommand extends SafeCommand {
 
     private final SpawnManager spawnManager;
@@ -22,7 +28,7 @@ public class SpawnCommand extends SafeCommand {
     }
 
     @Override
-    protected boolean execute(CommandSender sender, Command command, String label, String[] args) {
+    protected boolean execute(@NonNull CommandSender sender, @NonNull Command command, @NonNull String label, String @NonNull [] args) {
         Player player = requirePlayer(sender);
         if (player == null) {
             return true;

@@ -9,7 +9,15 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.jspecify.annotations.NonNull;
 
+/**
+ * Internal command triggered by the clickable link created by /sharehome —
+ * never meant to be typed manually. Deliberately has no permission node in
+ * plugin.yml: the short-lived {@link ShareManager} token itself is the
+ * access control, so any player who received (or guessed) a valid token can
+ * use it.
+ */
 public class PoppyGotoCommand extends SafeCommand {
 
     private final ShareManager shareManager;
@@ -22,7 +30,7 @@ public class PoppyGotoCommand extends SafeCommand {
     }
 
     @Override
-    protected boolean execute(CommandSender sender, Command command, String label, String[] args) {
+    protected boolean execute(@NonNull CommandSender sender, @NonNull Command command, @NonNull String label, String @NonNull [] args) {
         if (!(sender instanceof Player player) || args.length != 1) {
             return true;
         }

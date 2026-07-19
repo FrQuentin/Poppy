@@ -11,6 +11,7 @@ import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.Plugin;
@@ -24,6 +25,9 @@ import java.util.Locale;
 
 /**
  * Builds the double-chest inventory listing every home the player owns.
+ * Inventory size is tied to {@link HomeManager#MAX_HOMES} (54 = one double
+ * chest), so every home always fits in a single page — there is no
+ * pagination because the cap and the GUI size are kept in lockstep.
  */
 public final class HomesGUI {
 
@@ -65,7 +69,7 @@ public final class HomesGUI {
 
     private ItemStack buildFiller() {
         ItemStack filler = new ItemStack(Material.LIGHT_GRAY_STAINED_GLASS_PANE);
-        var meta = filler.getItemMeta();
+        ItemMeta meta = filler.getItemMeta();
         meta.displayName(messages.get("gui.filler"));
         filler.setItemMeta(meta);
         return filler;
@@ -99,11 +103,19 @@ public final class HomesGUI {
         return item;
     }
 
+    /**
+     * Note: if the home's world is currently unloaded, we deliberately show
+     * "Unknown" rather than guessing NORMAL/Nether/End from a default — a
+     * silent wrong guess (e.g. showing "Overworld" for a Nether home) is
+     * worse than an honest "we don't know right now".
+     */
     private String worldLabel(String worldName) {
         World world = Bukkit.getWorld(worldName);
-        World.Environment environment = world != null ? world.getEnvironment() : World.Environment.NORMAL;
+        if (world == null) {
+            return "Unknown";
+        }
 
-        return switch (environment) {
+        return switch (world.getEnvironment()) {
             case NETHER -> "Nether";
             case THE_END -> "End";
             default -> "Overworld";

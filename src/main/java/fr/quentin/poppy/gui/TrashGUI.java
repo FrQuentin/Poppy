@@ -6,6 +6,15 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.plugin.java.JavaPlugin;
 
+/**
+ * Builds the /trash inventory: a plain chest GUI with no confirmation step.
+ * Anything left inside when the player closes it is deleted by
+ * {@link TrashListener}.
+ *
+ * <p>{@code trash-size} from config.yml is normalized to a multiple of 9
+ * between 9 and 54 (Bukkit chest inventories require this), falling back to
+ * 27 if the configured value rounds down below 9.
+ */
 public final class TrashGUI {
 
     private final Messages messages;

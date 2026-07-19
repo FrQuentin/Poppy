@@ -4,10 +4,18 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.jspecify.annotations.NonNull;
 
 import java.util.logging.Level;
 
+/**
+ * Records the player's death location into {@link BackManager} so /back can
+ * return them there, toggleable via {@code back-on-death} in config.yml.
+ * Also evicts the player's entry from {@link BackManager} on quit, so that
+ * map doesn't retain a Location forever for players who log off.
+ */
 public class BackListener implements Listener {
 
     private final JavaPlugin plugin;
@@ -21,7 +29,7 @@ public class BackListener implements Listener {
     }
 
     @EventHandler
-    public void onDeath(PlayerDeathEvent event) {
+    public void onDeath(@NonNull PlayerDeathEvent event) {
         try {
             if (!recordOnDeath) {
                 return;
@@ -32,5 +40,10 @@ public class BackListener implements Listener {
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Error in BackListener#onDeath for " + event.getEntity().getName(), e);
         }
+    }
+
+    @EventHandler
+    public void onQuit(@NonNull PlayerQuitEvent event) {
+        backManager.remove(event.getPlayer().getUniqueId());
     }
 }

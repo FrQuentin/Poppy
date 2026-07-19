@@ -14,6 +14,11 @@ import org.jspecify.annotations.NonNull;
 
 import java.util.List;
 
+/**
+ * Handles /delhome: deletes one of the sender's homes by name.
+ * Also reachable via the /homes GUI (right-click + confirm), which calls
+ * {@link HomeManager} directly rather than going through this class.
+ */
 public class DelHomeCommand extends SafeCommand implements TabCompleter {
 
     private final HomeManager homeManager;
@@ -26,7 +31,7 @@ public class DelHomeCommand extends SafeCommand implements TabCompleter {
     }
 
     @Override
-    protected boolean execute(CommandSender sender, Command command, String label, String[] args) {
+    protected boolean execute(@NonNull CommandSender sender, @NonNull Command command, @NonNull String label, String @NonNull [] args) {
         Player player = requirePlayer(sender);
         if (player == null) {
             return true;

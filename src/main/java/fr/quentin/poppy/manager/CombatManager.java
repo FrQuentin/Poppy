@@ -4,6 +4,16 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
+/**
+ * Tracks combat-tag expiry times. A tagged player stays "in combat" for
+ * {@code durationMillis} after their last hit (given or received), during
+ * which {@link TeleportManager} blocks /home, /spawn, /back and /rtp.
+ *
+ * <p>Entries expire lazily: {@link #isInCombat} removes a stale entry the
+ * first time it's checked past its end time, so no periodic cleanup task is
+ * needed. {@link #remove(UUID)} additionally clears state immediately on
+ * player quit, via {@link CombatListener#onQuit}.
+ */
 public class CombatManager {
 
     private final long durationMillis;

@@ -7,6 +7,17 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
+/**
+ * Tracks each player's most recent pre-teleport location for /back. The
+ * entry is overwritten on every Poppy teleport (see
+ * {@link TeleportManager#teleportNow}) and on death (see
+ * {@link BackListener#onDeath}), so /back always points to "where you were
+ * right before your last jump", which can chain (back → back → back...).
+ *
+ * <p>{@link #remove(UUID)} must be called on player quit to avoid retaining
+ * a Location forever for players who log off — wired up via
+ * {@link BackListener#onQuit}.
+ */
 public class BackManager {
 
     private final Map<UUID, Location> backLocations = new HashMap<>();
@@ -17,5 +28,9 @@ public class BackManager {
 
     public Location getBack(UUID uuid) {
         return backLocations.get(uuid);
+    }
+
+    public void remove(UUID uuid) {
+        backLocations.remove(uuid);
     }
 }

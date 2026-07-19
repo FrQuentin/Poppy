@@ -10,7 +10,18 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.jspecify.annotations.NonNull;
 
+/**
+ * Handles /back: teleports the sender to their previous location, as recorded
+ * by {@link BackManager} before their last Poppy teleport (or on death, if
+ * {@code back-on-death} is enabled in config.yml).
+ *
+ * <p>Note that {@link BackManager} stores a raw Bukkit {@link Location} rather
+ * than a world name, so the target world may have been unloaded since the
+ * location was recorded — this is checked explicitly below rather than left
+ * to fail inside {@link Home#fromLocation}.
+ */
 public class BackCommand extends SafeCommand {
 
     private final BackManager backManager;
@@ -23,7 +34,7 @@ public class BackCommand extends SafeCommand {
     }
 
     @Override
-    protected boolean execute(CommandSender sender, Command command, String label, String[] args) {
+    protected boolean execute(@NonNull CommandSender sender, @NonNull Command command, @NonNull String label, String @NonNull [] args) {
         Player player = requirePlayer(sender);
         if (player == null) {
             return true;
@@ -32,6 +43,11 @@ public class BackCommand extends SafeCommand {
         Location target = backManager.getBack(player.getUniqueId());
         if (target == null) {
             player.sendMessage(messages.get("back.not-found"));
+            return true;
+        }
+
+        if (target.getWorld() == null) {
+            player.sendMessage(messages.get("general.world-not-loaded"));
             return true;
         }
 

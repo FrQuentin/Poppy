@@ -5,13 +5,21 @@ import org.bukkit.Location;
 import org.bukkit.World;
 
 /**
- * Immutable representation of a player's home.
+ * Immutable representation of a player's home (or the server spawn, which
+ * reuses this same record with a fixed {@code "spawn"} name — see
+ * {@link fr.quentin.poppy.manager.SpawnManager}).
  */
 public record Home(String name, String worldName, double x, double y, double z, float yaw, float pitch,
                    long createdAt) {
 
     /**
      * Builds a Home from a player's current location, stamped with the current time.
+     *
+     * @param location must have a non-null {@link Location#getWorld()} — every
+     *                  call site is expected to guarantee this beforehand (a live
+     *                  player's location always has one; callers building a
+     *                  {@code Location} from a possibly-unloaded world, like
+     *                  {@code BackCommand}, must check for {@code null} first).
      */
     public static Home fromLocation(String name, Location location) {
         return new Home(

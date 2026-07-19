@@ -8,7 +8,12 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.jspecify.annotations.NonNull;
 
+/**
+ * Handles /homes: opens the double-chest GUI listing all of the sender's
+ * homes. Functionally equivalent to running /home with no argument.
+ */
 public class HomesCommand extends SafeCommand {
 
     private final HomeManager homeManager;
@@ -21,7 +26,7 @@ public class HomesCommand extends SafeCommand {
     }
 
     @Override
-    protected boolean execute(CommandSender sender, Command command, String label, String[] args) {
+    protected boolean execute(@NonNull CommandSender sender, @NonNull Command command, @NonNull String label, String @NonNull [] args) {
         Player player = requirePlayer(sender);
         if (player == null) {
             return true;

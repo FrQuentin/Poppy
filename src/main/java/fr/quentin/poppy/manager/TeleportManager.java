@@ -12,12 +12,25 @@ import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
+import org.jspecify.annotations.NonNull;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.logging.Level;
 
+/**
+ * Central point for every Poppy teleport (/home, /spawn, /back, /rtp,
+ * shared-home links): applies the configured warmup countdown, cancels it
+ * on movement or damage, and blocks the whole request while the player is
+ * combat-tagged (see {@link CombatManager}).
+ *
+ * <p>{@code pendingTasks} and {@code startLocations} only hold entries for
+ * the few seconds a warmup is active — unlike {@link HomeManager}'s cache or
+ * {@link BackManager}'s locations, they are not a memory-leak risk and don't
+ * need an explicit quit listener: the running {@link BukkitRunnable} already
+ * self-cleans via {@code !player.isOnline()} on its very next tick.
+ */
 public class TeleportManager implements Listener {
 
     private final JavaPlugin plugin;
@@ -103,7 +116,7 @@ public class TeleportManager implements Listener {
     }
 
     @EventHandler
-    public void onMove(PlayerMoveEvent event) {
+    public void onMove(@NonNull PlayerMoveEvent event) {
         try {
             if (!cancelOnMove) {
                 return;
@@ -130,7 +143,7 @@ public class TeleportManager implements Listener {
     }
 
     @EventHandler
-    public void onDamage(EntityDamageEvent event) {
+    public void onDamage(@NonNull EntityDamageEvent event) {
         try {
             if (!cancelOnMove) {
                 return;
@@ -158,7 +171,7 @@ public class TeleportManager implements Listener {
         startLocations.remove(uuid);
     }
 
-    private void teleportNow(Player player, Home home, String successMessagePath) {
+    protected void teleportNow(Player player, Home home, String successMessagePath) {
         Location location = home.toLocation();
         if (location == null) {
             player.sendMessage(messages.get("general.world-not-loaded"));

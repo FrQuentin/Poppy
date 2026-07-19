@@ -9,9 +9,16 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.projectiles.ProjectileSource;
+import org.jspecify.annotations.NonNull;
 
 import java.util.logging.Level;
 
+/**
+ * Tags both parties in PvP (melee or projectile) into {@link CombatManager},
+ * which {@link TeleportManager} then checks to block /home, /spawn, /back
+ * and /rtp for a short time after combat — see {@code combat-tag-enabled}
+ * / {@code combat-tag-seconds} in config.yml.
+ */
 public class CombatListener implements Listener {
 
     private final JavaPlugin plugin;
@@ -25,7 +32,7 @@ public class CombatListener implements Listener {
     }
 
     @EventHandler
-    public void onDamage(EntityDamageByEntityEvent event) {
+    public void onDamage(@NonNull EntityDamageByEntityEvent event) {
         if (!enabled) {
             return;
         }
@@ -48,7 +55,7 @@ public class CombatListener implements Listener {
     }
 
     @EventHandler
-    public void onQuit(PlayerQuitEvent event) {
+    public void onQuit(@NonNull PlayerQuitEvent event) {
         combatManager.remove(event.getPlayer().getUniqueId());
     }
 

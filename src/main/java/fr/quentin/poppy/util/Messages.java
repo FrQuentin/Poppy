@@ -11,6 +11,11 @@ import java.io.File;
 /**
  * Loads every player-facing message from messages.yml so colors (using classic &a, &c, etc.
  * codes) can be tweaked without touching any Java code.
+ *
+ * <p>If a requested path is missing from messages.yml, {@link #get} falls
+ * back to displaying the path itself rather than an empty string or an
+ * exception — an admin who broke their messages.yml sees exactly which key
+ * is missing, in-game, instead of a silent blank message.
  */
 public class Messages {
 

@@ -15,6 +15,13 @@ import org.bukkit.plugin.Plugin;
 
 import java.util.List;
 
+/**
+ * Builds the small 9-slot "are you sure?" GUI shown by /sethome when the
+ * sender already has a home with the given name. The pending {@link Home}
+ * (built from the sender's current location, not yet saved) travels inside
+ * {@link PoppyConfirmOverwriteHolder} until the player confirms — see
+ * {@link HomesGUIListener#handleConfirmOverwriteClick}.
+ */
 public final class ConfirmOverwriteGUI {
 
     public static final String ACTION_CONFIRM = "confirm";

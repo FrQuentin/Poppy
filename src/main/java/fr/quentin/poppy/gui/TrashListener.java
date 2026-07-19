@@ -6,9 +6,15 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.jspecify.annotations.NonNull;
 
 import java.util.logging.Level;
 
+/**
+ * Empties the /trash inventory whenever it's closed — anything the player
+ * left inside is deleted, matching the "trash can" semantics described in
+ * plugin.yml's command usage.
+ */
 public class TrashListener implements Listener {
 
     private final JavaPlugin plugin;
@@ -20,7 +26,7 @@ public class TrashListener implements Listener {
     }
 
     @EventHandler
-    public void onClose(InventoryCloseEvent event) {
+    public void onClose(@NonNull InventoryCloseEvent event) {
         if (!(event.getInventory().getHolder() instanceof TrashHolder)) {
             return;
         }

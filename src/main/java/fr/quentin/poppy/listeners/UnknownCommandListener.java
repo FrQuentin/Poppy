@@ -5,9 +5,14 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.command.UnknownCommandEvent;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.jspecify.annotations.NonNull;
 
 import java.util.logging.Level;
 
+/**
+ * Replaces vanilla's "Unknown command" message with Poppy's own, toggleable
+ * via {@code custom-unknown-command-message} in config.yml.
+ */
 public class UnknownCommandListener implements Listener {
 
     private final JavaPlugin plugin;
@@ -21,7 +26,7 @@ public class UnknownCommandListener implements Listener {
     }
 
     @EventHandler
-    public void onUnknownCommand(UnknownCommandEvent event) {
+    public void onUnknownCommand(@NonNull UnknownCommandEvent event) {
         if (!enabled) {
             return;
         }

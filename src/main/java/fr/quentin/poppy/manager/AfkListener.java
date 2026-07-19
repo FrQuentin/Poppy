@@ -11,9 +11,16 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.jspecify.annotations.NonNull;
 
 import java.util.logging.Level;
 
+/**
+ * Feeds player activity into {@link AfkManager}: records movement (ignoring
+ * head-rotation-only events, since {@link PlayerMoveEvent} fires on those
+ * too) and automatically clears AFK status the moment a player who was
+ * marked AFK moves again.
+ */
 public class AfkListener implements Listener {
 
     private final JavaPlugin plugin;
@@ -27,17 +34,17 @@ public class AfkListener implements Listener {
     }
 
     @EventHandler
-    public void onJoin(PlayerJoinEvent event) {
+    public void onJoin(@NonNull PlayerJoinEvent event) {
         afkManager.recordActivity(event.getPlayer().getUniqueId());
     }
 
     @EventHandler
-    public void onQuit(PlayerQuitEvent event) {
+    public void onQuit(@NonNull PlayerQuitEvent event) {
         afkManager.remove(event.getPlayer().getUniqueId());
     }
 
     @EventHandler
-    public void onMove(PlayerMoveEvent event) {
+    public void onMove(@NonNull PlayerMoveEvent event) {
         try {
             Player player = event.getPlayer();
 

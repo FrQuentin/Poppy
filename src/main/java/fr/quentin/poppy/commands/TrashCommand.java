@@ -7,7 +7,12 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.jspecify.annotations.NonNull;
 
+/**
+ * Handles /trash: opens a virtual trash can. Anything left inside when the
+ * player closes it is deleted — see {@link fr.quentin.poppy.gui.TrashListener}.
+ */
 public class TrashCommand extends SafeCommand {
 
     private final TrashGUI trashGUI;
@@ -18,7 +23,7 @@ public class TrashCommand extends SafeCommand {
     }
 
     @Override
-    protected boolean execute(CommandSender sender, Command command, String label, String[] args) {
+    protected boolean execute(@NonNull CommandSender sender, @NonNull Command command, @NonNull String label, String @NonNull [] args) {
         Player player = requirePlayer(sender);
         if (player == null) {
             return true;

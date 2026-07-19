@@ -12,9 +12,22 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.jspecify.annotations.NonNull;
 
 import java.util.logging.Level;
 
+/**
+ * Shows each online player's health (as hearts) and AFK status next to
+ * their name in the tab list, refreshed on a fixed interval plus on join.
+ * Toggle with {@code show-health-in-tab}; refresh rate with
+ * {@code tab-health-update-interval-ticks} in config.yml.
+ *
+ * <p>Note the repeating task is scheduled directly from the constructor —
+ * this is safe (scheduling doesn't depend on the listener being registered
+ * yet) but means a {@code new TabHealthListener(...)} call has a side
+ * effect beyond field assignment; keep that in mind if this class is ever
+ * constructed more than once.
+ */
 public class TabHealthListener implements Listener {
 
     private final JavaPlugin plugin;
@@ -38,7 +51,7 @@ public class TabHealthListener implements Listener {
     }
 
     @EventHandler
-    public void onJoin(PlayerJoinEvent event) {
+    public void onJoin(@NonNull PlayerJoinEvent event) {
         if (!enabled) {
             return;
         }
@@ -50,13 +63,18 @@ public class TabHealthListener implements Listener {
         }
     }
 
+    /**
+     * Each player is updated in its own try/catch so that one player's
+     * failure (missing attribute, a bad displayName from another plugin,
+     * etc.) doesn't skip the rest of the tab list for this tick.
+     */
     private void updateAll() {
-        try {
-            for (Player player : Bukkit.getOnlinePlayers()) {
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            try {
                 updatePlayer(player);
+            } catch (Exception e) {
+                plugin.getLogger().log(Level.SEVERE, "Error updating tab list health for " + player.getName(), e);
             }
-        } catch (Exception e) {
-            plugin.getLogger().log(Level.SEVERE, "Error updating tab list health", e);
         }
     }
 

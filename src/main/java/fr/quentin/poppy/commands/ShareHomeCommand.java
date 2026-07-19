@@ -4,6 +4,7 @@ import fr.quentin.poppy.manager.HomeManager;
 import fr.quentin.poppy.manager.ShareManager;
 import fr.quentin.poppy.model.Home;
 import fr.quentin.poppy.util.Messages;
+import fr.quentin.poppy.util.PoppyStats;
 import fr.quentin.poppy.util.SafeCommand;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
@@ -16,18 +17,19 @@ import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jspecify.annotations.NonNull;
 
-import java.util.ArrayList;
 import java.util.List;
 
 public class ShareHomeCommand extends SafeCommand implements TabCompleter {
 
     private final HomeManager homeManager;
     private final ShareManager shareManager;
+    private final PoppyStats stats;
 
-    public ShareHomeCommand(JavaPlugin plugin, HomeManager homeManager, ShareManager shareManager, Messages messages) {
+    public ShareHomeCommand(JavaPlugin plugin, HomeManager homeManager, ShareManager shareManager, Messages messages, PoppyStats stats) {
         super(plugin, messages);
         this.homeManager = homeManager;
         this.shareManager = shareManager;
+        this.stats = stats;
     }
 
     @Override
@@ -50,6 +52,7 @@ public class ShareHomeCommand extends SafeCommand implements TabCompleter {
         }
 
         String token = shareManager.share(home);
+        stats.incrementSharesCreated();
 
         Component prefix = messages.get("sharehome.broadcast-prefix", "player", player.getName(), "home", home.name());
         Component clickText = messages.get("sharehome.click-text", "home", home.name())

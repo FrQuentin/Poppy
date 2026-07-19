@@ -3,6 +3,7 @@ package fr.quentin.poppy.commands;
 import fr.quentin.poppy.manager.TeleportManager;
 import fr.quentin.poppy.model.Home;
 import fr.quentin.poppy.util.Messages;
+import fr.quentin.poppy.util.PoppyStats;
 import fr.quentin.poppy.util.SafeCommand;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -24,6 +25,7 @@ import java.util.concurrent.ThreadLocalRandom;
 public class RtpCommand extends SafeCommand implements Listener {
 
     private final TeleportManager teleportManager;
+    private final PoppyStats stats;
     private final int minRadius;
     private final int maxRadius;
     private final int maxAttempts;
@@ -31,9 +33,10 @@ public class RtpCommand extends SafeCommand implements Listener {
 
     private final Map<UUID, Long> lastUse = new HashMap<>();
 
-    public RtpCommand(JavaPlugin plugin, TeleportManager teleportManager, Messages messages) {
+    public RtpCommand(JavaPlugin plugin, TeleportManager teleportManager, Messages messages, PoppyStats stats) {
         super(plugin, messages);
         this.teleportManager = teleportManager;
+        this.stats = stats;
         this.minRadius = Math.max(0, plugin.getConfig().getInt("rtp-min-radius", 100));
         this.maxRadius = Math.max(minRadius + 1, plugin.getConfig().getInt("rtp-max-radius", 5000));
         this.maxAttempts = Math.max(1, plugin.getConfig().getInt("rtp-max-attempts", 20));
@@ -74,8 +77,6 @@ public class RtpCommand extends SafeCommand implements Listener {
         int x = (int) (center.getX() + Math.cos(angle) * distance);
         int z = (int) (center.getZ() + Math.sin(angle) * distance);
 
-        // getChunkAtAsync loads (or generates) the chunk off-thread and completes its
-        // future back on the main thread, so it's safe to touch Bukkit API in thenAccept.
         world.getChunkAtAsync(x >> 4, z >> 4).thenAccept(chunk -> {
             if (!player.isOnline()) {
                 return;
@@ -86,6 +87,7 @@ public class RtpCommand extends SafeCommand implements Listener {
 
             if (isSafe(candidate)) {
                 lastUse.put(player.getUniqueId(), System.currentTimeMillis());
+                stats.incrementRtpUsed();
                 Home rtpHome = Home.fromLocation("rtp", candidate);
                 teleportManager.requestTeleport(player, rtpHome, "rtp.success");
             } else {

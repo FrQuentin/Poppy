@@ -124,6 +124,27 @@ public class HomeManager {
         }
     }
 
+    public int countPlayersWithHomes() {
+        File[] files = homesFolder.listFiles((dir, name) -> name.endsWith(".yml"));
+        return files == null ? 0 : files.length;
+    }
+
+    public int countTotalHomes() {
+        File[] files = homesFolder.listFiles((dir, name) -> name.endsWith(".yml"));
+        if (files == null) {
+            return 0;
+        }
+        int total = 0;
+        for (File file : files) {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            ConfigurationSection homesSection = config.getConfigurationSection("homes");
+            if (homesSection != null) {
+                total += homesSection.getKeys(false).size();
+            }
+        }
+        return total;
+    }
+
     private YamlConfiguration buildConfig(LinkedHashMap<String, Home> homes) {
         YamlConfiguration config = new YamlConfiguration();
         ConfigurationSection homesSection = config.createSection("homes");

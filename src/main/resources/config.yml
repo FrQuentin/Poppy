@@ -46,3 +46,7 @@ afk-auto-minutes: 5
 
 # Toggle Poppy's custom "unknown command" message (replaces vanilla's "Unknown command").
 custom-unknown-command-message: true
+
+# If true, scans every player's homes file at startup to log a total home
+# count. Turn this off on very large servers if startup feels slower.
+startup-stats-enabled: true

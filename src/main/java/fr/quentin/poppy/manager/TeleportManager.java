@@ -2,6 +2,7 @@ package fr.quentin.poppy.manager;
 
 import fr.quentin.poppy.model.Home;
 import fr.quentin.poppy.util.Messages;
+import fr.quentin.poppy.util.PoppyStats;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -25,15 +26,17 @@ public class TeleportManager implements Listener {
     private final boolean cancelOnMove;
     private final BackManager backManager;
     private final CombatManager combatManager;
+    private final PoppyStats stats;
 
     private final Map<UUID, BukkitTask> pendingTasks = new HashMap<>();
     private final Map<UUID, Location> startLocations = new HashMap<>();
 
-    public TeleportManager(JavaPlugin plugin, Messages messages, BackManager backManager, CombatManager combatManager) {
+    public TeleportManager(JavaPlugin plugin, Messages messages, BackManager backManager, CombatManager combatManager, PoppyStats stats) {
         this.plugin = plugin;
         this.messages = messages;
         this.backManager = backManager;
         this.combatManager = combatManager;
+        this.stats = stats;
         this.warmupSeconds = Math.max(0, plugin.getConfig().getInt("teleport-warmup-seconds", 3));
         this.cancelOnMove = plugin.getConfig().getBoolean("cancel-on-move", true);
     }
@@ -164,6 +167,7 @@ public class TeleportManager implements Listener {
 
         backManager.recordLocation(player);
         player.teleport(location);
+        stats.incrementTeleports();
         player.sendMessage(messages.get(successMessagePath, "home", home.name()));
     }
 }

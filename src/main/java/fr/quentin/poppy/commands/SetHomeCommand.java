@@ -4,6 +4,7 @@ import fr.quentin.poppy.gui.ConfirmOverwriteGUI;
 import fr.quentin.poppy.manager.HomeManager;
 import fr.quentin.poppy.model.Home;
 import fr.quentin.poppy.util.Messages;
+import fr.quentin.poppy.util.PoppyStats;
 import fr.quentin.poppy.util.SafeCommand;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
@@ -14,11 +15,13 @@ public class SetHomeCommand extends SafeCommand {
 
     private final HomeManager homeManager;
     private final ConfirmOverwriteGUI confirmOverwriteGUI;
+    private final PoppyStats stats;
 
-    public SetHomeCommand(JavaPlugin plugin, HomeManager homeManager, ConfirmOverwriteGUI confirmOverwriteGUI, Messages messages) {
+    public SetHomeCommand(JavaPlugin plugin, HomeManager homeManager, ConfirmOverwriteGUI confirmOverwriteGUI, Messages messages, PoppyStats stats) {
         super(plugin, messages);
         this.homeManager = homeManager;
         this.confirmOverwriteGUI = confirmOverwriteGUI;
+        this.stats = stats;
     }
 
     @Override
@@ -48,6 +51,7 @@ public class SetHomeCommand extends SafeCommand {
 
         Home home = Home.fromLocation(name, player.getLocation());
         homeManager.addHome(player.getUniqueId(), home);
+        stats.incrementHomesCreated();
 
         player.sendMessage(messages.get("sethome.success", "home", name));
         return true;

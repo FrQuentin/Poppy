@@ -4,6 +4,7 @@ import fr.quentin.poppy.manager.HomeManager;
 import fr.quentin.poppy.manager.TeleportManager;
 import fr.quentin.poppy.model.Home;
 import fr.quentin.poppy.util.Messages;
+import fr.quentin.poppy.util.PoppyStats;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -24,9 +25,10 @@ public class HomesGUIListener implements Listener {
     private final ConfirmOverwriteGUI confirmOverwriteGUI;
     private final TeleportManager teleportManager;
     private final Messages messages;
+    private final PoppyStats stats;
 
     public HomesGUIListener(JavaPlugin plugin, HomeManager homeManager, HomesGUI homesGUI, ConfirmDeleteGUI confirmDeleteGUI,
-                            ConfirmOverwriteGUI confirmOverwriteGUI, TeleportManager teleportManager, Messages messages) {
+                            ConfirmOverwriteGUI confirmOverwriteGUI, TeleportManager teleportManager, Messages messages, PoppyStats stats) {
         this.plugin = plugin;
         this.homeManager = homeManager;
         this.homesGUI = homesGUI;
@@ -34,6 +36,7 @@ public class HomesGUIListener implements Listener {
         this.confirmOverwriteGUI = confirmOverwriteGUI;
         this.teleportManager = teleportManager;
         this.messages = messages;
+        this.stats = stats;
     }
 
     @EventHandler
@@ -107,6 +110,7 @@ public class HomesGUIListener implements Listener {
             Home home = homeManager.getHome(player.getUniqueId(), homeName);
             if (home != null) {
                 homeManager.removeHome(player.getUniqueId(), homeName);
+                stats.incrementHomesDeleted();
                 player.sendMessage(messages.get("delhome.success", "home", home.name()));
             }
             homesGUI.open(player, homeManager);

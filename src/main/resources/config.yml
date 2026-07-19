@@ -33,3 +33,13 @@ custom-quit-message: true
 show-health-in-tab: true
 # How often (in ticks, 20 = 1 second) the tab list health is refreshed.
 tab-health-update-interval-ticks: 20
+
+# Combat tag: blocks /home, /spawn, /back and /rtp for a short time after PvP combat
+# (hitting or being hit by another player), to stop players teleporting away mid-fight.
+combat-tag-enabled: true
+combat-tag-seconds: 10
+
+# Auto-AFK: automatically marks a player as AFK after this many minutes without moving.
+# /afk still works as a manual toggle regardless of this setting.
+afk-auto-enabled: true
+afk-auto-minutes: 5

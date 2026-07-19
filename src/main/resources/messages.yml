@@ -82,3 +82,6 @@ join-quit:
 afk:
   now-afk: "&6[!] The player {player} is now AFK!"
   no-longer-afk: "&6[!] The player {player} is no longer AFK!"
+
+combat:
+  in-combat: "&4[!] You can't teleport while in combat! ({seconds}s left)"

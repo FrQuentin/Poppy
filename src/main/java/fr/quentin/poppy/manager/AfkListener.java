@@ -7,6 +7,7 @@ import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -26,6 +27,11 @@ public class AfkListener implements Listener {
     }
 
     @EventHandler
+    public void onJoin(PlayerJoinEvent event) {
+        afkManager.recordActivity(event.getPlayer().getUniqueId());
+    }
+
+    @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         afkManager.remove(event.getPlayer().getUniqueId());
     }
@@ -34,9 +40,6 @@ public class AfkListener implements Listener {
     public void onMove(PlayerMoveEvent event) {
         try {
             Player player = event.getPlayer();
-            if (!afkManager.isAfk(player.getUniqueId())) {
-                return;
-            }
 
             Location from = event.getFrom();
             Location to = event.getTo();
@@ -48,7 +51,13 @@ public class AfkListener implements Listener {
                 return;
             }
 
-            afkManager.remove(player.getUniqueId());
+            afkManager.recordActivity(player.getUniqueId());
+
+            if (!afkManager.isAfk(player.getUniqueId())) {
+                return;
+            }
+
+            afkManager.clearAfk(player.getUniqueId());
             Component broadcast = messages.get("afk.no-longer-afk", "player", player.getName());
             Bukkit.getServer().sendMessage(broadcast);
         } catch (Exception e) {

@@ -22,8 +22,11 @@ import fr.quentin.poppy.listeners.JoinQuitListener;
 import fr.quentin.poppy.listeners.TabHealthListener;
 import fr.quentin.poppy.manager.AfkListener;
 import fr.quentin.poppy.manager.AfkManager;
+import fr.quentin.poppy.manager.AutoAfkTask;
 import fr.quentin.poppy.manager.BackListener;
 import fr.quentin.poppy.manager.BackManager;
+import fr.quentin.poppy.manager.CombatListener;
+import fr.quentin.poppy.manager.CombatManager;
 import fr.quentin.poppy.manager.HomeManager;
 import fr.quentin.poppy.manager.ShareManager;
 import fr.quentin.poppy.manager.SpawnManager;
@@ -45,7 +48,8 @@ public final class Poppy extends JavaPlugin {
         ConfirmDeleteGUI confirmDeleteGUI = new ConfirmDeleteGUI(this, messages);
         ConfirmOverwriteGUI confirmOverwriteGUI = new ConfirmOverwriteGUI(this, messages);
         BackManager backManager = new BackManager();
-        TeleportManager teleportManager = new TeleportManager(this, messages, backManager);
+        CombatManager combatManager = new CombatManager(getConfig().getLong("combat-tag-seconds", 10));
+        TeleportManager teleportManager = new TeleportManager(this, messages, backManager, combatManager);
         SpawnManager spawnManager = new SpawnManager(this);
         ShareManager shareManager = new ShareManager(this);
         TrashGUI trashGUI = new TrashGUI(this, messages);
@@ -87,6 +91,11 @@ public final class Poppy extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new JoinQuitListener(this, messages), this);
         getServer().getPluginManager().registerEvents(new TabHealthListener(this, afkManager), this);
         getServer().getPluginManager().registerEvents(new AfkListener(this, afkManager, messages), this);
+        getServer().getPluginManager().registerEvents(new CombatListener(this, combatManager), this);
+
+        if (getConfig().getBoolean("afk-auto-enabled", true)) {
+            new AutoAfkTask(this, afkManager, messages).runTaskTimer(this, 20L * 60, 20L * 60);
+        }
 
         getLogger().info("Poppy has been enabled.");
     }

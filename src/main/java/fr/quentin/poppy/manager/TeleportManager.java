@@ -24,14 +24,16 @@ public class TeleportManager implements Listener {
     private final int warmupSeconds;
     private final boolean cancelOnMove;
     private final BackManager backManager;
+    private final CombatManager combatManager;
 
     private final Map<UUID, BukkitTask> pendingTasks = new HashMap<>();
     private final Map<UUID, Location> startLocations = new HashMap<>();
 
-    public TeleportManager(JavaPlugin plugin, Messages messages, BackManager backManager) {
+    public TeleportManager(JavaPlugin plugin, Messages messages, BackManager backManager, CombatManager combatManager) {
         this.plugin = plugin;
         this.messages = messages;
         this.backManager = backManager;
+        this.combatManager = combatManager;
         this.warmupSeconds = Math.max(0, plugin.getConfig().getInt("teleport-warmup-seconds", 3));
         this.cancelOnMove = plugin.getConfig().getBoolean("cancel-on-move", true);
     }
@@ -42,6 +44,12 @@ public class TeleportManager implements Listener {
 
     public void requestTeleport(Player player, Home home, String successMessagePath) {
         UUID uuid = player.getUniqueId();
+
+        if (combatManager.isInCombat(uuid)) {
+            player.sendMessage(messages.get("combat.in-combat", "seconds", String.valueOf(combatManager.remainingSeconds(uuid))));
+            return;
+        }
+
         cancelPending(uuid);
 
         if (warmupSeconds <= 0) {
@@ -59,6 +67,13 @@ public class TeleportManager implements Listener {
                 try {
                     if (!player.isOnline()) {
                         cancelPending(uuid);
+                        cancel();
+                        return;
+                    }
+
+                    if (combatManager.isInCombat(uuid)) {
+                        cancelPending(uuid);
+                        player.sendMessage(messages.get("combat.in-combat", "seconds", String.valueOf(combatManager.remainingSeconds(uuid))));
                         cancel();
                         return;
                     }

@@ -68,6 +68,31 @@ commands:
     usage: /afk
     permission: poppy.afk
     permission-message: "&4[!] You don't have permission to do this."
+  tpa:
+    description: Request to teleport to another player.
+    usage: /tpa <player>
+    permission: poppy.tpa
+    permission-message: "&4[!] You don't have permission to do this."
+  tpaccept:
+    description: Accept a pending teleport request.
+    usage: /tpaccept <player>
+    permission: poppy.tpa
+    permission-message: "&4[!] You don't have permission to do this."
+  tpadeny:
+    description: Deny a pending teleport request.
+    usage: /tpadeny <player>
+    permission: poppy.tpa
+    permission-message: "&4[!] You don't have permission to do this."
+  tpahere:
+    description: Request another player to teleport to you.
+    usage: /tpahere <player>
+    permission: poppy.tpahere
+    permission-message: "&4[!] You don't have permission to do this."
+  tpacancel:
+    description: Cancel your own pending teleport request.
+    usage: /tpacancel <player>
+    permission: poppy.tpa
+    permission-message: "&4[!] You don't have permission to do this."
 
 permissions:
   poppy.*:
@@ -86,6 +111,8 @@ permissions:
       poppy.rtp: true
       poppy.trash: true
       poppy.afk: true
+      poppy.tpa: true
+      poppy.tpahere: true
   poppy.sethome:
     description: Allows creating homes with /sethome.
     default: true
@@ -121,4 +148,10 @@ permissions:
     default: true
   poppy.afk:
     description: Allows toggling AFK status with /afk.
+    default: true
+  poppy.tpa:
+    description: Allows sending, accepting, and denying teleport requests with /tpa, /tpaccept, /tpadeny.
+    default: true
+  poppy.tpahere:
+    description: Allows requesting another player teleport to you with /tpahere.
     default: true

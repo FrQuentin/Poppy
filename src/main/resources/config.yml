@@ -52,3 +52,6 @@ custom-unknown-command-message: true
 # If true, scans every player's homes file at startup to log a total home
 # count. Turn this off on very large servers if startup feels slower.
 startup-stats-enabled: true
+
+# How long (in seconds) a /tpa or /tpahere request stays pending before it expires.
+tpa-expiry-seconds: 60

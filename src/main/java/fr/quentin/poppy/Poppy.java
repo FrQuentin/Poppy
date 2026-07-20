@@ -10,18 +10,7 @@ import fr.quentin.poppy.gui.TrashListener;
 import fr.quentin.poppy.listeners.JoinQuitListener;
 import fr.quentin.poppy.listeners.TabHealthListener;
 import fr.quentin.poppy.listeners.UnknownCommandListener;
-import fr.quentin.poppy.manager.AfkListener;
-import fr.quentin.poppy.manager.AfkManager;
-import fr.quentin.poppy.manager.AutoAfkTask;
-import fr.quentin.poppy.manager.BackListener;
-import fr.quentin.poppy.manager.BackManager;
-import fr.quentin.poppy.manager.CombatListener;
-import fr.quentin.poppy.manager.CombatManager;
-import fr.quentin.poppy.manager.HomeCacheListener;
-import fr.quentin.poppy.manager.HomeManager;
-import fr.quentin.poppy.manager.ShareManager;
-import fr.quentin.poppy.manager.SpawnManager;
-import fr.quentin.poppy.manager.TeleportManager;
+import fr.quentin.poppy.manager.*;
 import fr.quentin.poppy.util.Messages;
 import fr.quentin.poppy.util.PoppyStats;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -55,6 +44,11 @@ public final class Poppy extends JavaPlugin {
         stats = new PoppyStats();
 
         Messages messages = new Messages(this);
+
+        // TpaManager needs `messages` (it sends the expiry notifications itself),
+        // so it's created here, after Messages, instead of alongside homeManager/spawnManager above.
+        TpaManager tpaManager = new TpaManager(this, messages);
+
         HomesGUI homesGUI = new HomesGUI(this, messages);
         ConfirmDeleteGUI confirmDeleteGUI = new ConfirmDeleteGUI(this, messages);
         ConfirmOverwriteGUI confirmOverwriteGUI = new ConfirmOverwriteGUI(this, messages);
@@ -97,6 +91,27 @@ public final class Poppy extends JavaPlugin {
 
         Objects.requireNonNull(getCommand("afk")).setExecutor(new AfkCommand(this, afkManager, messages));
 
+        TpaCommand tpaCommand = new TpaCommand(this, tpaManager, messages);
+        Objects.requireNonNull(getCommand("tpa")).setExecutor(tpaCommand);
+        Objects.requireNonNull(getCommand("tpa")).setTabCompleter(tpaCommand);
+
+        TpaHereCommand tpaHereCommand = new TpaHereCommand(this, tpaManager, messages);
+        Objects.requireNonNull(getCommand("tpahere")).setExecutor(tpaHereCommand);
+        Objects.requireNonNull(getCommand("tpahere")).setTabCompleter(tpaHereCommand);
+
+        TpaAcceptCommand tpaAcceptCommand = new TpaAcceptCommand(this, tpaManager, teleportManager, messages);
+        Objects.requireNonNull(getCommand("tpaccept")).setExecutor(tpaAcceptCommand);
+        Objects.requireNonNull(getCommand("tpaccept")).setTabCompleter(tpaAcceptCommand);
+
+        TpaDenyCommand tpaDenyCommand = new TpaDenyCommand(this, tpaManager, messages);
+        Objects.requireNonNull(getCommand("tpadeny")).setExecutor(tpaDenyCommand);
+        Objects.requireNonNull(getCommand("tpadeny")).setTabCompleter(tpaDenyCommand);
+
+        // New: /tpacancel, added alongside the other /tpa* commands.
+        TpaCancelCommand tpaCancelCommand = new TpaCancelCommand(this, tpaManager, messages);
+        Objects.requireNonNull(getCommand("tpacancel")).setExecutor(tpaCancelCommand);
+        Objects.requireNonNull(getCommand("tpacancel")).setTabCompleter(tpaCancelCommand);
+
         getServer().getPluginManager().registerEvents(
                 new HomesGUIListener(this, homeManager, homesGUI, confirmDeleteGUI, confirmOverwriteGUI, teleportManager, messages, stats), this);
         getServer().getPluginManager().registerEvents(teleportManager, this);
@@ -109,6 +124,7 @@ public final class Poppy extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new UnknownCommandListener(this, messages), this);
         getServer().getPluginManager().registerEvents(new HomeCacheListener(this, homeManager), this);
         getServer().getPluginManager().registerEvents(shareHomeCommand, this);
+        getServer().getPluginManager().registerEvents(new TpaQuitListener(tpaManager), this);
 
         if (getConfig().getBoolean("afk-auto-enabled", true)) {
             new AutoAfkTask(this, afkManager, messages).runTaskTimer(this, 20L * 60, 20L * 60);

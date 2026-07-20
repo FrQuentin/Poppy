@@ -51,8 +51,9 @@ teleport:
 
 spawn:
   set: "&a[!] The spawn point has been set!"
+  deleted: "&4[!] The spawn point has been deleted!"
   not-set: "&4[!] No spawn point has been set yet!"
-  success: "&a[!] You have been teleported to spawn!"
+  success: "&6[!] You have been teleported to spawn!"
 
 sharehome:
   usage: "&4[!] Usage: &r/sharehome <home>"

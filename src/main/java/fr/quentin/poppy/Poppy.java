@@ -1,17 +1,6 @@
 package fr.quentin.poppy;
 
-import fr.quentin.poppy.commands.AfkCommand;
-import fr.quentin.poppy.commands.BackCommand;
-import fr.quentin.poppy.commands.DelHomeCommand;
-import fr.quentin.poppy.commands.HomeCommand;
-import fr.quentin.poppy.commands.HomesCommand;
-import fr.quentin.poppy.commands.PoppyGotoCommand;
-import fr.quentin.poppy.commands.RtpCommand;
-import fr.quentin.poppy.commands.SetHomeCommand;
-import fr.quentin.poppy.commands.SetSpawnCommand;
-import fr.quentin.poppy.commands.ShareHomeCommand;
-import fr.quentin.poppy.commands.SpawnCommand;
-import fr.quentin.poppy.commands.TrashCommand;
+import fr.quentin.poppy.commands.*;
 import fr.quentin.poppy.gui.ConfirmDeleteGUI;
 import fr.quentin.poppy.gui.ConfirmOverwriteGUI;
 import fr.quentin.poppy.gui.HomesGUI;
@@ -90,6 +79,7 @@ public final class Poppy extends JavaPlugin {
         Objects.requireNonNull(getCommand("homes")).setExecutor(new HomesCommand(this, homeManager, homesGUI, messages));
 
         Objects.requireNonNull(getCommand("setspawn")).setExecutor(new SetSpawnCommand(this, spawnManager, messages));
+        Objects.requireNonNull(getCommand("delspawn")).setExecutor(new DelSpawnCommand(this, spawnManager, messages));
         Objects.requireNonNull(getCommand("spawn")).setExecutor(new SpawnCommand(this, spawnManager, teleportManager, messages));
 
         ShareHomeCommand shareHomeCommand = new ShareHomeCommand(this, homeManager, shareManager, messages, stats);

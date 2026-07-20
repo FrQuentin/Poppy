@@ -18,7 +18,8 @@ import java.util.logging.Level;
  * <p>{@link #save} writes asynchronously while {@link #saveSync} (called
  * from {@code Poppy#onDisable}) writes synchronously from the main thread —
  * {@link #writeLock} guards against both racing on the same file if
- * {@code /setspawn} runs right before shutdown.
+ * {@code /setspawn} runs right before shutdown. {@link #clearSpawn()} also
+ * takes the lock since it deletes the same file.
  */
 public class SpawnManager {
 
@@ -50,6 +51,23 @@ public class SpawnManager {
         cachedSpawn = Home.fromLocation(SPAWN_NAME, location);
         loaded = true;
         save();
+    }
+
+    /**
+     * Clears the spawn point: removes it from the cache and deletes
+     * spawn.yml from disk, so {@link #hasSpawn()} returns false afterward.
+     * Runs synchronously since /delspawn is a rare admin action, not
+     * something that needs to be off the main thread.
+     */
+    public void clearSpawn() {
+        cachedSpawn = null;
+        loaded = true;
+
+        synchronized (writeLock) {
+            if (file.exists() && !file.delete()) {
+                plugin.getLogger().log(Level.WARNING, "Could not delete spawn.yml");
+            }
+        }
     }
 
     private void load() {

@@ -30,6 +30,11 @@ commands:
     usage: /setspawn
     permission: poppy.setspawn
     permission-message: "&4[!] You don't have permission to do this."
+  delspawn:
+    description: Remove the server spawn point.
+    usage: /delspawn
+    permission: poppy.delspawn
+    permission-message: "&4[!] You don't have permission to do this."
   spawn:
     description: Teleport back to the server spawn point.
     usage: /spawn
@@ -74,6 +79,7 @@ permissions:
       poppy.delhome: true
       poppy.homes: true
       poppy.setspawn: true
+      poppy.delspawn: true
       poppy.spawn: true
       poppy.sharehome: true
       poppy.back: true
@@ -94,6 +100,9 @@ permissions:
     default: true
   poppy.setspawn:
     description: Allows setting the server spawn point.
+    default: op
+  poppy.delspawn:
+    description: Allows removing the server spawn point.
     default: op
   poppy.spawn:
     description: Allows teleporting to the server spawn point with /spawn.

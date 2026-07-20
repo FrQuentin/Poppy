@@ -8,6 +8,7 @@ import fr.quentin.poppy.gui.HomesGUIListener;
 import fr.quentin.poppy.gui.TrashGUI;
 import fr.quentin.poppy.gui.TrashListener;
 import fr.quentin.poppy.listeners.JoinQuitListener;
+import fr.quentin.poppy.listeners.PoppyLoreListener;
 import fr.quentin.poppy.listeners.TabHealthListener;
 import fr.quentin.poppy.listeners.UnknownCommandListener;
 import fr.quentin.poppy.manager.*;
@@ -127,6 +128,7 @@ public final class Poppy extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new HomeCacheListener(this, homeManager), this);
         getServer().getPluginManager().registerEvents(shareHomeCommand, this);
         getServer().getPluginManager().registerEvents(new TpaQuitListener(tpaManager), this);
+        getServer().getPluginManager().registerEvents(new PoppyLoreListener(this, messages), this);
 
         if (getConfig().getBoolean("afk-auto-enabled", true)) {
             new AutoAfkTask(this, afkManager, messages).runTaskTimer(this, 20L * 60, 20L * 60);

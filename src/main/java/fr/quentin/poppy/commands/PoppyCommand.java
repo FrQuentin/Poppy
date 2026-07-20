@@ -15,17 +15,17 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.jspecify.annotations.NonNull;
 
 /**
- * Handles /poppy: a small easter egg. If the sender is in Survival mode
- * and has at least one poppy flower in their inventory, removes one and
- * either places it as an actual block at the sender's feet (if that block
- * is air and stands on solid ground), or drops it as an item on the
- * ground otherwise.
+ * Handles /poppy: a small easter egg. Works in Survival and Creative
+ * (Adventure and Spectator can't interact with the world at all, so
+ * they're blocked); if the block at the sender's feet is currently
+ * replaceable — air, tall grass, a fern, a dead bush, a single snow
+ * layer, etc, same rule the game itself uses when placing any block — the
+ * poppy is placed there as a real block, just like a player naturally
+ * placing one. Otherwise it's dropped as an item on the ground instead.
  *
- * <p>Deliberately restricted to {@link GameMode#SURVIVAL} — Creative
- * inventories aren't a real resource to spend, and Adventure/Spectator
- * players either can't break blocks or can't interact with the world at
- * all, so the "spend a real item you're holding" gag doesn't make sense in
- * any of those modes.
+ * <p>In Survival this consumes one poppy from the sender's inventory (and
+ * requires having one); in Creative it never touches the inventory,
+ * mirroring how creative block placement normally works.
  */
 public class PoppyCommand extends SafeCommand {
 
@@ -40,23 +40,27 @@ public class PoppyCommand extends SafeCommand {
             return true;
         }
 
-        if (player.getGameMode() != GameMode.SURVIVAL) {
+        GameMode gameMode = player.getGameMode();
+        if (gameMode != GameMode.SURVIVAL && gameMode != GameMode.CREATIVE) {
             player.sendMessage(messages.get("poppy.wrong-gamemode"));
             return true;
         }
 
+        boolean creative = gameMode == GameMode.CREATIVE;
         ItemStack poppy = new ItemStack(Material.POPPY, 1);
-        if (!player.getInventory().containsAtLeast(poppy, 1)) {
+
+        if (!creative && !player.getInventory().containsAtLeast(poppy, 1)) {
             player.sendMessage(messages.get("poppy.no-poppy"));
             return true;
         }
 
-        player.getInventory().removeItem(poppy);
+        if (!creative) {
+            player.getInventory().removeItem(poppy);
+        }
 
         Block feetBlock = player.getLocation().getBlock();
-        Block belowBlock = feetBlock.getRelative(BlockFace.DOWN);
 
-        if (feetBlock.getType() == Material.AIR && belowBlock.getType().isSolid()) {
+        if (feetBlock.getBlockData().isReplaceable()) {
             feetBlock.setType(Material.POPPY);
             player.getWorld().playSound(player.getLocation(), Sound.ITEM_CROP_PLANT, 1.0f, 1.0f);
         } else {

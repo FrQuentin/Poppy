@@ -116,6 +116,11 @@ tpa:
   no-outgoing-request: "&4[!] You have no pending teleport request to {player}!"
 
 poppy:
-  wrong-gamemode: "&4[!] You need to be in Survival mode to do this!"
+  wrong-gamemode: "&4[!] You need to be in Survival or Creative mode to do this!"
   no-poppy: "&4[!] You don't have a poppy in your inventory!"
   success: "&d[!] You drop a poppy on the ground. &7*plop*"
+  lore-cooldown: "&4[!] Please wait {minutes} more minute(s) before hearing the poppy's story again!"
+  lore-line-1: "&d~ The Poppy ~"
+  lore-line-2: "&7Legend says the very first poppy in this world grew from a"
+  lore-line-3: "&7single seed a wandering trader dropped by accident, right"
+  lore-line-4: "&7at the edge of an old, forgotten spawn point."

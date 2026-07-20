@@ -112,6 +112,8 @@ public final class Poppy extends JavaPlugin {
         Objects.requireNonNull(getCommand("tpacancel")).setExecutor(tpaCancelCommand);
         Objects.requireNonNull(getCommand("tpacancel")).setTabCompleter(tpaCancelCommand);
 
+        Objects.requireNonNull(getCommand("poppy")).setExecutor(new PoppyCommand(this, messages));
+
         getServer().getPluginManager().registerEvents(
                 new HomesGUIListener(this, homeManager, homesGUI, confirmDeleteGUI, confirmOverwriteGUI, teleportManager, messages, stats), this);
         getServer().getPluginManager().registerEvents(teleportManager, this);

@@ -93,6 +93,11 @@ commands:
     usage: /tpacancel <player>
     permission: poppy.tpa
     permission-message: "&4[!] You don't have permission to do this."
+  poppy:
+    description: A little easter egg. Drops a poppy from your inventory onto the ground.
+    usage: /poppy
+    permission: poppy.poppy
+    permission-message: "&4[!] You don't have permission to do this."
 
 permissions:
   poppy.*:
@@ -113,6 +118,8 @@ permissions:
       poppy.afk: true
       poppy.tpa: true
       poppy.tpahere: true
+      poppy.poppy: true
+
   poppy.sethome:
     description: Allows creating homes with /sethome.
     default: true
@@ -154,4 +161,7 @@ permissions:
     default: true
   poppy.tpahere:
     description: Allows requesting another player teleport to you with /tpahere.
+    default: true
+  poppy.poppy:
+    description: Allows using the /poppy easter egg command.
     default: true

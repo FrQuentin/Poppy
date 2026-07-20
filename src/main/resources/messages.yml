@@ -114,3 +114,8 @@ tpa:
   cancel-success: "&4[!] You have cancelled your teleport request to {player}."
   cancel-notify: "&4[!] {player} has cancelled their teleport request."
   no-outgoing-request: "&4[!] You have no pending teleport request to {player}!"
+
+poppy:
+  wrong-gamemode: "&4[!] You need to be in Survival mode to do this!"
+  no-poppy: "&4[!] You don't have a poppy in your inventory!"
+  success: "&d[!] You drop a poppy on the ground. &7*plop*"

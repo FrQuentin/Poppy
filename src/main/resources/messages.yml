@@ -131,3 +131,6 @@ death:
   no-death-location: "&4[!] You have no recorded death location!"
   unsafe: "&4[!] Your death location isn't safe to teleport to right now (lava, fire, or the void)!"
   teleport-success: "&a[!] You have been teleported to your death location!"
+  chest-created: "&e[!] Your items have been stored in a chest at {x}, {y}, {z}!"
+  chest-not-yours: "&4[!] This death chest doesn't belong to you!"
+  chest-unbreakable: "&4[!] You can't break a death chest — empty it by right-clicking instead!"

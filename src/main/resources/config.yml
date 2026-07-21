@@ -58,3 +58,12 @@ tpa-expiry-seconds: 60
 
 # If true, sends the player their coordinates in chat when they die.
 death-coords-enabled: true
+
+# Death chest: stores a dying player's dropped items in a protected chest at
+# (or near) their death location instead of scattering them on the ground.
+death-chest-enabled: true
+# If true, only the owner (or someone with poppy.deathchest.bypass) can open it.
+death-chest-protect: true
+# How long (in minutes) the chest stays protected before it's removed and any
+# remaining items drop naturally on the ground. Set to 0 to never expire.
+death-chest-expiry-minutes: 30

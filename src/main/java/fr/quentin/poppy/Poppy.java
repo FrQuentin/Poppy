@@ -57,6 +57,7 @@ public final class Poppy extends JavaPlugin {
         TrashGUI trashGUI = new TrashGUI(this, messages);
         AfkManager afkManager = new AfkManager();
         DeathLocationManager deathLocationManager = new DeathLocationManager();
+        DeathChestManager deathChestManager = new DeathChestManager(this, messages);
 
         Objects.requireNonNull(getCommand("sethome")).setExecutor(
                 new SetHomeCommand(this, homeManager, confirmOverwriteGUI, messages, stats));
@@ -130,6 +131,7 @@ public final class Poppy extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new TpaQuitListener(tpaManager), this);
         getServer().getPluginManager().registerEvents(new PoppyLoreListener(this, messages), this);
         getServer().getPluginManager().registerEvents(new DeathCoordsListener(this, messages, deathLocationManager), this);
+        getServer().getPluginManager().registerEvents(deathChestManager, this);
 
         if (getConfig().getBoolean("afk-auto-enabled", true)) {
             new AutoAfkTask(this, afkManager, messages).runTaskTimer(this, 20L * 60, 20L * 60);

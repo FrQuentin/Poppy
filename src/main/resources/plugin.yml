@@ -122,6 +122,7 @@ permissions:
       poppy.tpa: true
       poppy.tpahere: true
       poppy.poppy: true
+      poppy.deathchest.bypass: true
 
   poppy.sethome:
     description: Allows creating homes with /sethome.
@@ -168,3 +169,6 @@ permissions:
   poppy.poppy:
     description: Allows using the /poppy easter egg command.
     default: true
+  poppy.deathchest.bypass:
+    description: Allows opening any player's death chest, bypassing ownership protection.
+    default: op

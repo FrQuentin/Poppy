@@ -134,3 +134,6 @@ death:
   chest-created: "&e[!] Your items have been stored in a chest at {x}, {y}, {z}!"
   chest-not-yours: "&4[!] This death chest doesn't belong to you!"
   chest-unbreakable: "&4[!] You can't break a death chest — empty it by right-clicking instead!"
+  xp-bottle-name: "&dLevel &5{levels} &dBottle"
+  xp-bottle-lore: "&7Right-click to regain your {levels} levels!"
+  xp-restored: "&a[!] You feel your experience returning..."

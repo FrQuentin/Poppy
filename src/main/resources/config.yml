@@ -67,3 +67,8 @@ death-chest-protect: true
 # How long (in minutes) the chest stays protected before it's removed and any
 # remaining items drop naturally on the ground. Set to 0 to never expire.
 death-chest-expiry-minutes: 30
+
+# If true, a dying player's lost XP is captured into a bottle placed in
+# their death chest (right-clicking it restores the exact XP), instead of
+# dropping as orbs on the ground.
+death-chest-store-xp: true

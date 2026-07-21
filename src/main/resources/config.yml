@@ -55,3 +55,6 @@ startup-stats-enabled: true
 
 # How long (in seconds) a /tpa or /tpahere request stays pending before it expires.
 tpa-expiry-seconds: 60
+
+# If true, sends the player their coordinates in chat when they die.
+death-coords-enabled: true

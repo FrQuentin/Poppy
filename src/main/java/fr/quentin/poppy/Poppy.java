@@ -7,10 +7,7 @@ import fr.quentin.poppy.gui.HomesGUI;
 import fr.quentin.poppy.gui.HomesGUIListener;
 import fr.quentin.poppy.gui.TrashGUI;
 import fr.quentin.poppy.gui.TrashListener;
-import fr.quentin.poppy.listeners.JoinQuitListener;
-import fr.quentin.poppy.listeners.PoppyLoreListener;
-import fr.quentin.poppy.listeners.TabHealthListener;
-import fr.quentin.poppy.listeners.UnknownCommandListener;
+import fr.quentin.poppy.listeners.*;
 import fr.quentin.poppy.manager.*;
 import fr.quentin.poppy.util.Messages;
 import fr.quentin.poppy.util.PoppyStats;
@@ -59,6 +56,7 @@ public final class Poppy extends JavaPlugin {
         ShareManager shareManager = new ShareManager(this);
         TrashGUI trashGUI = new TrashGUI(this, messages);
         AfkManager afkManager = new AfkManager();
+        DeathLocationManager deathLocationManager = new DeathLocationManager();
 
         Objects.requireNonNull(getCommand("sethome")).setExecutor(
                 new SetHomeCommand(this, homeManager, confirmOverwriteGUI, messages, stats));
@@ -80,7 +78,9 @@ public final class Poppy extends JavaPlugin {
         ShareHomeCommand shareHomeCommand = new ShareHomeCommand(this, homeManager, shareManager, messages, stats);
         Objects.requireNonNull(getCommand("sharehome")).setExecutor(shareHomeCommand);
         Objects.requireNonNull(getCommand("sharehome")).setTabCompleter(shareHomeCommand);
+
         Objects.requireNonNull(getCommand("poppygoto")).setExecutor(new PoppyGotoCommand(this, shareManager, teleportManager, messages));
+        Objects.requireNonNull(getCommand("deathback")).setExecutor(new DeathBackCommand(this, deathLocationManager, teleportManager, messages));
 
         Objects.requireNonNull(getCommand("back")).setExecutor(new BackCommand(this, backManager, teleportManager, messages));
 
@@ -129,6 +129,7 @@ public final class Poppy extends JavaPlugin {
         getServer().getPluginManager().registerEvents(shareHomeCommand, this);
         getServer().getPluginManager().registerEvents(new TpaQuitListener(tpaManager), this);
         getServer().getPluginManager().registerEvents(new PoppyLoreListener(this, messages), this);
+        getServer().getPluginManager().registerEvents(new DeathCoordsListener(this, messages, deathLocationManager), this);
 
         if (getConfig().getBoolean("afk-auto-enabled", true)) {
             new AutoAfkTask(this, afkManager, messages).runTaskTimer(this, 20L * 60, 20L * 60);

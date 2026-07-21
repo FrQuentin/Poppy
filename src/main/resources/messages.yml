@@ -124,3 +124,10 @@ poppy:
   lore-line-2: "&7Legend says the very first poppy in this world grew from a"
   lore-line-3: "&7single seed a wandering trader dropped by accident, right"
   lore-line-4: "&7at the edge of an old, forgotten spawn point."
+
+death:
+  coords: "&6[!] You died at {world}: {x}, {y}, {z} "
+  coords-click: "&a[Teleport]"
+  no-death-location: "&4[!] You have no recorded death location!"
+  unsafe: "&4[!] Your death location isn't safe to teleport to right now (lava, fire, or the void)!"
+  teleport-success: "&a[!] You have been teleported to your death location!"

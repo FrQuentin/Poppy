@@ -272,13 +272,6 @@ public class DeathChestManager implements Listener {
         }
     }
 
-    /**
-     * Consumes a death-chest XP bottle on right-click, restoring the exact
-     * XP it was created with. Only triggers on {@link Action#RIGHT_CLICK_AIR}
-     * — not on a clicked block — so holding the bottle never interferes with
-     * opening a chest or door, same reasoning as
-     * {@link fr.quentin.poppy.listeners.PoppyLoreListener}.
-     */
     @EventHandler
     public void onXpBottleUse(@NonNull PlayerInteractEvent event) {
         if (!enabled || !storeXp) {
@@ -286,7 +279,7 @@ public class DeathChestManager implements Listener {
         }
 
         try {
-            if (event.getAction() != Action.RIGHT_CLICK_AIR) {
+            if (event.getAction() != Action.RIGHT_CLICK_AIR && event.getAction() != Action.RIGHT_CLICK_BLOCK) {
                 return;
             }
             if (event.getHand() != EquipmentSlot.HAND) {
@@ -308,7 +301,7 @@ public class DeathChestManager implements Listener {
                 return; // a regular experience bottle, not one of ours
             }
 
-            event.setCancelled(true); // prevents the vanilla throw behavior
+            event.setCancelled(true); // prevents the vanilla throw behavior, even when a block was clicked
 
             Player player = event.getPlayer();
             if (item.getAmount() > 1) {

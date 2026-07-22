@@ -106,9 +106,9 @@ public class TabHealthListener implements Listener {
         if (ratio > 0.66) {
             return NamedTextColor.GREEN;
         } else if (ratio > 0.33) {
-            return NamedTextColor.YELLOW;
+            return NamedTextColor.GOLD;
         } else {
-            return NamedTextColor.RED;
+            return NamedTextColor.DARK_RED;
         }
     }
 }

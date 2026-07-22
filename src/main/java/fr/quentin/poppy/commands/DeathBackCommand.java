@@ -129,15 +129,15 @@ public class DeathBackCommand extends SafeCommand {
         Block feet = location.getBlock();
         Block head = location.clone().add(0, 1, 0).getBlock();
 
-        Material belowType = below.getType();
-        if (!belowType.isSolid() || belowType == Material.MAGMA_BLOCK || belowType == Material.CACTUS) {
-            return false;
+        for (Block block : new Block[] {below, feet, head}) {
+            Material type = block.getType();
+            if (type == Material.LAVA || type == Material.FIRE || type == Material.SOUL_FIRE
+                    || type == Material.MAGMA_BLOCK || type == Material.CACTUS) {
+                return false;
+            }
         }
 
-        if (feet.getType().isSolid() || head.getType().isSolid()) {
-            return false;
-        }
-
-        return !feet.isLiquid() && !head.isLiquid();
+        // Feet/head must not be solid (to avoid suffocation) — water is fine there.
+        return !feet.getType().isSolid() && !head.getType().isSolid();
     }
 }

@@ -6,6 +6,7 @@ import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.block.Block;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -16,11 +17,12 @@ import org.jspecify.annotations.NonNull;
 /**
  * Handles /poppy: a small easter egg. Works in Survival and Creative
  * (Adventure and Spectator can't interact with the world at all, so
- * they're blocked); if the block at the sender's feet is currently
- * replaceable — air, tall grass, a fern, a dead bush, a single snow
- * layer, etc, same rule the game itself uses when placing any block — the
- * poppy is placed there as a real block, just like a player naturally
- * placing one. Otherwise it's dropped as an item on the ground instead.
+ * they're blocked); if the block at the sender's feet accepts poppy
+ * BlockData per {@link Block#canPlace(BlockData)} — the same placement
+ * validity check the game itself runs on a real right-click, covering
+ * both "is this spot replaceable" and "is the soil below valid" in one
+ * call — the poppy is placed there as a real block. Otherwise it's
+ * dropped as an item on the ground.
  *
  * <p>In Survival this consumes one poppy from the sender's inventory (and
  * requires having one); in Creative it never touches the inventory,
@@ -58,9 +60,10 @@ public class PoppyCommand extends SafeCommand {
         }
 
         Block feetBlock = player.getLocation().getBlock();
+        BlockData poppyData = Material.POPPY.createBlockData();
 
-        if (feetBlock.getBlockData().isReplaceable()) {
-            feetBlock.setType(Material.POPPY);
+        if (feetBlock.canPlace(poppyData)) {
+            feetBlock.setBlockData(poppyData);
             player.getWorld().playSound(player.getLocation(), Sound.ITEM_CROP_PLANT, 1.0f, 1.0f);
         } else {
             player.getWorld().dropItemNaturally(player.getLocation(), poppy);

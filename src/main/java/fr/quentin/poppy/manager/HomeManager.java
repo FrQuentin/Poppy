@@ -1,7 +1,6 @@
 package fr.quentin.poppy.manager;
 
 import fr.quentin.poppy.model.Home;
-import org.bukkit.Bukkit;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -9,7 +8,9 @@ import org.bukkit.plugin.java.JavaPlugin;
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.logging.Level;
 
 /**
@@ -19,17 +20,29 @@ import java.util.logging.Level;
  * <p>{@code cache} is only ever touched from the main thread (commands and
  * events in Bukkit run sync; the one exception, {@link #save}, only queues
  * the disk write, it doesn't touch {@code cache} from the async task), so
- * the map itself needs no synchronization. The actual file I/O does,
- * though: {@link #save} writes asynchronously while {@link #unload} and
- * {@link #saveAllSync} write synchronously from the main thread, so two
- * writes for the same player could otherwise land on the same file at the
- * same time. {@link #writeToDisk} guards against that with a per-player
- * lock.
+ * the map itself needs no synchronization.
+ *
+ * <p>All disk I/O goes through {@link #ioExecutor}, a single-thread
+ * executor, rather than {@code Bukkit.getScheduler().runTaskAsynchronously}
+ * directly. This used to be a per-player {@code synchronized} lock instead,
+ * but that had a real bug: {@link #unload} removed the lock object from the
+ * map right after using it, so a {@link #save} write still in flight for
+ * the same player would recreate a *new* lock object via
+ * {@code lockFor(uuid)} and end up synchronizing on nothing shared —
+ * meaning a slow async {@code save()} could still complete *after*
+ * {@code unload()}'s write and resurrect a home the player had just
+ * deleted before disconnecting. A single-thread executor sidesteps the
+ * whole problem: every write for every player is strictly ordered by
+ * submission time, so there's no way for an older write to land after a
+ * newer one, and no lock bookkeeping is needed at all.
  *
  * <p>{@link #unload(UUID)} must be called on player quit — see
  * {@link HomeCacheListener} — both to flush unsaved changes and to evict
  * the entry, since nothing else removes a player from {@code cache} once
- * they've logged in.
+ * they've logged in. It blocks until its write actually completes (see
+ * {@link #awaitWrite}) specifically so that removing the player from
+ * {@code cache} is guaranteed to happen after their data is safely on
+ * disk, not merely queued.
  */
 public class HomeManager {
 
@@ -38,7 +51,11 @@ public class HomeManager {
     private final JavaPlugin plugin;
     private final File homesFolder;
     private final Map<UUID, LinkedHashMap<String, Home>> cache = new LinkedHashMap<>();
-    private final Map<UUID, Object> writeLocks = new ConcurrentHashMap<>();
+    private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor(runnable -> {
+        Thread thread = new Thread(runnable, "Poppy-HomeManager-IO");
+        thread.setDaemon(true);
+        return thread;
+    });
 
     public HomeManager(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -126,6 +143,13 @@ public class HomeManager {
         return homes;
     }
 
+    /**
+     * Queues an async write and returns immediately — the normal path,
+     * called after every mutation ({@link #addHome}/{@link #removeHome}).
+     * Because {@link #ioExecutor} is single-threaded, this write is
+     * guaranteed to run after any earlier queued write for the same (or
+     * any other) player, and before any later one.
+     */
     public void save(UUID uuid) {
         LinkedHashMap<String, Home> homes = cache.get(uuid);
         if (homes == null) {
@@ -134,32 +158,30 @@ public class HomeManager {
 
         YamlConfiguration config = buildConfig(homes);
         File file = fileFor(uuid);
-
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> writeToDisk(config, file, uuid));
-    }
-
-    public void saveAllSync() {
-        for (Map.Entry<UUID, LinkedHashMap<String, Home>> entry : cache.entrySet()) {
-            YamlConfiguration config = buildConfig(entry.getValue());
-            writeToDisk(config, fileFor(entry.getKey()), entry.getKey());
-        }
+        ioExecutor.submit(() -> writeToDisk(config, file, uuid));
     }
 
     /**
-     * Scans every {@code <uuid>.yml} file directly (not the in-memory cache,
-     * which may only hold currently-online players) to count how many
-     * players have at least one home. Used only for the startup log — see
-     * {@code startup-stats-enabled} in config.yml.
+     * Called at plugin shutdown for any player still left in {@code cache}
+     * (normally none, since {@link #unload} already flushed everyone on
+     * quit — see the class-level doc). Blocks on each write in turn, then
+     * shuts {@link #ioExecutor} down once every write has actually
+     * completed.
      */
+    public void saveAllSync() {
+        for (Map.Entry<UUID, LinkedHashMap<String, Home>> entry : cache.entrySet()) {
+            YamlConfiguration config = buildConfig(entry.getValue());
+            File file = fileFor(entry.getKey());
+            awaitWrite(config, file, entry.getKey());
+        }
+        ioExecutor.shutdown();
+    }
+
     public int countPlayersWithHomes() {
         File[] files = homesFolder.listFiles((dir, name) -> name.endsWith(".yml"));
         return files == null ? 0 : files.length;
     }
 
-    /**
-     * Same idea as {@link #countPlayersWithHomes()} but sums the total
-     * number of homes across every player file.
-     */
     public int countTotalHomes() {
         File[] files = homesFolder.listFiles((dir, name) -> name.endsWith(".yml"));
         if (files == null) {
@@ -197,36 +219,50 @@ public class HomeManager {
     }
 
     /**
-     * Synchronized per-player: {@link #save} writes asynchronously while
-     * {@link #unload} and {@link #saveAllSync} write synchronously from the
-     * main thread, so without this lock two writes for the same player
-     * could interleave on the same file and corrupt it.
+     * Only ever runs on {@link #ioExecutor}'s single thread, so no
+     * synchronization is needed here — the executor itself is what
+     * prevents concurrent writes.
      */
     private void writeToDisk(YamlConfiguration config, File file, UUID uuid) {
-        synchronized (lockFor(uuid)) {
-            try {
-                config.save(file);
-            } catch (IOException e) {
-                plugin.getLogger().log(Level.SEVERE, "Could not save homes for " + uuid, e);
-            }
+        try {
+            config.save(file);
+        } catch (IOException e) {
+            plugin.getLogger().log(Level.SEVERE, "Could not save homes for " + uuid, e);
         }
     }
 
-    private Object lockFor(UUID uuid) {
-        return writeLocks.computeIfAbsent(uuid, key -> new Object());
+    /**
+     * Submits a write and blocks the calling (main) thread until it has
+     * actually completed — used by {@link #unload} and {@link #saveAllSync},
+     * where the caller needs a guarantee the data is safely on disk before
+     * moving on (evicting the cache entry, or shutting the executor down).
+     */
+    private void awaitWrite(YamlConfiguration config, File file, UUID uuid) {
+        try {
+            ioExecutor.submit(() -> writeToDisk(config, file, uuid)).get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            plugin.getLogger().log(Level.SEVERE, "Interrupted while flushing homes for " + uuid, e);
+        } catch (ExecutionException e) {
+            plugin.getLogger().log(Level.SEVERE, "Error flushing homes for " + uuid, e);
+        }
     }
 
     /**
-     * Called when a player leaves: flushes their homes to disk synchronously
-     * (so nothing is lost if the server stops right after) and evicts them
-     * from the in-memory cache to avoid an unbounded memory leak over time.
+     * Called when a player leaves: flushes their homes to disk — blocking
+     * until the write actually completes, not just queuing it — and evicts
+     * them from the in-memory cache to avoid an unbounded memory leak over
+     * time. Blocking here (rather than firing an async write and moving on)
+     * is what guarantees the eventual state on disk reflects this exact
+     * moment, with no later stale write able to overwrite it afterward.
      */
     public void unload(UUID uuid) {
         LinkedHashMap<String, Home> homes = cache.get(uuid);
         if (homes != null) {
-            writeToDisk(buildConfig(homes), fileFor(uuid), uuid);
+            YamlConfiguration config = buildConfig(homes);
+            File file = fileFor(uuid);
+            awaitWrite(config, file, uuid);
             cache.remove(uuid);
         }
-        writeLocks.remove(uuid);
     }
 }

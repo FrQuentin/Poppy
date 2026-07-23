@@ -5,8 +5,12 @@
 # Set to 0 to teleport instantly with no warmup.
 teleport-warmup-seconds: 3
 
-# If true, moving (even one block) or taking damage during the warmup cancels the teleport.
+# If true, moving (even one block) during the warmup cancels the teleport.
 cancel-on-move: true
+# If true, taking damage during the warmup cancels the teleport. Kept
+# separate from cancel-on-move so you can allow standing still without
+# cancelling (e.g. AFK-friendly warmups) while still cancelling on combat.
+cancel-on-damage: true
 
 # How long (in seconds) a /sharehome link stays clickable before it expires.
 sharehome-expiry-seconds: 300

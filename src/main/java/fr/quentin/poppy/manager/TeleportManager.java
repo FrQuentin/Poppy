@@ -32,16 +32,21 @@ import java.util.logging.Level;
  * — one hook here covers every teleport command at once, rather than
  * duplicating a log call in each command class.
  *
+ * <p>{@code requestTeleport} returns a boolean indicating whether the
+ * request was actually accepted (warmup started, or teleport dispatched)
+ * versus rejected outright (combat tag) — callers that apply their own
+ * side effects gated on a successful attempt, like {@code RtpCommand}'s
+ * cooldown, must check this return value rather than assuming the request
+ * always proceeds; otherwise a combat-tag rejection would still consume
+ * things like a cooldown for a teleport that never happened.
+ *
  * <p>The destination is resolved via a {@link Supplier<Home>} rather than
  * a plain {@link Home}, and re-resolved right before the actual teleport
- * (not just once at request time) — this matters for /home specifically:
- * without it, running {@code /home base} then {@code /delhome base}
- * during the warmup would still teleport the player to the now-deleted
- * home's stale coordinates, since the location would already be captured
- * before the deletion. Every other caller (spawn, back, rtp, tpa,
- * deathback...) just wraps a fixed {@link Home} in a trivial supplier via
- * {@link #requestTeleport(Player, Home, String)}, so this adds safety for
- * /home without changing behavior anywhere else.
+ * (not just once at request time) — this matters for /home and /spawn
+ * specifically: without it, deleting the home/spawn during the warmup
+ * would still teleport the player to the now-stale coordinates. Every
+ * other caller just wraps a fixed {@link Home} in a trivial supplier via
+ * {@link #requestTeleport(Player, Home, String)}.
  *
  * <p>{@code pendingTasks} and {@code startLocations} only hold entries for
  * the few seconds a warmup is active — unlike {@link HomeManager}'s cache or
@@ -54,11 +59,13 @@ public class TeleportManager implements Listener {
     private final JavaPlugin plugin;
     private final Messages messages;
     private final int warmupSeconds;
-    private final boolean cancelOnMove;
     private final BackManager backManager;
     private final CombatManager combatManager;
     private final PoppyStats stats;
     private final PoppyLogger logger;
+
+    private final boolean cancelOnMove;
+    private final boolean cancelOnDamage;
 
     private final Map<UUID, BukkitTask> pendingTasks = new HashMap<>();
     private final Map<UUID, Location> startLocations = new HashMap<>();
@@ -73,36 +80,43 @@ public class TeleportManager implements Listener {
         this.logger = logger;
         this.warmupSeconds = Math.max(0, plugin.getConfig().getInt("teleport-warmup-seconds", 3));
         this.cancelOnMove = plugin.getConfig().getBoolean("cancel-on-move", true);
+        this.cancelOnDamage = plugin.getConfig().getBoolean("cancel-on-damage", true);
     }
 
-    public void requestTeleport(Player player, Home home) {
-        requestTeleport(player, () -> home, "home.success");
+    public boolean requestTeleport(Player player, Home home) {
+        return requestTeleport(player, () -> home, "home.success");
     }
 
-    public void requestTeleport(Player player, Home home, String successMessagePath) {
-        requestTeleport(player, () -> home, successMessagePath);
+    public boolean requestTeleport(Player player, Home home, String successMessagePath) {
+        return requestTeleport(player, () -> home, successMessagePath);
     }
 
     /**
      * Same as {@link #requestTeleport(Player, Home, String)}, but the
      * destination is looked up fresh — via {@code homeSupplier} — both now
      * and again right before the actual teleport, so a destination that
-     * stops existing during the warmup (e.g. a home deleted mid-warmup)
-     * cancels the teleport instead of using stale coordinates.
+     * stops existing during the warmup cancels the teleport instead of
+     * using stale coordinates.
+     *
+     * @return true if the request was accepted (warmup started, or an
+     *         instant teleport was dispatched); false if rejected outright
+     *         because the player is combat-tagged. Callers whose own side
+     *         effects (a cooldown, a stat increment...) should only apply
+     *         on an actual attempt must check this.
      */
-    public void requestTeleport(Player player, Supplier<Home> homeSupplier, String successMessagePath) {
+    public boolean requestTeleport(Player player, Supplier<Home> homeSupplier, String successMessagePath) {
         UUID uuid = player.getUniqueId();
 
         if (combatManager.isInCombat(uuid)) {
             player.sendMessage(messages.get("combat.in-combat", "seconds", String.valueOf(combatManager.remainingSeconds(uuid))));
-            return;
+            return false;
         }
 
         cancelPending(uuid);
 
         if (warmupSeconds <= 0) {
             teleportNow(player, homeSupplier, successMessagePath);
-            return;
+            return true;
         }
 
         startLocations.put(uuid, player.getLocation());
@@ -145,6 +159,7 @@ public class TeleportManager implements Listener {
         }.runTaskTimer(plugin, 0L, 20L);
 
         pendingTasks.put(uuid, task);
+        return true;
     }
 
     @EventHandler
@@ -177,7 +192,7 @@ public class TeleportManager implements Listener {
     @EventHandler
     public void onDamage(@NonNull EntityDamageEvent event) {
         try {
-            if (!cancelOnMove) {
+            if (!cancelOnDamage) {
                 return;
             }
 
@@ -188,7 +203,7 @@ public class TeleportManager implements Listener {
             UUID uuid = player.getUniqueId();
             if (pendingTasks.containsKey(uuid)) {
                 cancelPending(uuid);
-                player.sendMessage(messages.get("teleport.cancelled-move"));
+                player.sendMessage(messages.get("teleport.cancelled-damage"));
             }
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Error in TeleportManager#onDamage", e);

@@ -24,17 +24,20 @@ import java.util.logging.Level;
  *
  * <p>All disk I/O goes through {@link #ioExecutor}, a single-thread
  * executor, rather than {@code Bukkit.getScheduler().runTaskAsynchronously}
- * directly. This used to be a per-player {@code synchronized} lock instead,
- * but that had a real bug: {@link #unload} removed the lock object from the
- * map right after using it, so a {@link #save} write still in flight for
- * the same player would recreate a *new* lock object via
- * {@code lockFor(uuid)} and end up synchronizing on nothing shared —
- * meaning a slow async {@code save()} could still complete *after*
- * {@code unload()}'s write and resurrect a home the player had just
- * deleted before disconnecting. A single-thread executor sidesteps the
- * whole problem: every write for every player is strictly ordered by
- * submission time, so there's no way for an older write to land after a
- * newer one, and no lock bookkeeping is needed at all.
+ * directly — every write for every player is strictly ordered by
+ * submission time, so an older queued write can never land after a newer
+ * one (e.g. a slow {@link #save} completing after {@link #unload} already
+ * ran on quit, resurrecting a deleted home).
+ *
+ * <p>When a player's home list becomes empty, {@link #save} and
+ * {@link #unload} delete the file entirely instead of writing an empty
+ * {@code homes: {}} — without this, a player who deletes every home keeps
+ * an empty {@code .yml} forever, which used to make
+ * {@link #countPlayersWithHomes()} overcount (it just listed files,
+ * regardless of whether they actually contained any homes).
+ * {@link #countPlayersWithHomes()} and {@link #countTotalHomes()} also
+ * check each file's actual contents rather than just its existence, so any
+ * empty files left over from before this fix don't skew the count either.
  *
  * <p>{@link #unload(UUID)} must be called on player quit — see
  * {@link HomeCacheListener} — both to flush unsaved changes and to evict
@@ -144,11 +147,9 @@ public class HomeManager {
     }
 
     /**
-     * Queues an async write and returns immediately — the normal path,
-     * called after every mutation ({@link #addHome}/{@link #removeHome}).
-     * Because {@link #ioExecutor} is single-threaded, this write is
-     * guaranteed to run after any earlier queued write for the same (or
-     * any other) player, and before any later one.
+     * Queues an async write (or an async delete if the player has no homes
+     * left) and returns immediately — the normal path, called after every
+     * mutation ({@link #addHome}/{@link #removeHome}).
      */
     public void save(UUID uuid) {
         LinkedHashMap<String, Home> homes = cache.get(uuid);
@@ -156,8 +157,14 @@ public class HomeManager {
             return;
         }
 
-        YamlConfiguration config = buildConfig(homes);
         File file = fileFor(uuid);
+
+        if (homes.isEmpty()) {
+            ioExecutor.submit(() -> deleteFromDisk(file, uuid));
+            return;
+        }
+
+        YamlConfiguration config = buildConfig(homes);
         ioExecutor.submit(() -> writeToDisk(config, file, uuid));
     }
 
@@ -170,16 +177,36 @@ public class HomeManager {
      */
     public void saveAllSync() {
         for (Map.Entry<UUID, LinkedHashMap<String, Home>> entry : cache.entrySet()) {
-            YamlConfiguration config = buildConfig(entry.getValue());
             File file = fileFor(entry.getKey());
-            awaitWrite(config, file, entry.getKey());
+            if (entry.getValue().isEmpty()) {
+                awaitDelete(file, entry.getKey());
+            } else {
+                YamlConfiguration config = buildConfig(entry.getValue());
+                awaitWrite(config, file, entry.getKey());
+            }
         }
         ioExecutor.shutdown();
     }
 
+    /**
+     * Counts players who actually have at least one home — checks each
+     * file's {@code homes} section rather than just listing files, since a
+     * leftover empty file (e.g. from before this class deleted them on
+     * last-home-removed) would otherwise be counted too.
+     */
     public int countPlayersWithHomes() {
         File[] files = homesFolder.listFiles((dir, name) -> name.endsWith(".yml"));
-        return files == null ? 0 : files.length;
+        if (files == null) {
+            return 0;
+        }
+
+        int count = 0;
+        for (File file : files) {
+            if (fileHomeCount(file) > 0) {
+                count++;
+            }
+        }
+        return count;
     }
 
     public int countTotalHomes() {
@@ -189,13 +216,15 @@ public class HomeManager {
         }
         int total = 0;
         for (File file : files) {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
-            ConfigurationSection homesSection = config.getConfigurationSection("homes");
-            if (homesSection != null) {
-                total += homesSection.getKeys(false).size();
-            }
+            total += fileHomeCount(file);
         }
         return total;
+    }
+
+    private int fileHomeCount(File file) {
+        YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+        ConfigurationSection homesSection = config.getConfigurationSection("homes");
+        return homesSection == null ? 0 : homesSection.getKeys(false).size();
     }
 
     private YamlConfiguration buildConfig(LinkedHashMap<String, Home> homes) {
@@ -231,6 +260,12 @@ public class HomeManager {
         }
     }
 
+    private void deleteFromDisk(File file, UUID uuid) {
+        if (file.exists() && !file.delete()) {
+            plugin.getLogger().log(Level.WARNING, "Could not delete empty homes file for " + uuid);
+        }
+    }
+
     /**
      * Submits a write and blocks the calling (main) thread until it has
      * actually completed — used by {@link #unload} and {@link #saveAllSync},
@@ -248,20 +283,33 @@ public class HomeManager {
         }
     }
 
+    private void awaitDelete(File file, UUID uuid) {
+        try {
+            ioExecutor.submit(() -> deleteFromDisk(file, uuid)).get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            plugin.getLogger().log(Level.SEVERE, "Interrupted while deleting homes file for " + uuid, e);
+        } catch (ExecutionException e) {
+            plugin.getLogger().log(Level.SEVERE, "Error deleting homes file for " + uuid, e);
+        }
+    }
+
     /**
-     * Called when a player leaves: flushes their homes to disk — blocking
-     * until the write actually completes, not just queuing it — and evicts
-     * them from the in-memory cache to avoid an unbounded memory leak over
-     * time. Blocking here (rather than firing an async write and moving on)
-     * is what guarantees the eventual state on disk reflects this exact
-     * moment, with no later stale write able to overwrite it afterward.
+     * Called when a player leaves: flushes their homes to disk (or deletes
+     * the file if they have none left) — blocking until it actually
+     * completes, not just queuing it — and evicts them from the in-memory
+     * cache to avoid an unbounded memory leak over time.
      */
     public void unload(UUID uuid) {
         LinkedHashMap<String, Home> homes = cache.get(uuid);
         if (homes != null) {
-            YamlConfiguration config = buildConfig(homes);
             File file = fileFor(uuid);
-            awaitWrite(config, file, uuid);
+            if (homes.isEmpty()) {
+                awaitDelete(file, uuid);
+            } else {
+                YamlConfiguration config = buildConfig(homes);
+                awaitWrite(config, file, uuid);
+            }
             cache.remove(uuid);
         }
     }

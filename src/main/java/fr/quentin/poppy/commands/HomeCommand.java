@@ -14,11 +14,18 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.jspecify.annotations.NonNull;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Handles /home: with no argument, opens the /homes GUI; with a home name,
  * teleports directly to it (going through {@link TeleportManager} so the
  * usual warmup/combat-tag rules apply).
+ *
+ * <p>The destination is passed as a supplier that re-fetches the home from
+ * {@link HomeManager} by name, rather than the {@link Home} instance
+ * captured here — this way, if the home is deleted (e.g. via /delhome)
+ * during the teleport warmup, {@link TeleportManager} notices at the last
+ * moment and cancels instead of teleporting to stale coordinates.
  */
 public class HomeCommand extends SafeCommand implements TabCompleter {
 
@@ -53,7 +60,8 @@ public class HomeCommand extends SafeCommand implements TabCompleter {
             return true;
         }
 
-        teleportManager.requestTeleport(player, home);
+        UUID uuid = player.getUniqueId();
+        teleportManager.requestTeleport(player, () -> homeManager.getHome(uuid, name), "home.success");
         return true;
     }
 

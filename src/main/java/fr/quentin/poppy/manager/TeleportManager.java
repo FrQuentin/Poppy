@@ -18,6 +18,7 @@ import org.jspecify.annotations.NonNull;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 
 /**
@@ -30,6 +31,17 @@ import java.util.logging.Level;
  * highest-leverage place to log teleport activity via {@link PoppyLogger}
  * — one hook here covers every teleport command at once, rather than
  * duplicating a log call in each command class.
+ *
+ * <p>The destination is resolved via a {@link Supplier<Home>} rather than
+ * a plain {@link Home}, and re-resolved right before the actual teleport
+ * (not just once at request time) — this matters for /home specifically:
+ * without it, running {@code /home base} then {@code /delhome base}
+ * during the warmup would still teleport the player to the now-deleted
+ * home's stale coordinates, since the location would already be captured
+ * before the deletion. Every other caller (spawn, back, rtp, tpa,
+ * deathback...) just wraps a fixed {@link Home} in a trivial supplier via
+ * {@link #requestTeleport(Player, Home, String)}, so this adds safety for
+ * /home without changing behavior anywhere else.
  *
  * <p>{@code pendingTasks} and {@code startLocations} only hold entries for
  * the few seconds a warmup is active — unlike {@link HomeManager}'s cache or
@@ -64,10 +76,21 @@ public class TeleportManager implements Listener {
     }
 
     public void requestTeleport(Player player, Home home) {
-        requestTeleport(player, home, "home.success");
+        requestTeleport(player, () -> home, "home.success");
     }
 
     public void requestTeleport(Player player, Home home, String successMessagePath) {
+        requestTeleport(player, () -> home, successMessagePath);
+    }
+
+    /**
+     * Same as {@link #requestTeleport(Player, Home, String)}, but the
+     * destination is looked up fresh — via {@code homeSupplier} — both now
+     * and again right before the actual teleport, so a destination that
+     * stops existing during the warmup (e.g. a home deleted mid-warmup)
+     * cancels the teleport instead of using stale coordinates.
+     */
+    public void requestTeleport(Player player, Supplier<Home> homeSupplier, String successMessagePath) {
         UUID uuid = player.getUniqueId();
 
         if (combatManager.isInCombat(uuid)) {
@@ -78,7 +101,7 @@ public class TeleportManager implements Listener {
         cancelPending(uuid);
 
         if (warmupSeconds <= 0) {
-            teleportNow(player, home, successMessagePath);
+            teleportNow(player, homeSupplier, successMessagePath);
             return;
         }
 
@@ -106,7 +129,7 @@ public class TeleportManager implements Listener {
                     if (remaining <= 0) {
                         pendingTasks.remove(uuid);
                         startLocations.remove(uuid);
-                        teleportNow(player, home, successMessagePath);
+                        teleportNow(player, homeSupplier, successMessagePath);
                         cancel();
                         return;
                     }
@@ -180,7 +203,13 @@ public class TeleportManager implements Listener {
         startLocations.remove(uuid);
     }
 
-    protected void teleportNow(Player player, Home home, String successMessagePath) {
+    protected void teleportNow(Player player, Supplier<Home> homeSupplier, String successMessagePath) {
+        Home home = homeSupplier.get();
+        if (home == null) {
+            player.sendMessage(messages.get("teleport.target-missing"));
+            return;
+        }
+
         Location location = home.toLocation();
         if (location == null) {
             player.sendMessage(messages.get("general.world-not-loaded"));

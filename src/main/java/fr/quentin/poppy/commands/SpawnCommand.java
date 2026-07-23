@@ -15,6 +15,13 @@ import org.jspecify.annotations.NonNull;
  * Handles /spawn: teleports the sender to the server spawn point set via
  * /setspawn, going through {@link TeleportManager} so the usual
  * warmup/combat-tag rules apply.
+ *
+ * <p>The destination is passed as a supplier that re-fetches the spawn
+ * from {@link SpawnManager} at teleport time, rather than the {@link Home}
+ * captured here — this way, if the spawn is removed (e.g. via /delspawn)
+ * during the teleport warmup, {@link TeleportManager} notices at the last
+ * moment and cancels instead of teleporting to stale coordinates. Same
+ * fix as {@link HomeCommand} for the equivalent /delhome case.
  */
 public class SpawnCommand extends SafeCommand {
 
@@ -40,7 +47,7 @@ public class SpawnCommand extends SafeCommand {
             return true;
         }
 
-        teleportManager.requestTeleport(player, spawn, "spawn.success");
+        teleportManager.requestTeleport(player, spawnManager::getSpawn, "spawn.success");
         return true;
     }
 }

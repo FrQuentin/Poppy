@@ -10,10 +10,14 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.jspecify.annotations.NonNull;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 import java.util.logging.Level;
 
 /**
@@ -21,6 +25,13 @@ import java.util.logging.Level;
  * their name in the tab list, refreshed on a fixed interval plus on join.
  * Toggle with {@code show-health-in-tab}; refresh rate with
  * {@code tab-health-update-interval-ticks} in config.yml.
+ *
+ * <p>{@link #lastSentName} caches the last {@link Component} actually sent
+ * to each player, and {@link #updatePlayer} skips {@code playerListName}
+ * entirely when the newly built one is identical — without this, every
+ * tick resent every online player's tab name regardless of whether their
+ * health, color, or AFK status had changed since the last check, which
+ * scales badly with player count.
  *
  * <p>Note the repeating task is scheduled directly from the constructor —
  * this is safe (scheduling doesn't depend on the listener being registered
@@ -33,6 +44,8 @@ public class TabHealthListener implements Listener {
     private final JavaPlugin plugin;
     private final AfkManager afkManager;
     private final boolean enabled;
+
+    private final Map<UUID, Component> lastSentName = new HashMap<>();
 
     public TabHealthListener(JavaPlugin plugin, AfkManager afkManager) {
         this.plugin = plugin;
@@ -61,6 +74,11 @@ public class TabHealthListener implements Listener {
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Error setting tab health for " + event.getPlayer().getName(), e);
         }
+    }
+
+    @EventHandler
+    public void onQuit(@NonNull PlayerQuitEvent event) {
+        lastSentName.remove(event.getPlayer().getUniqueId());
     }
 
     /**
@@ -93,6 +111,12 @@ public class TabHealthListener implements Listener {
                 .append(player.displayName())
                 .append(Component.text("  \u2764 " + heartsText, color));
 
+        UUID uuid = player.getUniqueId();
+        if (listName.equals(lastSentName.get(uuid))) {
+            return;
+        }
+
+        lastSentName.put(uuid, listName);
         player.playerListName(listName);
     }
 
@@ -106,9 +130,9 @@ public class TabHealthListener implements Listener {
         if (ratio > 0.66) {
             return NamedTextColor.GREEN;
         } else if (ratio > 0.33) {
-            return NamedTextColor.GOLD;
+            return NamedTextColor.YELLOW;
         } else {
-            return NamedTextColor.DARK_RED;
+            return NamedTextColor.RED;
         }
     }
 }

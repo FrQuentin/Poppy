@@ -93,9 +93,10 @@ sleep-status-message-enabled: true
 # startup/shutdown console summary.
 logging:
   enabled: true
-  # If true, also prints each log line to the console in real time.
   console-mirror: false
-  # Toggle individual categories of events without disabling logging entirely.
+  # How often (in seconds) queued log lines are flushed to disk in a batch,
+  # instead of opening the file for every single event.
+  flush-interval-seconds: 3
   categories:
     home: true
     teleport: true

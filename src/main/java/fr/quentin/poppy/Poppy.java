@@ -33,6 +33,7 @@ public final class Poppy extends JavaPlugin {
     private HomeManager homeManager;
     private SpawnManager spawnManager;
     private PoppyStats stats;
+    private PoppyLogger poppyLogger;
 
     @Override
     public void onEnable() {
@@ -41,6 +42,7 @@ public final class Poppy extends JavaPlugin {
         homeManager = new HomeManager(this);
         spawnManager = new SpawnManager(this);
         stats = new PoppyStats();
+        poppyLogger = new PoppyLogger(this);
 
         Messages messages = new Messages(this);
 
@@ -158,6 +160,10 @@ public final class Poppy extends JavaPlugin {
 
         logShutdownSummary();
         getLogger().info("Poppy has been disabled.");
+
+        if (poppyLogger != null) {
+            poppyLogger.shutdown();
+        }
     }
 
     private void logStartupBanner() {

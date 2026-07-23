@@ -22,6 +22,7 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.inventory.InventoryMoveItemEvent;
 import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.EquipmentSlot;
@@ -520,5 +521,36 @@ public class DeathChestManager implements Listener {
         } catch (IllegalArgumentException e) {
             return ownerUuidString;
         }
+    }
+
+    /**
+     * Blocks hoppers (and hopper minecarts) from either draining or filling a
+     * death chest. Hoppers never fire {@link InventoryOpenEvent} — they
+     * transfer items via a completely different event — so without this,
+     * {@link #onOpen}'s ownership check and the whole anti-farm design could
+     * be bypassed simply by placing a hopper under (or above) someone else's
+     * death chest.
+     */
+    @EventHandler
+    public void onItemMove(@NonNull InventoryMoveItemEvent event) {
+        if (!enabled) {
+            return;
+        }
+
+        try {
+            if (isDeathChest(event.getSource()) || isDeathChest(event.getDestination())) {
+                event.setCancelled(true);
+            }
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE, "Error in DeathChestManager#onItemMove", e);
+        }
+    }
+
+    private boolean isDeathChest(org.bukkit.inventory.Inventory inventory) {
+        Chest chest = resolveChest(inventory.getHolder());
+        if (chest == null) {
+            return false;
+        }
+        return chest.getPersistentDataContainer().get(ownerKey, PersistentDataType.STRING) != null;
     }
 }

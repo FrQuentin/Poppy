@@ -3,6 +3,7 @@ package fr.quentin.poppy.manager;
 import fr.quentin.poppy.util.Messages;
 import fr.quentin.poppy.util.PoppyLogger;
 import org.bukkit.Bukkit;
+import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -11,6 +12,7 @@ import org.bukkit.Sound;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.block.BlockState;
 import org.bukkit.block.Chest;
 import org.bukkit.block.DoubleChest;
 import org.bukkit.block.data.BlockData;
@@ -25,6 +27,7 @@ import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryMoveItemEvent;
 import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
@@ -47,26 +50,39 @@ import java.util.logging.Level;
  * in config.yml; if the {@code keepInventory} gamerule is on,
  * {@link PlayerDeathEvent#getDrops()} is already empty by the time this
  * runs, so nothing happens automatically — no special-casing needed.
- *
- * <p>Ownership and creation time are stored directly on the chest block's
+ * <p>
+ * Ownership and creation time are stored directly on the chest block's
  * {@link org.bukkit.persistence.PersistentDataContainer} (chests are tile
- * entities, so this survives a server restart without any extra file),
- * rather than in an in-memory map — the only thing that doesn't survive a
- * restart is the scheduled expiry task itself (see {@link #onDeath}), so a
- * chest created right before a restart keeps its protection indefinitely
- * until manually broken. Acceptable for a personal server; would need a
- * persisted chest registry to fix properly for a public one.
+ * entities, so this survives a server restart without any extra file).
+ * The scheduled expiry task from {@link #onDeath} does <b>not</b> survive a
+ * restart, though — a chest created right before a shutdown would
+ * otherwise stay protected and unbreakable forever, with the
+ * {@code createdAt} timestamp sitting unread in its PDC. The
+ * {@link #DeathChestManager(JavaPlugin, Messages, PoppyLogger) constructor}
+ * and {@link #onChunkLoad} cover that gap: every already-loaded chunk is
+ * scanned at startup, and every chunk is scanned again as it loads, so an
+ * expired chest is caught (and its remaining contents dropped) even if the
+ * server was off past its expiry time.
  *
  * <p>Once emptied, a death chest despawns immediately (see {@link #onClose})
  * rather than lingering as a real, minable {@code Material.CHEST} block, and
  * breaking it is blocked outright (see {@link #onBreak}) — without both of
  * these, a player could deliberately die repeatedly and either break or
  * empty-then-mine each chest for a free chest item, an infinite farm.
+ * Hoppers are blocked from draining or filling a death chest too (see
+ * {@link #onItemMove}), since they bypass {@link #onOpen}'s protection
+ * entirely by never firing an inventory-open event.
  */
 public class DeathChestManager implements Listener {
 
     private static final int SEARCH_RADIUS = 5;
 
+    // Fixed facing for every death chest. With this facing, a double chest
+    // only visually/functionally merges when the second half sits directly
+    // WEST (making the first chest LEFT) or EAST (making it RIGHT) of the
+    // first — this is a vanilla rule tied to the chosen facing direction,
+    // not an arbitrary choice, so the search for a second half is
+    // restricted to exactly those two directions.
     private static final BlockFace CHEST_FACING = BlockFace.SOUTH;
     private static final BlockFace LEFT_DIRECTION = BlockFace.WEST;
     private static final BlockFace RIGHT_DIRECTION = BlockFace.EAST;
@@ -95,6 +111,8 @@ public class DeathChestManager implements Listener {
         this.storeXp = plugin.getConfig().getBoolean("death-chest-store-xp", true);
         long expiryMinutes = Math.max(0, plugin.getConfig().getInt("death-chest-expiry-minutes", 30));
         this.expiryMillis = expiryMinutes * 60L * 1000L;
+
+        scanAlreadyLoadedChunks();
     }
 
     @EventHandler
@@ -207,6 +225,11 @@ public class DeathChestManager implements Listener {
         }
     }
 
+    /**
+     * Despawns a death chest the moment it's closed empty, so it can't be
+     * mined afterward for a free chest item — see the class-level doc for
+     * why that matters.
+     */
     @EventHandler
     public void onClose(@NonNull InventoryCloseEvent event) {
         if (!enabled) {
@@ -226,8 +249,6 @@ public class DeathChestManager implements Listener {
             }
 
             if (isEmpty(event.getInventory())) {
-                String actorName = event.getPlayer() instanceof Player player ? player.getName() : "UNKNOWN";
-                logger.log(PoppyLogger.Category.DEATH_CHEST, actorName, "emptied and despawned death chest owned by " + ownerName(ownerString));
                 removeChestBlocks(holder);
             }
         } catch (Exception e) {
@@ -235,6 +256,14 @@ public class DeathChestManager implements Listener {
         }
     }
 
+    /**
+     * Cancels breaking a death chest entirely — even for its owner, unless
+     * they have the bypass permission. Without this, breaking the block
+     * drops its contents on the ground regardless of {@link #onOpen}'s
+     * protection (bypassing it for a non-owner stealing the items), and
+     * also hands out a free chest item that could be farmed by repeatedly
+     * dying and breaking each emptied chest.
+     */
     @EventHandler
     public void onBreak(@NonNull BlockBreakEvent event) {
         if (!enabled) {
@@ -269,6 +298,44 @@ public class DeathChestManager implements Listener {
         }
     }
 
+    /**
+     * Blocks hoppers (and hopper minecarts) from either draining or filling
+     * a death chest. Hoppers never fire {@link InventoryOpenEvent} — they
+     * transfer items via a completely different event — so without this,
+     * {@link #onOpen}'s ownership check and the whole anti-farm design
+     * could be bypassed simply by placing a hopper under (or above)
+     * someone else's death chest.
+     */
+    @EventHandler
+    public void onItemMove(@NonNull InventoryMoveItemEvent event) {
+        if (!enabled) {
+            return;
+        }
+
+        try {
+            if (isDeathChest(event.getSource()) || isDeathChest(event.getDestination())) {
+                event.setCancelled(true);
+            }
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE, "Error in DeathChestManager#onItemMove", e);
+        }
+    }
+
+    private boolean isDeathChest(Inventory inventory) {
+        Chest chest = resolveChest(inventory.getHolder());
+        if (chest == null) {
+            return false;
+        }
+        return chest.getPersistentDataContainer().get(ownerKey, PersistentDataType.STRING) != null;
+    }
+
+    /**
+     * Consumes a death-chest XP bottle on right-click, restoring the exact
+     * XP it was created with. Triggers on both {@link Action#RIGHT_CLICK_AIR}
+     * and {@link Action#RIGHT_CLICK_BLOCK} — a regular experience bottle
+     * throws on either, so this must intercept both to reliably prevent
+     * the vanilla throw behavior.
+     */
     @EventHandler
     public void onXpBottleUse(@NonNull PlayerInteractEvent event) {
         if (!enabled || !storeXp) {
@@ -295,7 +362,7 @@ public class DeathChestManager implements Listener {
 
             int storedXp = meta.getPersistentDataContainer().getOrDefault(xpAmountKey, PersistentDataType.INTEGER, 0);
             if (storedXp <= 0) {
-                return;
+                return; // a regular experience bottle, not one of ours
             }
 
             event.setCancelled(true);
@@ -312,6 +379,76 @@ public class DeathChestManager implements Listener {
             player.sendMessage(messages.get("death.xp-restored"));
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Error in DeathChestManager#onXpBottleUse for " + event.getPlayer().getName(), e);
+        }
+    }
+
+    /**
+     * Scans every already-loaded chunk of every already-loaded world for
+     * expired death chests, called once from the constructor. Covers
+     * chests sitting in spawn-kept-loaded chunks (or any chunk a player
+     * happened to already be standing in) at the moment the plugin enables
+     * — {@link #onChunkLoad} covers everything else as chunks load later.
+     */
+    private void scanAlreadyLoadedChunks() {
+        if (expiryMillis <= 0) {
+            return;
+        }
+
+        for (World world : Bukkit.getWorlds()) {
+            for (Chunk chunk : world.getLoadedChunks()) {
+                scanChunkForExpiredChests(chunk);
+            }
+        }
+    }
+
+    @EventHandler
+    public void onChunkLoad(@NonNull ChunkLoadEvent event) {
+        if (!enabled || expiryMillis <= 0) {
+            return;
+        }
+
+        try {
+            scanChunkForExpiredChests(event.getChunk());
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE, "Error scanning chunk for expired death chests", e);
+        }
+    }
+
+    /**
+     * Checks every tile entity in the chunk for a death chest whose
+     * {@code createdAt} timestamp is past {@link #expiryMillis}, and
+     * expires it via {@link #dropRemainingAndClear} — the same cleanup
+     * path used by the normal in-session {@link #expireChest}. Each half
+     * of a double chest carries its own copy of the owner/createdAt tags
+     * (see {@link #placeChest}), so this naturally handles both halves
+     * independently without needing to know which location was "primary".
+     */
+    private void scanChunkForExpiredChests(Chunk chunk) {
+        for (BlockState state : chunk.getTileEntities()) {
+            if (!(state instanceof Chest chestState)) {
+                continue;
+            }
+
+            String ownerString = chestState.getPersistentDataContainer().get(ownerKey, PersistentDataType.STRING);
+            if (ownerString == null) {
+                continue;
+            }
+
+            long createdAt = chestState.getPersistentDataContainer().getOrDefault(createdAtKey, PersistentDataType.LONG, 0L);
+            if (System.currentTimeMillis() - createdAt < expiryMillis) {
+                continue;
+            }
+
+            try {
+                UUID owner = UUID.fromString(ownerString);
+                boolean droppedAnything = dropRemainingAndClear(chestState.getLocation(), owner);
+                if (droppedAnything) {
+                    logger.log(PoppyLogger.Category.DEATH_CHEST, ownerName(ownerString),
+                            "death chest expired (recovered after a restart), remaining items dropped on the ground");
+                }
+            } catch (IllegalArgumentException e) {
+                plugin.getLogger().log(Level.WARNING, "Death chest at " + chestState.getLocation() + " had an invalid owner UUID: " + ownerString);
+            }
         }
     }
 
@@ -373,6 +510,11 @@ public class DeathChestManager implements Listener {
         }
     }
 
+    /**
+     * A double chest's InventoryHolder is a {@link DoubleChest}, not a
+     * {@link Chest} — this resolves either case to one underlying Chest so
+     * ownership can be read the same way regardless of chest size.
+     */
     private Chest resolveChest(InventoryHolder holder) {
         if (holder instanceof Chest chest) {
             return chest;
@@ -414,6 +556,12 @@ public class DeathChestManager implements Listener {
         }
     }
 
+    /**
+     * Verifies the block is still the exact chest we placed (it could have
+     * already been emptied and despawned by {@link #onClose}, or broken)
+     * before touching it — matching on the stored owner avoids destroying
+     * an unrelated chest someone else placed at the same coordinates.
+     */
     private boolean dropRemainingAndClear(Location location, UUID owner) {
         Block block = location.getBlock();
         if (block.getType() != Material.CHEST) {
@@ -521,36 +669,5 @@ public class DeathChestManager implements Listener {
         } catch (IllegalArgumentException e) {
             return ownerUuidString;
         }
-    }
-
-    /**
-     * Blocks hoppers (and hopper minecarts) from either draining or filling a
-     * death chest. Hoppers never fire {@link InventoryOpenEvent} — they
-     * transfer items via a completely different event — so without this,
-     * {@link #onOpen}'s ownership check and the whole anti-farm design could
-     * be bypassed simply by placing a hopper under (or above) someone else's
-     * death chest.
-     */
-    @EventHandler
-    public void onItemMove(@NonNull InventoryMoveItemEvent event) {
-        if (!enabled) {
-            return;
-        }
-
-        try {
-            if (isDeathChest(event.getSource()) || isDeathChest(event.getDestination())) {
-                event.setCancelled(true);
-            }
-        } catch (Exception e) {
-            plugin.getLogger().log(Level.SEVERE, "Error in DeathChestManager#onItemMove", e);
-        }
-    }
-
-    private boolean isDeathChest(org.bukkit.inventory.Inventory inventory) {
-        Chest chest = resolveChest(inventory.getHolder());
-        if (chest == null) {
-            return false;
-        }
-        return chest.getPersistentDataContainer().get(ownerKey, PersistentDataType.STRING) != null;
     }
 }

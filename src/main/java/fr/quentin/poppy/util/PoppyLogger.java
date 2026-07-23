@@ -21,12 +21,15 @@ import java.util.logging.Level;
  * Every category (home, teleport, tpa, death, combat...) can be toggled
  * independently in config.yml, and logging as a whole can be turned off.
  *
- * <p>File writes happen asynchronously (same pattern as
+ * <p>File writes normally happen asynchronously (same pattern as
  * {@link fr.quentin.poppy.manager.HomeManager}), guarded by a single lock
- * since every category writes to the same daily file — a naive fanout to
- * per-category files was considered but a single chronological file is far
- * easier to read back when correlating events across categories (e.g. a
- * teleport right after a home was created).
+ * since every category writes to the same daily file. However, Bukkit's
+ * scheduler rejects new async tasks once a plugin has started disabling
+ * (throwing {@code IllegalPluginAccessException}) — several categories
+ * here (ADMIN especially) can legitimately fire during shutdown, so
+ * {@link #log} checks {@link JavaPlugin#isEnabled()} and falls back to a
+ * synchronous write on the calling thread when the plugin is no longer
+ * enabled, rather than crashing or silently dropping the line.
  */
 public class PoppyLogger {
 
@@ -88,7 +91,14 @@ public class PoppyLogger {
             plugin.getLogger().info(line);
         }
 
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> writeToFile(line));
+        if (plugin.isEnabled()) {
+            Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> writeToFile(line));
+        } else {
+            // The scheduler rejects new async tasks once the plugin has started
+            // disabling — write synchronously here instead of losing the line
+            // or throwing IllegalPluginAccessException.
+            writeToFile(line);
+        }
     }
 
     private void writeToFile(String line) {

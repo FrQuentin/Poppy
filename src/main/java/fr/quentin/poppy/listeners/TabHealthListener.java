@@ -79,7 +79,7 @@ public class TabHealthListener implements Listener {
     }
 
     private void updatePlayer(Player player) {
-        double heartsRaw = player.getHealth() / 2.0;
+        double heartsRaw = (player.getHealth() + player.getAbsorptionAmount()) / 2.0;
         double hearts = Math.round(heartsRaw * 2) / 2.0;
         String heartsText = (hearts == Math.floor(hearts)) ? String.valueOf((int) hearts) : String.valueOf(hearts);
 

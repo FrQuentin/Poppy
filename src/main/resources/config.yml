@@ -72,3 +72,14 @@ death-chest-expiry-minutes: 30
 # their death chest (right-clicking it restores the exact XP), instead of
 # dropping as orbs on the ground.
 death-chest-store-xp: true
+
+# Percentage (0-100) of online players in a world who need to be sleeping for
+# the night to skip, matching Minecraft's own playersSleepingPercentage
+# gamerule (applied automatically to every world on startup). Example: 50
+# means half the online players need to sleep — matches your examples: 1/2,
+# 4/6, or 4/7 sleeping all skip the night; 1/5 does not.
+sleep-percentage: 50
+
+# If true, broadcasts a "X/Y players sleeping" message to everyone in the
+# same world whenever a player gets into bed.
+sleep-status-message-enabled: true

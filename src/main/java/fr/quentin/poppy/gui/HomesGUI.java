@@ -109,7 +109,7 @@ public final class HomesGUI {
      * silent wrong guess (e.g. showing "Overworld" for a Nether home) is
      * worse than an honest "we don't know right now".
      */
-    private String worldLabel(String worldName) {
+    public String worldLabel(String worldName) {
         World world = Bukkit.getWorld(worldName);
         if (world == null) {
             return "Unknown";

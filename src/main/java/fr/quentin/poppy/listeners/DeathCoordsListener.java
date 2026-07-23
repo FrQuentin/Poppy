@@ -5,6 +5,7 @@ import fr.quentin.poppy.util.Messages;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
 import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -56,7 +57,7 @@ public class DeathCoordsListener implements Listener {
             deathLocationManager.recordDeath(player.getUniqueId(), location);
 
             Component prefix = messages.get("death.coords",
-                    "world", location.getWorld().getName(),
+                    "world", worldLabel(location.getWorld()),
                     "x", String.valueOf(location.getBlockX()),
                     "y", String.valueOf(location.getBlockY()),
                     "z", String.valueOf(location.getBlockZ()));
@@ -72,5 +73,18 @@ public class DeathCoordsListener implements Listener {
     @EventHandler
     public void onQuit(@NonNull PlayerQuitEvent event) {
         deathLocationManager.remove(event.getPlayer().getUniqueId());
+    }
+
+    /**
+     * Same mapping as {@link fr.quentin.poppy.gui.HomesGUI#worldLabel} —
+     * shows a friendly dimension name instead of the raw world folder name
+     * (e.g. "world_nether"), which players never think of the Nether as.
+     */
+    private String worldLabel(World world) {
+        return switch (world.getEnvironment()) {
+            case NETHER -> "Nether";
+            case THE_END -> "End";
+            default -> "Overworld";
+        };
     }
 }

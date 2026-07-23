@@ -132,6 +132,8 @@ public final class Poppy extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new PoppyLoreListener(this, messages), this);
         getServer().getPluginManager().registerEvents(new DeathCoordsListener(this, messages, deathLocationManager), this);
         getServer().getPluginManager().registerEvents(deathChestManager, this);
+        getServer().getPluginManager().registerEvents(new SleepPercentageListener(this), this);
+        getServer().getPluginManager().registerEvents(new SleepStatusListener(this, messages), this);
 
         if (getConfig().getBoolean("afk-auto-enabled", true)) {
             new AutoAfkTask(this, afkManager, messages).runTaskTimer(this, 20L * 60, 20L * 60);

@@ -2,6 +2,7 @@ package fr.quentin.poppy.manager;
 
 import fr.quentin.poppy.model.Home;
 import fr.quentin.poppy.util.Messages;
+import fr.quentin.poppy.util.PoppyLogger;
 import fr.quentin.poppy.util.PoppyStats;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
@@ -21,9 +22,14 @@ import java.util.logging.Level;
 
 /**
  * Central point for every Poppy teleport (/home, /spawn, /back, /rtp,
- * shared-home links): applies the configured warmup countdown, cancels it
- * on movement or damage, and blocks the whole request while the player is
- * combat-tagged (see {@link CombatManager}).
+ * /tpa, /deathback, shared-home links): applies the configured warmup
+ * countdown, cancels it on movement or damage, and blocks the whole
+ * request while the player is combat-tagged (see {@link CombatManager}).
+ *
+ * <p>Being the single choke point for all teleports also makes this the
+ * highest-leverage place to log teleport activity via {@link PoppyLogger}
+ * — one hook here covers every teleport command at once, rather than
+ * duplicating a log call in each command class.
  *
  * <p>{@code pendingTasks} and {@code startLocations} only hold entries for
  * the few seconds a warmup is active — unlike {@link HomeManager}'s cache or
@@ -40,16 +46,19 @@ public class TeleportManager implements Listener {
     private final BackManager backManager;
     private final CombatManager combatManager;
     private final PoppyStats stats;
+    private final PoppyLogger logger;
 
     private final Map<UUID, BukkitTask> pendingTasks = new HashMap<>();
     private final Map<UUID, Location> startLocations = new HashMap<>();
 
-    public TeleportManager(JavaPlugin plugin, Messages messages, BackManager backManager, CombatManager combatManager, PoppyStats stats) {
+    public TeleportManager(JavaPlugin plugin, Messages messages, BackManager backManager, CombatManager combatManager,
+                           PoppyStats stats, PoppyLogger logger) {
         this.plugin = plugin;
         this.messages = messages;
         this.backManager = backManager;
         this.combatManager = combatManager;
         this.stats = stats;
+        this.logger = logger;
         this.warmupSeconds = Math.max(0, plugin.getConfig().getInt("teleport-warmup-seconds", 3));
         this.cancelOnMove = plugin.getConfig().getBoolean("cancel-on-move", true);
     }
@@ -181,6 +190,10 @@ public class TeleportManager implements Listener {
         backManager.recordLocation(player);
         player.teleport(location);
         stats.incrementTeleports();
+
+        logger.log(PoppyLogger.Category.TELEPORT, player, "teleported to '" + home.name() + "' at "
+                + home.worldName() + ": " + (int) home.x() + ", " + (int) home.y() + ", " + (int) home.z());
+
         player.sendMessage(messages.get(successMessagePath, "home", home.name()));
     }
 }

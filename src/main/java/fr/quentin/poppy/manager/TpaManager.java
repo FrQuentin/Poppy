@@ -1,6 +1,7 @@
 package fr.quentin.poppy.manager;
 
 import fr.quentin.poppy.util.Messages;
+import fr.quentin.poppy.util.PoppyLogger;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -38,14 +39,16 @@ public class TpaManager {
 
     private final JavaPlugin plugin;
     private final Messages messages;
+    private final PoppyLogger logger;
     private final long expirySeconds;
 
     private final Map<UUID, Map<UUID, Request>> requestsByTarget = new HashMap<>();
     private final Map<UUID, Map<UUID, BukkitTask>> expiryTasks = new HashMap<>();
 
-    public TpaManager(JavaPlugin plugin, Messages messages) {
+    public TpaManager(JavaPlugin plugin, Messages messages, PoppyLogger logger) {
         this.plugin = plugin;
         this.messages = messages;
+        this.logger = logger;
         this.expirySeconds = Math.max(5, plugin.getConfig().getInt("tpa-expiry-seconds", 60));
     }
 
@@ -153,8 +156,9 @@ public class TpaManager {
     /**
      * Called when a request's scheduled timeout fires: notifies both the
      * requester and the target (if still online) that the request expired,
-     * then removes it. Never called for manual removals (accept/deny/cancel),
-     * which each send their own, different messages.
+     * logs it, then removes it. Never called for manual removals
+     * (accept/deny/cancel), which each send their own, different messages
+     * and log their own line.
      */
     private void expire(UUID target, UUID requester) {
         Map<UUID, Request> requests = requestsByTarget.get(target);
@@ -170,6 +174,10 @@ public class TpaManager {
         }
         if (targetPlayer != null && requesterPlayer != null) {
             targetPlayer.sendMessage(messages.get("tpa.expired-target", "player", requesterPlayer.getName()));
+        }
+
+        if (requesterPlayer != null && targetPlayer != null) {
+            logger.log(PoppyLogger.Category.TPA, requesterPlayer, "request to " + targetPlayer.getName() + " expired");
         }
 
         removeRequest(target, requester);

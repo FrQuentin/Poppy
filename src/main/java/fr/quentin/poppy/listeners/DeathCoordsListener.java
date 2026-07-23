@@ -2,6 +2,7 @@ package fr.quentin.poppy.listeners;
 
 import fr.quentin.poppy.manager.DeathLocationManager;
 import fr.quentin.poppy.util.Messages;
+import fr.quentin.poppy.util.PoppyLogger;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
 import org.bukkit.Location;
@@ -35,12 +36,14 @@ public class DeathCoordsListener implements Listener {
     private final JavaPlugin plugin;
     private final Messages messages;
     private final DeathLocationManager deathLocationManager;
+    private final PoppyLogger logger;
     private final boolean enabled;
 
-    public DeathCoordsListener(JavaPlugin plugin, Messages messages, DeathLocationManager deathLocationManager) {
+    public DeathCoordsListener(JavaPlugin plugin, Messages messages, DeathLocationManager deathLocationManager, PoppyLogger logger) {
         this.plugin = plugin;
         this.messages = messages;
         this.deathLocationManager = deathLocationManager;
+        this.logger = logger;
         this.enabled = plugin.getConfig().getBoolean("death-coords-enabled", true);
     }
 
@@ -56,8 +59,12 @@ public class DeathCoordsListener implements Listener {
 
             deathLocationManager.recordDeath(player.getUniqueId(), location);
 
+            String worldLabel = worldLabel(location.getWorld());
+            logger.log(PoppyLogger.Category.DEATH, player, "died at " + worldLabel + ": "
+                    + location.getBlockX() + ", " + location.getBlockY() + ", " + location.getBlockZ());
+
             Component prefix = messages.get("death.coords",
-                    "world", worldLabel(location.getWorld()),
+                    "world", worldLabel,
                     "x", String.valueOf(location.getBlockX()),
                     "y", String.valueOf(location.getBlockY()),
                     "z", String.valueOf(location.getBlockZ()));

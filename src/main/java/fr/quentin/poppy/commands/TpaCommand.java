@@ -3,6 +3,7 @@ package fr.quentin.poppy.commands;
 import fr.quentin.poppy.manager.TpaManager;
 import fr.quentin.poppy.util.Messages;
 import fr.quentin.poppy.util.PlayerNameSuggestions;
+import fr.quentin.poppy.util.PoppyLogger;
 import fr.quentin.poppy.util.SafeCommand;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
@@ -24,10 +25,12 @@ import java.util.List;
 public class TpaCommand extends SafeCommand implements TabCompleter {
 
     private final TpaManager tpaManager;
+    private final PoppyLogger logger;
 
-    public TpaCommand(JavaPlugin plugin, TpaManager tpaManager, Messages messages) {
+    public TpaCommand(JavaPlugin plugin, TpaManager tpaManager, Messages messages, PoppyLogger logger) {
         super(plugin, messages);
         this.tpaManager = tpaManager;
+        this.logger = logger;
     }
 
     @Override
@@ -54,6 +57,7 @@ public class TpaCommand extends SafeCommand implements TabCompleter {
         }
 
         tpaManager.createRequest(target.getUniqueId(), player.getUniqueId(), TpaManager.Type.NORMAL);
+        logger.log(PoppyLogger.Category.TPA, player, "sent /tpa request to " + target.getName());
         player.sendMessage(messages.get("tpa.sent", "player", target.getName()));
 
         Component prefix = messages.get("tpa.received-prefix", "player", player.getName());

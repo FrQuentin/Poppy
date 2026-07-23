@@ -10,6 +10,7 @@ import fr.quentin.poppy.gui.TrashListener;
 import fr.quentin.poppy.listeners.*;
 import fr.quentin.poppy.manager.*;
 import fr.quentin.poppy.util.Messages;
+import fr.quentin.poppy.util.PoppyLogger;
 import fr.quentin.poppy.util.PoppyStats;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -43,40 +44,45 @@ public final class Poppy extends JavaPlugin {
 
         Messages messages = new Messages(this);
 
-        // TpaManager needs `messages` (it sends the expiry notifications itself),
-        // so it's created here, after Messages, instead of alongside homeManager/spawnManager above.
-        TpaManager tpaManager = new TpaManager(this, messages);
+        // PoppyLogger only needs the plugin/config, so it's created early —
+        // every manager/command below that logs activity depends on it.
+        PoppyLogger poppyLogger = new PoppyLogger(this);
+
+        // TpaManager needs `messages` and `poppyLogger` (it sends expiry
+        // notifications and logs expirations itself), so it's created here,
+        // after both, instead of alongside homeManager/spawnManager above.
+        TpaManager tpaManager = new TpaManager(this, messages, poppyLogger);
 
         HomesGUI homesGUI = new HomesGUI(this, messages);
         ConfirmDeleteGUI confirmDeleteGUI = new ConfirmDeleteGUI(this, messages);
         ConfirmOverwriteGUI confirmOverwriteGUI = new ConfirmOverwriteGUI(this, messages);
         BackManager backManager = new BackManager();
         CombatManager combatManager = new CombatManager(getConfig().getLong("combat-tag-seconds", 10));
-        TeleportManager teleportManager = new TeleportManager(this, messages, backManager, combatManager, stats);
+        TeleportManager teleportManager = new TeleportManager(this, messages, backManager, combatManager, stats, poppyLogger);
         ShareManager shareManager = new ShareManager(this);
         TrashGUI trashGUI = new TrashGUI(this, messages);
         AfkManager afkManager = new AfkManager();
         DeathLocationManager deathLocationManager = new DeathLocationManager();
-        DeathChestManager deathChestManager = new DeathChestManager(this, messages);
+        DeathChestManager deathChestManager = new DeathChestManager(this, messages, poppyLogger);
 
         Objects.requireNonNull(getCommand("sethome")).setExecutor(
-                new SetHomeCommand(this, homeManager, confirmOverwriteGUI, messages, stats));
+                new SetHomeCommand(this, homeManager, confirmOverwriteGUI, messages, stats, poppyLogger));
 
         HomeCommand homeCommand = new HomeCommand(this, homeManager, homesGUI, teleportManager, messages);
         Objects.requireNonNull(getCommand("home")).setExecutor(homeCommand);
         Objects.requireNonNull(getCommand("home")).setTabCompleter(homeCommand);
 
-        DelHomeCommand delHomeCommand = new DelHomeCommand(this, homeManager, messages, stats);
+        DelHomeCommand delHomeCommand = new DelHomeCommand(this, homeManager, messages, stats, poppyLogger);
         Objects.requireNonNull(getCommand("delhome")).setExecutor(delHomeCommand);
         Objects.requireNonNull(getCommand("delhome")).setTabCompleter(delHomeCommand);
 
         Objects.requireNonNull(getCommand("homes")).setExecutor(new HomesCommand(this, homeManager, homesGUI, messages));
 
-        Objects.requireNonNull(getCommand("setspawn")).setExecutor(new SetSpawnCommand(this, spawnManager, messages));
-        Objects.requireNonNull(getCommand("delspawn")).setExecutor(new DelSpawnCommand(this, spawnManager, messages));
+        Objects.requireNonNull(getCommand("setspawn")).setExecutor(new SetSpawnCommand(this, spawnManager, messages, poppyLogger));
+        Objects.requireNonNull(getCommand("delspawn")).setExecutor(new DelSpawnCommand(this, spawnManager, messages, poppyLogger));
         Objects.requireNonNull(getCommand("spawn")).setExecutor(new SpawnCommand(this, spawnManager, teleportManager, messages));
 
-        ShareHomeCommand shareHomeCommand = new ShareHomeCommand(this, homeManager, shareManager, messages, stats);
+        ShareHomeCommand shareHomeCommand = new ShareHomeCommand(this, homeManager, shareManager, messages, stats, poppyLogger);
         Objects.requireNonNull(getCommand("sharehome")).setExecutor(shareHomeCommand);
         Objects.requireNonNull(getCommand("sharehome")).setTabCompleter(shareHomeCommand);
 
@@ -91,52 +97,51 @@ public final class Poppy extends JavaPlugin {
 
         Objects.requireNonNull(getCommand("trash")).setExecutor(new TrashCommand(this, trashGUI, messages));
 
-        Objects.requireNonNull(getCommand("afk")).setExecutor(new AfkCommand(this, afkManager, messages));
+        Objects.requireNonNull(getCommand("afk")).setExecutor(new AfkCommand(this, afkManager, messages, poppyLogger));
 
-        TpaCommand tpaCommand = new TpaCommand(this, tpaManager, messages);
+        TpaCommand tpaCommand = new TpaCommand(this, tpaManager, messages, poppyLogger);
         Objects.requireNonNull(getCommand("tpa")).setExecutor(tpaCommand);
         Objects.requireNonNull(getCommand("tpa")).setTabCompleter(tpaCommand);
 
-        TpaHereCommand tpaHereCommand = new TpaHereCommand(this, tpaManager, messages);
+        TpaHereCommand tpaHereCommand = new TpaHereCommand(this, tpaManager, messages, poppyLogger);
         Objects.requireNonNull(getCommand("tpahere")).setExecutor(tpaHereCommand);
         Objects.requireNonNull(getCommand("tpahere")).setTabCompleter(tpaHereCommand);
 
-        TpaAcceptCommand tpaAcceptCommand = new TpaAcceptCommand(this, tpaManager, teleportManager, messages);
+        TpaAcceptCommand tpaAcceptCommand = new TpaAcceptCommand(this, tpaManager, teleportManager, messages, poppyLogger);
         Objects.requireNonNull(getCommand("tpaccept")).setExecutor(tpaAcceptCommand);
         Objects.requireNonNull(getCommand("tpaccept")).setTabCompleter(tpaAcceptCommand);
 
-        TpaDenyCommand tpaDenyCommand = new TpaDenyCommand(this, tpaManager, messages);
+        TpaDenyCommand tpaDenyCommand = new TpaDenyCommand(this, tpaManager, messages, poppyLogger);
         Objects.requireNonNull(getCommand("tpadeny")).setExecutor(tpaDenyCommand);
         Objects.requireNonNull(getCommand("tpadeny")).setTabCompleter(tpaDenyCommand);
 
-        // New: /tpacancel, added alongside the other /tpa* commands.
-        TpaCancelCommand tpaCancelCommand = new TpaCancelCommand(this, tpaManager, messages);
+        TpaCancelCommand tpaCancelCommand = new TpaCancelCommand(this, tpaManager, messages, poppyLogger);
         Objects.requireNonNull(getCommand("tpacancel")).setExecutor(tpaCancelCommand);
         Objects.requireNonNull(getCommand("tpacancel")).setTabCompleter(tpaCancelCommand);
 
-        Objects.requireNonNull(getCommand("poppy")).setExecutor(new PoppyCommand(this, messages));
+        Objects.requireNonNull(getCommand("poppy")).setExecutor(new PoppyCommand(this, messages, poppyLogger));
 
         getServer().getPluginManager().registerEvents(
-                new HomesGUIListener(this, homeManager, homesGUI, confirmDeleteGUI, confirmOverwriteGUI, teleportManager, messages, stats), this);
+                new HomesGUIListener(this, homeManager, homesGUI, confirmDeleteGUI, confirmOverwriteGUI, teleportManager, messages, stats, poppyLogger), this);
         getServer().getPluginManager().registerEvents(teleportManager, this);
         getServer().getPluginManager().registerEvents(new BackListener(this, backManager), this);
-        getServer().getPluginManager().registerEvents(new TrashListener(this, messages), this);
+        getServer().getPluginManager().registerEvents(new TrashListener(this, messages, poppyLogger), this);
         getServer().getPluginManager().registerEvents(new JoinQuitListener(this, messages), this);
         getServer().getPluginManager().registerEvents(new TabHealthListener(this, afkManager), this);
-        getServer().getPluginManager().registerEvents(new AfkListener(this, afkManager, messages), this);
-        getServer().getPluginManager().registerEvents(new CombatListener(this, combatManager), this);
+        getServer().getPluginManager().registerEvents(new AfkListener(this, afkManager, messages, poppyLogger), this);
+        getServer().getPluginManager().registerEvents(new CombatListener(this, combatManager, poppyLogger), this);
         getServer().getPluginManager().registerEvents(new UnknownCommandListener(this, messages), this);
         getServer().getPluginManager().registerEvents(new HomeCacheListener(this, homeManager), this);
         getServer().getPluginManager().registerEvents(shareHomeCommand, this);
         getServer().getPluginManager().registerEvents(new TpaQuitListener(tpaManager), this);
-        getServer().getPluginManager().registerEvents(new PoppyLoreListener(this, messages), this);
-        getServer().getPluginManager().registerEvents(new DeathCoordsListener(this, messages, deathLocationManager), this);
+        getServer().getPluginManager().registerEvents(new PoppyLoreListener(this, messages, poppyLogger), this);
+        getServer().getPluginManager().registerEvents(new DeathCoordsListener(this, messages, deathLocationManager, poppyLogger), this);
         getServer().getPluginManager().registerEvents(deathChestManager, this);
         getServer().getPluginManager().registerEvents(new SleepPercentageListener(this), this);
-        getServer().getPluginManager().registerEvents(new SleepStatusListener(this, messages), this);
+        getServer().getPluginManager().registerEvents(new SleepStatusListener(this, messages, poppyLogger), this);
 
         if (getConfig().getBoolean("afk-auto-enabled", true)) {
-            new AutoAfkTask(this, afkManager, messages).runTaskTimer(this, 20L * 60, 20L * 60);
+            new AutoAfkTask(this, afkManager, messages, poppyLogger).runTaskTimer(this, 20L * 60, 20L * 60);
         }
 
         logStartupBanner();

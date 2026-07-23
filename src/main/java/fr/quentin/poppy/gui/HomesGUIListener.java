@@ -4,6 +4,7 @@ import fr.quentin.poppy.manager.HomeManager;
 import fr.quentin.poppy.manager.TeleportManager;
 import fr.quentin.poppy.model.Home;
 import fr.quentin.poppy.util.Messages;
+import fr.quentin.poppy.util.PoppyLogger;
 import fr.quentin.poppy.util.PoppyStats;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -38,9 +39,11 @@ public class HomesGUIListener implements Listener {
     private final TeleportManager teleportManager;
     private final Messages messages;
     private final PoppyStats stats;
+    private final PoppyLogger logger;
 
     public HomesGUIListener(JavaPlugin plugin, HomeManager homeManager, HomesGUI homesGUI, ConfirmDeleteGUI confirmDeleteGUI,
-                            ConfirmOverwriteGUI confirmOverwriteGUI, TeleportManager teleportManager, Messages messages, PoppyStats stats) {
+                            ConfirmOverwriteGUI confirmOverwriteGUI, TeleportManager teleportManager, Messages messages,
+                            PoppyStats stats, PoppyLogger logger) {
         this.plugin = plugin;
         this.homeManager = homeManager;
         this.homesGUI = homesGUI;
@@ -49,6 +52,7 @@ public class HomesGUIListener implements Listener {
         this.teleportManager = teleportManager;
         this.messages = messages;
         this.stats = stats;
+        this.logger = logger;
     }
 
     @EventHandler
@@ -123,6 +127,7 @@ public class HomesGUIListener implements Listener {
             if (home != null) {
                 homeManager.removeHome(player.getUniqueId(), homeName);
                 stats.incrementHomesDeleted();
+                logger.log(PoppyLogger.Category.HOME, player, "deleted home '" + home.name() + "' (via GUI)");
                 player.sendMessage(messages.get("delhome.success", "home", home.name()));
             }
             homesGUI.open(player, homeManager);
@@ -150,6 +155,8 @@ public class HomesGUIListener implements Listener {
         if (action.equals(ConfirmOverwriteGUI.ACTION_CONFIRM)) {
             Home pending = holder.getPendingHome();
             homeManager.addHome(player.getUniqueId(), pending);
+            logger.log(PoppyLogger.Category.HOME, player, "overwrote home '" + pending.name() + "' at "
+                    + pending.worldName() + ": " + (int) pending.x() + ", " + (int) pending.y() + ", " + (int) pending.z());
             player.sendMessage(messages.get("sethome.success", "home", pending.name()));
         }
 

@@ -2,6 +2,7 @@ package fr.quentin.poppy.commands;
 
 import fr.quentin.poppy.manager.SpawnManager;
 import fr.quentin.poppy.util.Messages;
+import fr.quentin.poppy.util.PoppyLogger;
 import fr.quentin.poppy.util.SafeCommand;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
@@ -17,10 +18,12 @@ import org.jspecify.annotations.NonNull;
 public class DelSpawnCommand extends SafeCommand {
 
     private final SpawnManager spawnManager;
+    private final PoppyLogger logger;
 
-    public DelSpawnCommand(JavaPlugin plugin, SpawnManager spawnManager, Messages messages) {
+    public DelSpawnCommand(JavaPlugin plugin, SpawnManager spawnManager, Messages messages, PoppyLogger logger) {
         super(plugin, messages);
         this.spawnManager = spawnManager;
+        this.logger = logger;
     }
 
     @Override
@@ -36,6 +39,8 @@ public class DelSpawnCommand extends SafeCommand {
         }
 
         spawnManager.clearSpawn();
+        logger.log(PoppyLogger.Category.ADMIN, player, "deleted the server spawn point");
+
         player.sendMessage(messages.get("spawn.deleted"));
         return true;
     }

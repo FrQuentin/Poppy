@@ -1,5 +1,6 @@
 package fr.quentin.poppy.manager;
 
+import fr.quentin.poppy.util.PoppyLogger;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
@@ -29,11 +30,13 @@ public class CombatListener implements Listener {
 
     private final JavaPlugin plugin;
     private final CombatManager combatManager;
+    private final PoppyLogger logger;
     private final boolean enabled;
 
-    public CombatListener(JavaPlugin plugin, CombatManager combatManager) {
+    public CombatListener(JavaPlugin plugin, CombatManager combatManager, PoppyLogger logger) {
         this.plugin = plugin;
         this.combatManager = combatManager;
+        this.logger = logger;
         this.enabled = plugin.getConfig().getBoolean("combat-tag-enabled", true);
     }
 
@@ -53,8 +56,18 @@ public class CombatListener implements Listener {
                 return;
             }
 
+            boolean victimAlreadyTagged = combatManager.isInCombat(victim.getUniqueId());
+            boolean attackerAlreadyTagged = combatManager.isInCombat(attacker.getUniqueId());
+
             combatManager.tag(victim.getUniqueId());
             combatManager.tag(attacker.getUniqueId());
+
+            // Only log the moment combat actually starts (neither was already
+            // tagged), not every single hit exchanged during an ongoing fight —
+            // otherwise this would spam the log file for every swing.
+            if (!victimAlreadyTagged && !attackerAlreadyTagged) {
+                logger.log(PoppyLogger.Category.COMBAT, attacker, "entered combat with " + victim.getName());
+            }
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Error in CombatListener#onDamage", e);
         }

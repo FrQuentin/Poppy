@@ -1,6 +1,7 @@
 package fr.quentin.poppy.listeners;
 
 import fr.quentin.poppy.util.Messages;
+import fr.quentin.poppy.util.PoppyLogger;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
 import org.bukkit.entity.EntityType;
@@ -40,13 +41,15 @@ public class PoppyLoreListener implements Listener {
 
     private final JavaPlugin plugin;
     private final Messages messages;
+    private final PoppyLogger logger;
     private final long cooldownMillis;
 
     private final Map<UUID, Long> lastUse = new HashMap<>();
 
-    public PoppyLoreListener(JavaPlugin plugin, Messages messages) {
+    public PoppyLoreListener(JavaPlugin plugin, Messages messages, PoppyLogger logger) {
         this.plugin = plugin;
         this.messages = messages;
+        this.logger = logger;
         long cooldownMinutes = Math.max(0, plugin.getConfig().getInt("poppy-lore-cooldown-minutes", 30));
         this.cooldownMillis = cooldownMinutes * 60L * 1000L;
     }
@@ -75,6 +78,7 @@ public class PoppyLoreListener implements Listener {
             }
 
             lastUse.put(player.getUniqueId(), System.currentTimeMillis());
+            logger.log(PoppyLogger.Category.EASTER_EGG, player, "triggered the iron golem poppy story");
             tellStory(player);
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Error in PoppyLoreListener#onInteract for " + event.getPlayer().getName(), e);

@@ -83,3 +83,24 @@ sleep-percentage: 50
 # If true, broadcasts a "X/Y players sleeping" message to everyone in the
 # same world whenever a player gets into bed.
 sleep-status-message-enabled: true
+
+# Advanced logging: writes detailed activity logs (who did what, when) to
+# daily-rotating files under plugins/Poppy/logs/, separate from the
+# startup/shutdown console summary.
+logging:
+  enabled: true
+  # If true, also prints each log line to the console in real time.
+  console-mirror: false
+  # Toggle individual categories of events without disabling logging entirely.
+  categories:
+    home: true
+    teleport: true
+    share: true
+    tpa: true
+    death: true
+    death_chest: true
+    combat: true
+    afk: true
+    sleep: true
+    easter_egg: true
+    admin: true

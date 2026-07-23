@@ -2,6 +2,7 @@ package fr.quentin.poppy.commands;
 
 import fr.quentin.poppy.manager.TpaManager;
 import fr.quentin.poppy.util.Messages;
+import fr.quentin.poppy.util.PoppyLogger;
 import fr.quentin.poppy.util.SafeCommand;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
@@ -20,10 +21,12 @@ import java.util.List;
 public class TpaDenyCommand extends SafeCommand implements TabCompleter {
 
     private final TpaManager tpaManager;
+    private final PoppyLogger logger;
 
-    public TpaDenyCommand(JavaPlugin plugin, TpaManager tpaManager, Messages messages) {
+    public TpaDenyCommand(JavaPlugin plugin, TpaManager tpaManager, Messages messages, PoppyLogger logger) {
         super(plugin, messages);
         this.tpaManager = tpaManager;
+        this.logger = logger;
     }
 
     @Override
@@ -45,6 +48,7 @@ public class TpaDenyCommand extends SafeCommand implements TabCompleter {
         }
 
         tpaManager.removeRequest(player.getUniqueId(), request.requester());
+        logger.log(PoppyLogger.Category.TPA, player, "denied request from " + args[0]);
         player.sendMessage(messages.get("tpa.deny-success", "player", args[0]));
 
         Player requester = Bukkit.getPlayer(request.requester());

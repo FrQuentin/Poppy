@@ -4,6 +4,7 @@ import fr.quentin.poppy.manager.TeleportManager;
 import fr.quentin.poppy.manager.TpaManager;
 import fr.quentin.poppy.model.Home;
 import fr.quentin.poppy.util.Messages;
+import fr.quentin.poppy.util.PoppyLogger;
 import fr.quentin.poppy.util.SafeCommand;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
@@ -28,11 +29,13 @@ public class TpaAcceptCommand extends SafeCommand implements TabCompleter {
 
     private final TpaManager tpaManager;
     private final TeleportManager teleportManager;
+    private final PoppyLogger logger;
 
-    public TpaAcceptCommand(JavaPlugin plugin, TpaManager tpaManager, TeleportManager teleportManager, Messages messages) {
+    public TpaAcceptCommand(JavaPlugin plugin, TpaManager tpaManager, TeleportManager teleportManager, Messages messages, PoppyLogger logger) {
         super(plugin, messages);
         this.tpaManager = tpaManager;
         this.teleportManager = teleportManager;
+        this.logger = logger;
     }
 
     @Override
@@ -64,11 +67,13 @@ public class TpaAcceptCommand extends SafeCommand implements TabCompleter {
 
         if (request.type() == TpaManager.Type.NORMAL) {
             // the requester moves to the accepter (this player)
+            logger.log(PoppyLogger.Category.TPA, player, "accepted /tpa from " + requester.getName());
             player.sendMessage(messages.get("tpa.accept-success", "player", requester.getName()));
             Home destination = Home.fromLocation(player.getName(), player.getLocation());
             teleportManager.requestTeleport(requester, destination, "tpa.teleported");
         } else {
             // the accepter (this player) moves to the requester
+            logger.log(PoppyLogger.Category.TPA, player, "accepted /tpahere from " + requester.getName());
             player.sendMessage(messages.get("tpa.accept-here-success", "player", requester.getName()));
             Home destination = Home.fromLocation(requester.getName(), requester.getLocation());
             teleportManager.requestTeleport(player, destination, "tpa.teleported");

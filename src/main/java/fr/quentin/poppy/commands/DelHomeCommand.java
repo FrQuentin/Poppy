@@ -3,6 +3,7 @@ package fr.quentin.poppy.commands;
 import fr.quentin.poppy.manager.HomeManager;
 import fr.quentin.poppy.model.Home;
 import fr.quentin.poppy.util.Messages;
+import fr.quentin.poppy.util.PoppyLogger;
 import fr.quentin.poppy.util.PoppyStats;
 import fr.quentin.poppy.util.SafeCommand;
 import org.bukkit.command.Command;
@@ -23,11 +24,13 @@ public class DelHomeCommand extends SafeCommand implements TabCompleter {
 
     private final HomeManager homeManager;
     private final PoppyStats stats;
+    private final PoppyLogger logger;
 
-    public DelHomeCommand(JavaPlugin plugin, HomeManager homeManager, Messages messages, PoppyStats stats) {
+    public DelHomeCommand(JavaPlugin plugin, HomeManager homeManager, Messages messages, PoppyStats stats, PoppyLogger logger) {
         super(plugin, messages);
         this.homeManager = homeManager;
         this.stats = stats;
+        this.logger = logger;
     }
 
     @Override
@@ -52,6 +55,9 @@ public class DelHomeCommand extends SafeCommand implements TabCompleter {
 
         homeManager.removeHome(player.getUniqueId(), name);
         stats.incrementHomesDeleted();
+
+        logger.log(PoppyLogger.Category.HOME, player, "deleted home '" + home.name() + "'");
+
         player.sendMessage(messages.get("delhome.success", "home", home.name()));
         return true;
     }

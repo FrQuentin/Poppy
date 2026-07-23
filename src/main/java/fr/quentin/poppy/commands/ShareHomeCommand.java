@@ -4,6 +4,7 @@ import fr.quentin.poppy.manager.HomeManager;
 import fr.quentin.poppy.manager.ShareManager;
 import fr.quentin.poppy.model.Home;
 import fr.quentin.poppy.util.Messages;
+import fr.quentin.poppy.util.PoppyLogger;
 import fr.quentin.poppy.util.PoppyStats;
 import fr.quentin.poppy.util.SafeCommand;
 import net.kyori.adventure.text.Component;
@@ -40,15 +41,18 @@ public class ShareHomeCommand extends SafeCommand implements TabCompleter, Liste
     private final HomeManager homeManager;
     private final ShareManager shareManager;
     private final PoppyStats stats;
+    private final PoppyLogger logger;
     private final long cooldownMillis;
 
     private final Map<UUID, Long> lastUse = new HashMap<>();
 
-    public ShareHomeCommand(JavaPlugin plugin, HomeManager homeManager, ShareManager shareManager, Messages messages, PoppyStats stats) {
+    public ShareHomeCommand(JavaPlugin plugin, HomeManager homeManager, ShareManager shareManager, Messages messages,
+                            PoppyStats stats, PoppyLogger logger) {
         super(plugin, messages);
         this.homeManager = homeManager;
         this.shareManager = shareManager;
         this.stats = stats;
+        this.logger = logger;
         this.cooldownMillis = Math.max(0, plugin.getConfig().getInt("sharehome-cooldown-seconds", 30)) * 1000L;
     }
 
@@ -80,6 +84,8 @@ public class ShareHomeCommand extends SafeCommand implements TabCompleter, Liste
         String token = shareManager.share(home);
         lastUse.put(player.getUniqueId(), System.currentTimeMillis());
         stats.incrementSharesCreated();
+
+        logger.log(PoppyLogger.Category.SHARE, player, "shared home '" + home.name() + "'");
 
         Component prefix = messages.get("sharehome.broadcast-prefix", "player", player.getName(), "home", home.name());
         Component clickText = messages.get("sharehome.click-text", "home", home.name())

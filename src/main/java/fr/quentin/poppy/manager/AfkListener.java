@@ -1,6 +1,7 @@
 package fr.quentin.poppy.manager;
 
 import fr.quentin.poppy.util.Messages;
+import fr.quentin.poppy.util.PoppyLogger;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -26,11 +27,13 @@ public class AfkListener implements Listener {
     private final JavaPlugin plugin;
     private final AfkManager afkManager;
     private final Messages messages;
+    private final PoppyLogger logger;
 
-    public AfkListener(JavaPlugin plugin, AfkManager afkManager, Messages messages) {
+    public AfkListener(JavaPlugin plugin, AfkManager afkManager, Messages messages, PoppyLogger logger) {
         this.plugin = plugin;
         this.afkManager = afkManager;
         this.messages = messages;
+        this.logger = logger;
     }
 
     @EventHandler
@@ -65,6 +68,8 @@ public class AfkListener implements Listener {
             }
 
             afkManager.clearAfk(player.getUniqueId());
+            logger.log(PoppyLogger.Category.AFK, player, "returned from AFK (auto, moved)");
+
             Component broadcast = messages.get("afk.no-longer-afk", "player", player.getName());
             Bukkit.getServer().sendMessage(broadcast);
         } catch (Exception e) {

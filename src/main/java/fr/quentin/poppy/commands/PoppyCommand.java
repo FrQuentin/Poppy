@@ -1,11 +1,14 @@
 package fr.quentin.poppy.commands;
 
 import fr.quentin.poppy.util.Messages;
+import fr.quentin.poppy.util.PoppyLogger;
 import fr.quentin.poppy.util.SafeCommand;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.Sound;
+import org.bukkit.Tag;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
@@ -30,8 +33,11 @@ import org.jspecify.annotations.NonNull;
  */
 public class PoppyCommand extends SafeCommand {
 
-    public PoppyCommand(JavaPlugin plugin, Messages messages) {
+    private final PoppyLogger logger;
+
+    public PoppyCommand(JavaPlugin plugin, Messages messages, PoppyLogger logger) {
         super(plugin, messages);
+        this.logger = logger;
     }
 
     @Override
@@ -61,14 +67,17 @@ public class PoppyCommand extends SafeCommand {
 
         Block feetBlock = player.getLocation().getBlock();
         BlockData poppyData = Material.POPPY.createBlockData();
+        boolean placedAsBlock = feetBlock.canPlace(poppyData);
 
-        if (feetBlock.canPlace(poppyData)) {
+        if (placedAsBlock) {
             feetBlock.setBlockData(poppyData);
             player.getWorld().playSound(player.getLocation(), Sound.ITEM_CROP_PLANT, 1.0f, 1.0f);
         } else {
             player.getWorld().dropItemNaturally(player.getLocation(), poppy);
             player.getWorld().playSound(player.getLocation(), Sound.BLOCK_GRASS_BREAK, 1.0f, 1.0f);
         }
+
+        logger.log(PoppyLogger.Category.EASTER_EGG, player, "used /poppy (" + (placedAsBlock ? "placed as block" : "dropped as item") + ")");
 
         player.sendMessage(messages.get("poppy.success"));
         return true;

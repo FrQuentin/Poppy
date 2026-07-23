@@ -2,6 +2,7 @@ package fr.quentin.poppy.commands;
 
 import fr.quentin.poppy.manager.TpaManager;
 import fr.quentin.poppy.util.Messages;
+import fr.quentin.poppy.util.PoppyLogger;
 import fr.quentin.poppy.util.SafeCommand;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
@@ -19,10 +20,12 @@ import java.util.List;
 public class TpaCancelCommand extends SafeCommand implements TabCompleter {
 
     private final TpaManager tpaManager;
+    private final PoppyLogger logger;
 
-    public TpaCancelCommand(JavaPlugin plugin, TpaManager tpaManager, Messages messages) {
+    public TpaCancelCommand(JavaPlugin plugin, TpaManager tpaManager, Messages messages, PoppyLogger logger) {
         super(plugin, messages);
         this.tpaManager = tpaManager;
+        this.logger = logger;
     }
 
     @Override
@@ -44,6 +47,7 @@ public class TpaCancelCommand extends SafeCommand implements TabCompleter {
         }
 
         tpaManager.removeRequest(target.getUniqueId(), player.getUniqueId());
+        logger.log(PoppyLogger.Category.TPA, player, "cancelled request to " + target.getName());
         player.sendMessage(messages.get("tpa.cancel-success", "player", target.getName()));
         target.sendMessage(messages.get("tpa.cancel-notify", "player", player.getName()));
 

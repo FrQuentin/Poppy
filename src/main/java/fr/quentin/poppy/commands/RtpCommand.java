@@ -34,6 +34,12 @@ import java.util.logging.Level;
  * force chunk generation on the main thread and stall the server — this
  * matters a lot here since the default 5000-block max radius routinely
  * lands outside already-generated terrain.
+ *
+ * <p>The Nether needs different vertical placement logic than the
+ * Overworld/End: {@link World#getHighestBlockYAt(int, int)} finds the
+ * highest block exposed to open sky, which doesn't exist in the Nether —
+ * it would just return the underside of the solid bedrock roof, landing
+ * the player on top of the world. See {@link #findNetherCandidate}.
  */
 public class RtpCommand extends SafeCommand implements Listener {
 
@@ -96,10 +102,11 @@ public class RtpCommand extends SafeCommand implements Listener {
                         return;
                     }
 
-                    int y = world.getHighestBlockYAt(x, z);
-                    Location candidate = new Location(world, x + 0.5, y + 1, z + 0.5);
+                    Location candidate = world.getEnvironment() == World.Environment.NETHER
+                            ? findNetherCandidate(world, x, z)
+                            : buildOverworldCandidate(world, x, z);
 
-                    if (isSafe(candidate)) {
+                    if (candidate != null && isSafe(candidate)) {
                         lastUse.put(player.getUniqueId(), System.currentTimeMillis());
                         stats.incrementRtpUsed();
                         Home rtpHome = Home.fromLocation("rtp", candidate);
@@ -120,8 +127,33 @@ public class RtpCommand extends SafeCommand implements Listener {
                 });
     }
 
+    private Location buildOverworldCandidate(World world, int x, int z) {
+        int y = world.getHighestBlockYAt(x, z);
+        return new Location(world, x + 0.5, y + 1, z + 0.5);
+    }
+
+    /**
+     * Scans downward from just below the Nether's solid bedrock roof,
+     * returning the first vertical position that passes {@link #isSafe},
+     * or null if the whole column is solid all the way down (common near
+     * the roof itself, or in dense terrain). {@link #attemptFindSafeLocation}
+     * simply retries at a new random column when this returns null.
+     */
+    private Location findNetherCandidate(World world, int x, int z) {
+        int scanStart = Math.min(120, world.getMaxHeight() - 8);
+
+        for (int y = scanStart; y > world.getMinHeight(); y--) {
+            Location candidate = new Location(world, x + 0.5, y, z + 0.5);
+            if (isSafe(candidate)) {
+                return candidate;
+            }
+        }
+
+        return null;
+    }
+
     @EventHandler
-    public void onQuit(PlayerQuitEvent event) {
+    public void onQuit(@NonNull PlayerQuitEvent event) {
         lastUse.remove(event.getPlayer().getUniqueId());
     }
 

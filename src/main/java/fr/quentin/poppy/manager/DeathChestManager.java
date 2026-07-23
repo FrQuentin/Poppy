@@ -50,8 +50,8 @@ import java.util.logging.Level;
  * in config.yml; if the {@code keepInventory} gamerule is on,
  * {@link PlayerDeathEvent#getDrops()} is already empty by the time this
  * runs, so nothing happens automatically — no special-casing needed.
- * <p>
- * Ownership and creation time are stored directly on the chest block's
+ *
+ * <p>Ownership and creation time are stored directly on the chest block's
  * {@link org.bukkit.persistence.PersistentDataContainer} (chests are tile
  * entities, so this survives a server restart without any extra file).
  * The scheduled expiry task from {@link #onDeath} does <b>not</b> survive a

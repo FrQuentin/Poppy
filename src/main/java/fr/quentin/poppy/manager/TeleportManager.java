@@ -217,12 +217,19 @@ public class TeleportManager implements Listener {
         }
 
         backManager.recordLocation(player);
-        player.teleport(location);
-        stats.incrementTeleports();
 
-        logger.log(PoppyLogger.Category.TELEPORT, player, "teleported to '" + home.name() + "' at "
-                + home.worldName() + ": " + (int) home.x() + ", " + (int) home.y() + ", " + (int) home.z());
+        player.teleportAsync(location).thenAccept(success -> {
+            if (!success) {
+                plugin.getLogger().warning("Teleport of " + player.getName() + " to '" + home.name() + "' did not complete successfully");
+                return;
+            }
 
-        player.sendMessage(messages.get(successMessagePath, "home", home.name()));
+            stats.incrementTeleports();
+
+            logger.log(PoppyLogger.Category.TELEPORT, player, "teleported to '" + home.name() + "' at "
+                    + home.worldName() + ": " + (int) home.x() + ", " + (int) home.y() + ", " + (int) home.z());
+
+            player.sendMessage(messages.get(successMessagePath, "home", home.name()));
+        });
     }
 }

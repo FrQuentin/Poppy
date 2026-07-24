@@ -27,6 +27,12 @@ import java.util.logging.Level;
  * interval, called explicitly by {@code /poppy reload} (see
  * {@link fr.quentin.poppy.commands.PoppyCommand}), the same pattern
  * {@link SleepPercentageListener} uses for its gamerule.
+ *
+ * <p>{@link #reapply()} also resets every online player's tab list name
+ * back to default the moment the setting is toggled off — without this,
+ * a player already showing "❤ X" at reload time would stay stuck with
+ * that exact text forever (it's never refreshed again once disabled),
+ * rather than reverting to their normal name.
  */
 public class TabHealthListener implements Listener {
 
@@ -46,12 +52,25 @@ public class TabHealthListener implements Listener {
 
     /**
      * Cancels the currently scheduled update task and reschedules it with
-     * the interval currently in config.yml — call after a config reload so
-     * a changed {@code tab-health-update-interval-ticks} takes effect
-     * without restarting the server.
+     * the interval currently in config.yml, and clears every online
+     * player's tab list name if the feature was just turned off — call
+     * after a config reload.
      */
     public void reapply() {
+        if (!config.showHealthInTab()) {
+            clearAllPlayerListNames();
+        }
         scheduleUpdateTask();
+    }
+
+    private void clearAllPlayerListNames() {
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            try {
+                player.playerListName(null);
+            } catch (Exception e) {
+                plugin.getLogger().log(Level.SEVERE, "Error clearing tab list name for " + player.getName(), e);
+            }
+        }
     }
 
     private void scheduleUpdateTask() {

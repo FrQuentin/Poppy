@@ -121,6 +121,7 @@ poppy:
   wrong-gamemode: "&4[!] You need to be in Survival or Creative mode to do this!"
   no-poppy: "&4[!] You don't have a poppy in your inventory!"
   success: "&d[!] You drop a poppy on the ground. &7*plop*"
+  reload-success: "&a[!] Poppy's config.yml and messages.yml have been reloaded!"
   lore-cooldown: "&4[!] Please wait {minutes} more minute(s) before hearing the poppy's story again!"
   lore-line-1: "&d~ The Poppy ~"
   lore-line-2: "&7Legend says the very first poppy in this world grew from a"

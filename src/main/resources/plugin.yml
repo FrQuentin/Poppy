@@ -97,8 +97,8 @@ commands:
     permission: poppy.tpa
     permission-message: "&4[!] You don't have permission to do this."
   poppy:
-    description: A little easter egg. Drops a poppy from your inventory onto the ground.
-    usage: /poppy
+    description: A little easter egg (or /poppy reload to reload config.yml/messages.yml).
+    usage: /poppy [reload]
     permission: poppy.poppy
     permission-message: "&4[!] You don't have permission to do this."
 
@@ -123,6 +123,7 @@ permissions:
       poppy.tpahere: true
       poppy.poppy: true
       poppy.deathchest.bypass: true
+      poppy.reload: true
 
   poppy.sethome:
     description: Allows creating homes with /sethome.
@@ -171,4 +172,7 @@ permissions:
     default: true
   poppy.deathchest.bypass:
     description: Allows opening any player's death chest, bypassing ownership protection.
+    default: op
+  poppy.reload:
+    description: Allows reloading config.yml and messages.yml with /poppy reload.
     default: op

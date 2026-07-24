@@ -1,29 +1,26 @@
 package fr.quentin.poppy.manager;
 
+import fr.quentin.poppy.util.PoppyConfig;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
 /**
- * Tracks combat-tag expiry times. A tagged player stays "in combat" for
- * {@code durationMillis} after their last hit (given or received), during
- * which {@link TeleportManager} blocks /home, /spawn, /back and /rtp.
- *
- * <p>Entries expire lazily: {@link #isInCombat} removes a stale entry the
- * first time it's checked past its end time, so no periodic cleanup task is
- * needed. {@link #remove(UUID)} additionally clears state immediately on
- * player quit, via {@link CombatListener#onQuit}.
+ * Tracks combat-tag expiry times. Duration is read live from
+ * {@link PoppyConfig} at tag time.
  */
 public class CombatManager {
 
-    private final long durationMillis;
+    private final PoppyConfig config;
     private final Map<UUID, Long> combatEndTimes = new HashMap<>();
 
-    public CombatManager(long durationSeconds) {
-        this.durationMillis = Math.max(0, durationSeconds) * 1000L;
+    public CombatManager(PoppyConfig config) {
+        this.config = config;
     }
 
     public void tag(UUID uuid) {
+        long durationMillis = config.combatTagMillis();
         if (durationMillis <= 0) {
             return;
         }

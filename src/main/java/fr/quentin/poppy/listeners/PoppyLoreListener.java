@@ -1,6 +1,7 @@
 package fr.quentin.poppy.listeners;
 
 import fr.quentin.poppy.util.Messages;
+import fr.quentin.poppy.util.PoppyConfig;
 import fr.quentin.poppy.util.PoppyLogger;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
@@ -19,39 +20,20 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.logging.Level;
 
-/**
- * Easter egg: right-clicking an Iron Golem while holding a poppy tells the
- * player a short made-up story about how the flower ended up in the game —
- * a nod to the vanilla detail that villages give poppies to their iron
- * golems. Rate-limited via {@code poppy-lore-cooldown-minutes} in
- * config.yml so it can't be spammed.
- *
- * <p>{@link EquipmentSlot#HAND} check avoids firing twice for the same
- * click, since Bukkit fires this event once per hand when applicable —
- * this also means only the main hand is checked for the poppy, matching
- * how most other item-in-hand checks in this plugin work.
- *
- * <p>Unlike most other cooldown maps in this plugin (e.g.
- * {@code RtpCommand.lastUse}), {@code lastUse} here is deliberately
- * <b>not</b> cleared on quit: the cooldown is meant to survive a
- * disconnect/reconnect, and only resets on a full server restart. This is
- * safe memory-wise since each entry is just a UUID and a long.
- */
 public class PoppyLoreListener implements Listener {
 
     private final JavaPlugin plugin;
     private final Messages messages;
+    private final PoppyConfig config;
     private final PoppyLogger logger;
-    private final long cooldownMillis;
 
     private final Map<UUID, Long> lastUse = new HashMap<>();
 
-    public PoppyLoreListener(JavaPlugin plugin, Messages messages, PoppyLogger logger) {
+    public PoppyLoreListener(JavaPlugin plugin, Messages messages, PoppyConfig config, PoppyLogger logger) {
         this.plugin = plugin;
         this.messages = messages;
+        this.config = config;
         this.logger = logger;
-        long cooldownMinutes = Math.max(0, plugin.getConfig().getInt("poppy-lore-cooldown-minutes", 30));
-        this.cooldownMillis = cooldownMinutes * 60L * 1000L;
     }
 
     @EventHandler
@@ -86,6 +68,7 @@ public class PoppyLoreListener implements Listener {
     }
 
     private long cooldownRemainingSeconds(UUID uuid) {
+        long cooldownMillis = config.poppyLoreCooldownMillis();
         if (cooldownMillis <= 0) {
             return 0;
         }

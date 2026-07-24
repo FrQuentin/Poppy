@@ -1,5 +1,6 @@
 package fr.quentin.poppy.manager;
 
+import fr.quentin.poppy.util.PoppyConfig;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -10,28 +11,22 @@ import org.jspecify.annotations.NonNull;
 
 import java.util.logging.Level;
 
-/**
- * Records the player's death location into {@link BackManager} so /back can
- * return them there, toggleable via {@code back-on-death} in config.yml.
- * Also evicts the player's entry from {@link BackManager} on quit, so that
- * map doesn't retain a Location forever for players who log off.
- */
 public class BackListener implements Listener {
 
     private final JavaPlugin plugin;
     private final BackManager backManager;
-    private final boolean recordOnDeath;
+    private final PoppyConfig config;
 
-    public BackListener(JavaPlugin plugin, BackManager backManager) {
+    public BackListener(JavaPlugin plugin, BackManager backManager, PoppyConfig config) {
         this.plugin = plugin;
         this.backManager = backManager;
-        this.recordOnDeath = plugin.getConfig().getBoolean("back-on-death", true);
+        this.config = config;
     }
 
     @EventHandler
     public void onDeath(@NonNull PlayerDeathEvent event) {
         try {
-            if (!recordOnDeath) {
+            if (!config.backOnDeath()) {
                 return;
             }
 

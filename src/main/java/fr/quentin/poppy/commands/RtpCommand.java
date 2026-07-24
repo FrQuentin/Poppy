@@ -3,6 +3,7 @@ package fr.quentin.poppy.commands;
 import fr.quentin.poppy.manager.TeleportManager;
 import fr.quentin.poppy.model.Home;
 import fr.quentin.poppy.util.Messages;
+import fr.quentin.poppy.util.PoppyConfig;
 import fr.quentin.poppy.util.PoppyStats;
 import fr.quentin.poppy.util.SafeCommand;
 import org.bukkit.Bukkit;
@@ -25,41 +26,19 @@ import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.logging.Level;
 
-/**
- * Handles /rtp: teleports the sender to a random safe spot around their
- * world's spawn, within the configured min/max radius.
- *
- * <p>Chunk lookups go through {@link World#getChunkAtAsync(int, int)} rather
- * than the synchronous {@code getChunkAt}, so an unexplored area doesn't
- * force chunk generation on the main thread and stall the server — this
- * matters a lot here since the default 5000-block max radius routinely
- * lands outside already-generated terrain.
- *
- * <p>The Nether needs different vertical placement logic than the
- * Overworld/End: {@link World#getHighestBlockYAt(int, int)} finds the
- * highest block exposed to open sky, which doesn't exist in the Nether —
- * it would just return the underside of the solid bedrock roof, landing
- * the player on top of the world. See {@link #findNetherCandidate}.
- */
 public class RtpCommand extends SafeCommand implements Listener {
 
     private final TeleportManager teleportManager;
+    private final PoppyConfig config;
     private final PoppyStats stats;
-    private final int minRadius;
-    private final int maxRadius;
-    private final int maxAttempts;
-    private final long cooldownMillis;
 
     private final Map<UUID, Long> lastUse = new HashMap<>();
 
-    public RtpCommand(JavaPlugin plugin, TeleportManager teleportManager, Messages messages, PoppyStats stats) {
+    public RtpCommand(JavaPlugin plugin, TeleportManager teleportManager, Messages messages, PoppyConfig config, PoppyStats stats) {
         super(plugin, messages);
         this.teleportManager = teleportManager;
+        this.config = config;
         this.stats = stats;
-        this.minRadius = Math.max(0, plugin.getConfig().getInt("rtp-min-radius", 100));
-        this.maxRadius = Math.max(minRadius + 1, plugin.getConfig().getInt("rtp-max-radius", 5000));
-        this.maxAttempts = Math.max(1, plugin.getConfig().getInt("rtp-max-attempts", 20));
-        this.cooldownMillis = Math.max(0, plugin.getConfig().getInt("rtp-cooldown-seconds", 30)) * 1000L;
     }
 
     @Override
@@ -75,15 +54,10 @@ public class RtpCommand extends SafeCommand implements Listener {
             return true;
         }
 
-        attemptFindSafeLocation(player, player.getWorld().getSpawnLocation(), maxAttempts);
+        attemptFindSafeLocation(player, player.getWorld().getSpawnLocation(), config.rtpMaxAttempts());
         return true;
     }
 
-    /**
-     * Tries one random candidate at a time, loading its chunk asynchronously so we never
-     * force-generate terrain on the main thread. Recurses (still off the hot path) until
-     * a safe spot is found or attempts run out.
-     */
     private void attemptFindSafeLocation(Player player, Location center, int attemptsLeft) {
         if (attemptsLeft <= 0) {
             player.sendMessage(messages.get("rtp.failed"));
@@ -92,7 +66,7 @@ public class RtpCommand extends SafeCommand implements Listener {
 
         World world = center.getWorld();
         double angle = ThreadLocalRandom.current().nextDouble(0, Math.PI * 2);
-        double distance = ThreadLocalRandom.current().nextDouble(minRadius, maxRadius);
+        double distance = ThreadLocalRandom.current().nextDouble(config.rtpMinRadius(), config.rtpMaxRadius());
         int x = (int) (center.getX() + Math.cos(angle) * distance);
         int z = (int) (center.getZ() + Math.sin(angle) * distance);
 
@@ -107,18 +81,18 @@ public class RtpCommand extends SafeCommand implements Listener {
                             : buildOverworldCandidate(world, x, z);
 
                     if (candidate != null && isSafe(candidate)) {
-                        lastUse.put(player.getUniqueId(), System.currentTimeMillis());
-                        stats.incrementRtpUsed();
                         Home rtpHome = Home.fromLocation("rtp", candidate);
-                        teleportManager.requestTeleport(player, rtpHome, "rtp.success");
+                        boolean accepted = teleportManager.requestTeleport(player, rtpHome, "rtp.success");
+
+                        if (accepted) {
+                            lastUse.put(player.getUniqueId(), System.currentTimeMillis());
+                            stats.incrementRtpUsed();
+                        }
                     } else {
                         attemptFindSafeLocation(player, center, attemptsLeft - 1);
                     }
                 })
                 .exceptionally(throwable -> {
-                    // thenAccept runs after execute(...) has already returned, so this is
-                    // outside SafeCommand's try/catch — without this handler an exception
-                    // here would just vanish silently inside the CompletableFuture.
                     plugin.getLogger().log(Level.SEVERE, "Error resolving a /rtp location for " + player.getName(), throwable);
                     if (player.isOnline()) {
                         Bukkit.getScheduler().runTask(plugin, () -> player.sendMessage(messages.get("general.error")));
@@ -132,13 +106,6 @@ public class RtpCommand extends SafeCommand implements Listener {
         return new Location(world, x + 0.5, y + 1, z + 0.5);
     }
 
-    /**
-     * Scans downward from just below the Nether's solid bedrock roof,
-     * returning the first vertical position that passes {@link #isSafe},
-     * or null if the whole column is solid all the way down (common near
-     * the roof itself, or in dense terrain). {@link #attemptFindSafeLocation}
-     * simply retries at a new random column when this returns null.
-     */
     private Location findNetherCandidate(World world, int x, int z) {
         int scanStart = Math.min(120, world.getMaxHeight() - 8);
 
@@ -158,6 +125,7 @@ public class RtpCommand extends SafeCommand implements Listener {
     }
 
     private long cooldownRemaining(UUID uuid) {
+        long cooldownMillis = config.rtpCooldownMillis();
         if (cooldownMillis <= 0) {
             return 0;
         }

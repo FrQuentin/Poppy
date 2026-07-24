@@ -1,39 +1,24 @@
 package fr.quentin.poppy.gui;
 
 import fr.quentin.poppy.util.Messages;
+import fr.quentin.poppy.util.PoppyConfig;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
-import org.bukkit.plugin.java.JavaPlugin;
 
-/**
- * Builds the /trash inventory: a plain chest GUI with no confirmation step.
- * Anything left inside when the player closes it is deleted by
- * {@link TrashListener}.
- *
- * <p>{@code trash-size} from config.yml is normalized to a multiple of 9
- * between 9 and 54 (Bukkit chest inventories require this), falling back to
- * 27 if the configured value rounds down below 9.
- */
 public final class TrashGUI {
 
     private final Messages messages;
-    private final int size;
+    private final PoppyConfig config;
 
-    public TrashGUI(JavaPlugin plugin, Messages messages) {
+    public TrashGUI(Messages messages, PoppyConfig config) {
         this.messages = messages;
-
-        int configured = plugin.getConfig().getInt("trash-size", 27);
-        int normalized = (configured / 9) * 9; // round down to a multiple of 9
-        if (normalized < 9) {
-            normalized = 27; // sane fallback if misconfigured
-        }
-        this.size = Math.min(54, normalized);
+        this.config = config;
     }
 
     public void open(Player player) {
         TrashHolder holder = new TrashHolder();
-        Inventory inventory = Bukkit.createInventory(holder, size, messages.get("trash.title"));
+        Inventory inventory = Bukkit.createInventory(holder, config.trashSize(), messages.get("trash.title"));
         holder.setInventory(inventory);
         player.openInventory(inventory);
     }

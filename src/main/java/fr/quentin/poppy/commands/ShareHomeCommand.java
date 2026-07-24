@@ -4,6 +4,7 @@ import fr.quentin.poppy.manager.HomeManager;
 import fr.quentin.poppy.manager.ShareManager;
 import fr.quentin.poppy.model.Home;
 import fr.quentin.poppy.util.Messages;
+import fr.quentin.poppy.util.PoppyConfig;
 import fr.quentin.poppy.util.PoppyLogger;
 import fr.quentin.poppy.util.PoppyStats;
 import fr.quentin.poppy.util.SafeCommand;
@@ -26,34 +27,24 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * Handles /sharehome: broadcasts a clickable teleport link for one of the
- * sender's homes to the whole server. Clicking the link runs
- * {@code /poppygoto <token>}, where the short-lived {@link ShareManager}
- * token is the actual access control — see {@link PoppyGotoCommand}.
- *
- * <p>Rate-limited via {@code sharehome-cooldown-seconds} in config.yml
- * (same pattern as {@link RtpCommand}) to stop a player from flooding the
- * whole server's chat with repeated shares.
- */
 public class ShareHomeCommand extends SafeCommand implements TabCompleter, Listener {
 
     private final HomeManager homeManager;
     private final ShareManager shareManager;
+    private final PoppyConfig config;
     private final PoppyStats stats;
     private final PoppyLogger logger;
-    private final long cooldownMillis;
 
     private final Map<UUID, Long> lastUse = new HashMap<>();
 
     public ShareHomeCommand(JavaPlugin plugin, HomeManager homeManager, ShareManager shareManager, Messages messages,
-                            PoppyStats stats, PoppyLogger logger) {
+                            PoppyConfig config, PoppyStats stats, PoppyLogger logger) {
         super(plugin, messages);
         this.homeManager = homeManager;
         this.shareManager = shareManager;
+        this.config = config;
         this.stats = stats;
         this.logger = logger;
-        this.cooldownMillis = Math.max(0, plugin.getConfig().getInt("sharehome-cooldown-seconds", 30)) * 1000L;
     }
 
     @Override
@@ -110,6 +101,7 @@ public class ShareHomeCommand extends SafeCommand implements TabCompleter, Liste
     }
 
     private long cooldownRemaining(UUID uuid) {
+        long cooldownMillis = config.sharehomeCooldownMillis();
         if (cooldownMillis <= 0) {
             return 0;
         }

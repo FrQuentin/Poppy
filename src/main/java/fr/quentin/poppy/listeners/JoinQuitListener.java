@@ -1,6 +1,7 @@
 package fr.quentin.poppy.listeners;
 
 import fr.quentin.poppy.util.Messages;
+import fr.quentin.poppy.util.PoppyConfig;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -11,29 +12,21 @@ import org.jspecify.annotations.NonNull;
 
 import java.util.logging.Level;
 
-/**
- * Replaces the vanilla join/quit chat messages with Poppy's own, each
- * independently toggleable via {@code custom-join-message} /
- * {@code custom-quit-message} in config.yml — useful when another plugin
- * (e.g. a chat formatter) already handles these.
- */
 public class JoinQuitListener implements Listener {
 
     private final JavaPlugin plugin;
     private final Messages messages;
-    private final boolean customJoin;
-    private final boolean customQuit;
+    private final PoppyConfig config;
 
-    public JoinQuitListener(JavaPlugin plugin, Messages messages) {
+    public JoinQuitListener(JavaPlugin plugin, Messages messages, PoppyConfig config) {
         this.plugin = plugin;
         this.messages = messages;
-        this.customJoin = plugin.getConfig().getBoolean("custom-join-message", true);
-        this.customQuit = plugin.getConfig().getBoolean("custom-quit-message", true);
+        this.config = config;
     }
 
     @EventHandler
     public void onJoin(@NonNull PlayerJoinEvent event) {
-        if (!customJoin) {
+        if (!config.customJoinMessage()) {
             return;
         }
 
@@ -47,7 +40,7 @@ public class JoinQuitListener implements Listener {
 
     @EventHandler
     public void onQuit(@NonNull PlayerQuitEvent event) {
-        if (!customQuit) {
+        if (!config.customQuitMessage()) {
             return;
         }
 

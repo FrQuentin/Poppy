@@ -1,6 +1,7 @@
 package fr.quentin.poppy.listeners;
 
 import fr.quentin.poppy.manager.AfkManager;
+import fr.quentin.poppy.util.PoppyConfig;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
@@ -10,65 +11,68 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
-import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.scheduler.BukkitTask;
 import org.jspecify.annotations.NonNull;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
 import java.util.logging.Level;
 
 /**
- * Shows each online player's health (as hearts) and AFK status next to
- * their name in the tab list, refreshed on a fixed interval plus on join.
- * Toggle with {@code show-health-in-tab}; refresh rate with
- * {@code tab-health-update-interval-ticks} in config.yml.
- *
- * <p>{@link #lastSentName} caches the last {@link Component} actually sent
- * to each player, and {@link #updatePlayer} skips {@code playerListName}
- * entirely when the newly built one is identical — without this, every
- * tick resent every online player's tab name regardless of whether their
- * health, color, or AFK status had changed since the last check, which
- * scales badly with player count.
- *
- * <p>Note the repeating task is scheduled directly from the constructor —
- * this is safe (scheduling doesn't depend on the listener being registered
- * yet) but means a {@code new TabHealthListener(...)} call has a side
- * effect beyond field assignment; keep that in mind if this class is ever
- * constructed more than once.
+ * {@code show-health-in-tab} is checked live each run, so reload can
+ * toggle it without a restart. The refresh interval is different: it's the
+ * *period* of the scheduled {@link BukkitRunnable}, fixed at scheduling
+ * time and not something the task can re-read on its own — so
+ * {@link #reapply()} exists to cancel and reschedule it with the current
+ * interval, called explicitly by {@code /poppy reload} (see
+ * {@link fr.quentin.poppy.commands.PoppyCommand}), the same pattern
+ * {@link SleepPercentageListener} uses for its gamerule.
  */
 public class TabHealthListener implements Listener {
 
     private final JavaPlugin plugin;
     private final AfkManager afkManager;
-    private final boolean enabled;
+    private final PoppyConfig config;
 
-    private final Map<UUID, Component> lastSentName = new HashMap<>();
+    private BukkitTask updateTask;
 
-    public TabHealthListener(JavaPlugin plugin, AfkManager afkManager) {
+    public TabHealthListener(JavaPlugin plugin, AfkManager afkManager, PoppyConfig config) {
         this.plugin = plugin;
         this.afkManager = afkManager;
-        this.enabled = plugin.getConfig().getBoolean("show-health-in-tab", true);
+        this.config = config;
 
-        if (enabled) {
-            long interval = Math.max(5, plugin.getConfig().getLong("tab-health-update-interval-ticks", 20));
-            new BukkitRunnable() {
-                @Override
-                public void run() {
-                    updateAll();
-                }
-            }.runTaskTimer(plugin, 0L, interval);
+        scheduleUpdateTask();
+    }
+
+    /**
+     * Cancels the currently scheduled update task and reschedules it with
+     * the interval currently in config.yml — call after a config reload so
+     * a changed {@code tab-health-update-interval-ticks} takes effect
+     * without restarting the server.
+     */
+    public void reapply() {
+        scheduleUpdateTask();
+    }
+
+    private void scheduleUpdateTask() {
+        if (updateTask != null) {
+            updateTask.cancel();
         }
+
+        long interval = config.tabHealthUpdateIntervalTicks();
+        updateTask = new BukkitRunnable() {
+            @Override
+            public void run() {
+                updateAll();
+            }
+        }.runTaskTimer(plugin, 0L, interval);
     }
 
     @EventHandler
     public void onJoin(@NonNull PlayerJoinEvent event) {
-        if (!enabled) {
+        if (!config.showHealthInTab()) {
             return;
         }
-
         try {
             updatePlayer(event.getPlayer());
         } catch (Exception e) {
@@ -76,17 +80,10 @@ public class TabHealthListener implements Listener {
         }
     }
 
-    @EventHandler
-    public void onQuit(@NonNull PlayerQuitEvent event) {
-        lastSentName.remove(event.getPlayer().getUniqueId());
-    }
-
-    /**
-     * Each player is updated in its own try/catch so that one player's
-     * failure (missing attribute, a bad displayName from another plugin,
-     * etc.) doesn't skip the rest of the tab list for this tick.
-     */
     private void updateAll() {
+        if (!config.showHealthInTab()) {
+            return;
+        }
         for (Player player : Bukkit.getOnlinePlayers()) {
             try {
                 updatePlayer(player);
@@ -111,12 +108,6 @@ public class TabHealthListener implements Listener {
                 .append(player.displayName())
                 .append(Component.text("  \u2764 " + heartsText, color));
 
-        UUID uuid = player.getUniqueId();
-        if (listName.equals(lastSentName.get(uuid))) {
-            return;
-        }
-
-        lastSentName.put(uuid, listName);
         player.playerListName(listName);
     }
 

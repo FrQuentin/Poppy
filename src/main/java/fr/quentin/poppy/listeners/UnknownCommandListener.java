@@ -1,6 +1,7 @@
 package fr.quentin.poppy.listeners;
 
 import fr.quentin.poppy.util.Messages;
+import fr.quentin.poppy.util.PoppyConfig;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.command.UnknownCommandEvent;
@@ -9,25 +10,21 @@ import org.jspecify.annotations.NonNull;
 
 import java.util.logging.Level;
 
-/**
- * Replaces vanilla's "Unknown command" message with Poppy's own, toggleable
- * via {@code custom-unknown-command-message} in config.yml.
- */
 public class UnknownCommandListener implements Listener {
 
     private final JavaPlugin plugin;
     private final Messages messages;
-    private final boolean enabled;
+    private final PoppyConfig config;
 
-    public UnknownCommandListener(JavaPlugin plugin, Messages messages) {
+    public UnknownCommandListener(JavaPlugin plugin, Messages messages, PoppyConfig config) {
         this.plugin = plugin;
         this.messages = messages;
-        this.enabled = plugin.getConfig().getBoolean("custom-unknown-command-message", true);
+        this.config = config;
     }
 
     @EventHandler
     public void onUnknownCommand(@NonNull UnknownCommandEvent event) {
-        if (!enabled) {
+        if (!config.customUnknownCommandMessage()) {
             return;
         }
 

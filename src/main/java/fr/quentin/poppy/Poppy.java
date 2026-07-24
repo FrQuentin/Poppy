@@ -10,6 +10,7 @@ import fr.quentin.poppy.gui.TrashListener;
 import fr.quentin.poppy.listeners.*;
 import fr.quentin.poppy.manager.*;
 import fr.quentin.poppy.util.Messages;
+import fr.quentin.poppy.util.PoppyConfig;
 import fr.quentin.poppy.util.PoppyLogger;
 import fr.quentin.poppy.util.PoppyStats;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -17,23 +18,16 @@ import org.bukkit.plugin.java.JavaPlugin;
 import java.util.Objects;
 
 /**
- * Plugin entry point: wires every manager, GUI, command, and listener
- * together in {@link #onEnable}, and flushes homes/spawn to disk in
- * {@link #onDisable}.
- *
- * <p>Note that Bukkit fires {@link org.bukkit.event.player.PlayerQuitEvent}
- * for every online player before {@code onDisable} runs, so by the time
- * {@link #onDisable} calls {@link HomeManager#saveAllSync()},
- * {@link HomeCacheListener} has typically already flushed and evicted every
- * player's cache entry — {@code saveAllSync} is a safety net for anything
- * left over (e.g. after an abnormal shutdown), not the primary save path.
+ * Plugin entry point. Every setting except messages.yml's text and the
+ * per-world sleep gamerule is read live from {@link PoppyConfig}, so
+ * {@code /poppy reload} (see {@link PoppyCommand}) applies everywhere
+ * immediately without restarting the server.
  */
 public final class Poppy extends JavaPlugin {
 
     private HomeManager homeManager;
     private SpawnManager spawnManager;
     private PoppyStats stats;
-    private PoppyLogger poppyLogger;
 
     @Override
     public void onEnable() {
@@ -42,30 +36,29 @@ public final class Poppy extends JavaPlugin {
         homeManager = new HomeManager(this);
         spawnManager = new SpawnManager(this);
         stats = new PoppyStats();
-        poppyLogger = new PoppyLogger(this);
 
         Messages messages = new Messages(this);
+        PoppyConfig config = new PoppyConfig(this);
+        PoppyLogger poppyLogger = new PoppyLogger(this, config);
 
-        // PoppyLogger only needs the plugin/config, so it's created early —
-        // every manager/command below that logs activity depends on it.
-        PoppyLogger poppyLogger = new PoppyLogger(this);
-
-        // TpaManager needs `messages` and `poppyLogger` (it sends expiry
-        // notifications and logs expirations itself), so it's created here,
-        // after both, instead of alongside homeManager/spawnManager above.
-        TpaManager tpaManager = new TpaManager(this, messages, poppyLogger);
+        TpaManager tpaManager = new TpaManager(this, messages, config, poppyLogger);
 
         HomesGUI homesGUI = new HomesGUI(this, messages);
         ConfirmDeleteGUI confirmDeleteGUI = new ConfirmDeleteGUI(this, messages);
         ConfirmOverwriteGUI confirmOverwriteGUI = new ConfirmOverwriteGUI(this, messages);
         BackManager backManager = new BackManager();
-        CombatManager combatManager = new CombatManager(getConfig().getLong("combat-tag-seconds", 10));
-        TeleportManager teleportManager = new TeleportManager(this, messages, backManager, combatManager, stats, poppyLogger);
-        ShareManager shareManager = new ShareManager(this);
-        TrashGUI trashGUI = new TrashGUI(this, messages);
+        CombatManager combatManager = new CombatManager(config);
+        TeleportManager teleportManager = new TeleportManager(this, messages, config, backManager, combatManager, stats, poppyLogger);
+        ShareManager shareManager = new ShareManager(this, config);
+        TrashGUI trashGUI = new TrashGUI(messages, config);
         AfkManager afkManager = new AfkManager();
         DeathLocationManager deathLocationManager = new DeathLocationManager();
-        DeathChestManager deathChestManager = new DeathChestManager(this, messages, poppyLogger);
+        DeathChestManager deathChestManager = new DeathChestManager(this, messages, config, poppyLogger);
+
+        // Both created here (not inline at registerEvents time) since PoppyCommand
+        // needs a reference to each to call reapply() from /poppy reload.
+        SleepPercentageListener sleepPercentageListener = new SleepPercentageListener(this, config);
+        TabHealthListener tabHealthListener = new TabHealthListener(this, afkManager, config);
 
         Objects.requireNonNull(getCommand("sethome")).setExecutor(
                 new SetHomeCommand(this, homeManager, confirmOverwriteGUI, messages, stats, poppyLogger));
@@ -84,7 +77,7 @@ public final class Poppy extends JavaPlugin {
         Objects.requireNonNull(getCommand("delspawn")).setExecutor(new DelSpawnCommand(this, spawnManager, messages, poppyLogger));
         Objects.requireNonNull(getCommand("spawn")).setExecutor(new SpawnCommand(this, spawnManager, teleportManager, messages));
 
-        ShareHomeCommand shareHomeCommand = new ShareHomeCommand(this, homeManager, shareManager, messages, stats, poppyLogger);
+        ShareHomeCommand shareHomeCommand = new ShareHomeCommand(this, homeManager, shareManager, messages, config, stats, poppyLogger);
         Objects.requireNonNull(getCommand("sharehome")).setExecutor(shareHomeCommand);
         Objects.requireNonNull(getCommand("sharehome")).setTabCompleter(shareHomeCommand);
 
@@ -93,7 +86,7 @@ public final class Poppy extends JavaPlugin {
 
         Objects.requireNonNull(getCommand("back")).setExecutor(new BackCommand(this, backManager, teleportManager, messages));
 
-        RtpCommand rtpCommand = new RtpCommand(this, teleportManager, messages, stats);
+        RtpCommand rtpCommand = new RtpCommand(this, teleportManager, messages, config, stats);
         Objects.requireNonNull(getCommand("rtp")).setExecutor(rtpCommand);
         getServer().getPluginManager().registerEvents(rtpCommand, this);
 
@@ -121,30 +114,33 @@ public final class Poppy extends JavaPlugin {
         Objects.requireNonNull(getCommand("tpacancel")).setExecutor(tpaCancelCommand);
         Objects.requireNonNull(getCommand("tpacancel")).setTabCompleter(tpaCancelCommand);
 
-        Objects.requireNonNull(getCommand("poppy")).setExecutor(new PoppyCommand(this, messages, poppyLogger));
+        PoppyCommand poppyCommand = new PoppyCommand(this, messages, config, poppyLogger, sleepPercentageListener, tabHealthListener);
+        Objects.requireNonNull(getCommand("poppy")).setExecutor(poppyCommand);
+        Objects.requireNonNull(getCommand("poppy")).setTabCompleter(poppyCommand);
 
         getServer().getPluginManager().registerEvents(
                 new HomesGUIListener(this, homeManager, homesGUI, confirmDeleteGUI, confirmOverwriteGUI, teleportManager, messages, stats, poppyLogger), this);
         getServer().getPluginManager().registerEvents(teleportManager, this);
-        getServer().getPluginManager().registerEvents(new BackListener(this, backManager), this);
+        getServer().getPluginManager().registerEvents(new BackListener(this, backManager, config), this);
         getServer().getPluginManager().registerEvents(new TrashListener(this, messages, poppyLogger), this);
-        getServer().getPluginManager().registerEvents(new JoinQuitListener(this, messages), this);
-        getServer().getPluginManager().registerEvents(new TabHealthListener(this, afkManager), this);
+        getServer().getPluginManager().registerEvents(new JoinQuitListener(this, messages, config), this);
+        getServer().getPluginManager().registerEvents(tabHealthListener, this);
         getServer().getPluginManager().registerEvents(new AfkListener(this, afkManager, messages, poppyLogger), this);
-        getServer().getPluginManager().registerEvents(new CombatListener(this, combatManager, poppyLogger), this);
-        getServer().getPluginManager().registerEvents(new UnknownCommandListener(this, messages), this);
+        getServer().getPluginManager().registerEvents(new CombatListener(this, combatManager, config, poppyLogger), this);
+        getServer().getPluginManager().registerEvents(new UnknownCommandListener(this, messages, config), this);
         getServer().getPluginManager().registerEvents(new HomeCacheListener(this, homeManager), this);
         getServer().getPluginManager().registerEvents(shareHomeCommand, this);
         getServer().getPluginManager().registerEvents(new TpaQuitListener(tpaManager), this);
-        getServer().getPluginManager().registerEvents(new PoppyLoreListener(this, messages, poppyLogger), this);
-        getServer().getPluginManager().registerEvents(new DeathCoordsListener(this, messages, deathLocationManager, poppyLogger), this);
+        getServer().getPluginManager().registerEvents(new PoppyLoreListener(this, messages, config, poppyLogger), this);
+        getServer().getPluginManager().registerEvents(new DeathCoordsListener(this, messages, deathLocationManager, config, poppyLogger), this);
         getServer().getPluginManager().registerEvents(deathChestManager, this);
-        getServer().getPluginManager().registerEvents(new SleepPercentageListener(this), this);
-        getServer().getPluginManager().registerEvents(new SleepStatusListener(this, messages, poppyLogger), this);
+        getServer().getPluginManager().registerEvents(sleepPercentageListener, this);
+        getServer().getPluginManager().registerEvents(new SleepStatusListener(this, messages, config, poppyLogger), this);
 
-        if (getConfig().getBoolean("afk-auto-enabled", true)) {
-            new AutoAfkTask(this, afkManager, messages, poppyLogger).runTaskTimer(this, 20L * 60, 20L * 60);
-        }
+        // Always scheduled now (rather than only if afk-auto-enabled at startup) —
+        // AutoAfkTask checks the setting live each run, so it can be toggled via
+        // /poppy reload without a restart.
+        new AutoAfkTask(this, afkManager, messages, config, poppyLogger).runTaskTimer(this, 20L * 60, 20L * 60);
 
         logStartupBanner();
     }
@@ -160,10 +156,6 @@ public final class Poppy extends JavaPlugin {
 
         logShutdownSummary();
         getLogger().info("Poppy has been disabled.");
-
-        if (poppyLogger != null) {
-            poppyLogger.shutdown();
-        }
     }
 
     private void logStartupBanner() {

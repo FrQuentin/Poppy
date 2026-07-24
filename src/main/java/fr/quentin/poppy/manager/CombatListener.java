@@ -1,5 +1,6 @@
 package fr.quentin.poppy.manager;
 
+import fr.quentin.poppy.util.PoppyConfig;
 import fr.quentin.poppy.util.PoppyLogger;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
@@ -15,34 +16,23 @@ import org.jspecify.annotations.NonNull;
 
 import java.util.logging.Level;
 
-/**
- * Tags both parties in PvP (melee or projectile) into {@link CombatManager},
- * which {@link TeleportManager} then checks to block /home, /spawn, /back
- * and /rtp for a short time after combat — see {@code combat-tag-enabled}
- * / {@code combat-tag-seconds} in config.yml.
- *
- * <p>Death clears the tag immediately rather than letting it linger for
- * its remaining duration: a dead player is by definition no longer in
- * combat, so leaving the tag active would incorrectly block things like
- * {@code /deathback} right when the player most needs to teleport.
- */
 public class CombatListener implements Listener {
 
     private final JavaPlugin plugin;
     private final CombatManager combatManager;
+    private final PoppyConfig config;
     private final PoppyLogger logger;
-    private final boolean enabled;
 
-    public CombatListener(JavaPlugin plugin, CombatManager combatManager, PoppyLogger logger) {
+    public CombatListener(JavaPlugin plugin, CombatManager combatManager, PoppyConfig config, PoppyLogger logger) {
         this.plugin = plugin;
         this.combatManager = combatManager;
+        this.config = config;
         this.logger = logger;
-        this.enabled = plugin.getConfig().getBoolean("combat-tag-enabled", true);
     }
 
     @EventHandler
     public void onDamage(@NonNull EntityDamageByEntityEvent event) {
-        if (!enabled) {
+        if (!config.combatTagEnabled()) {
             return;
         }
 
@@ -62,9 +52,6 @@ public class CombatListener implements Listener {
             combatManager.tag(victim.getUniqueId());
             combatManager.tag(attacker.getUniqueId());
 
-            // Only log the moment combat actually starts (neither was already
-            // tagged), not every single hit exchanged during an ongoing fight —
-            // otherwise this would spam the log file for every swing.
             if (!victimAlreadyTagged && !attackerAlreadyTagged) {
                 logger.log(PoppyLogger.Category.COMBAT, attacker, "entered combat with " + victim.getName());
             }

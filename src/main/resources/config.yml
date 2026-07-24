@@ -109,3 +109,11 @@ logging:
     sleep: true
     easter_egg: true
     admin: true
+
+# Home limit: players without any poppy.homes.<n> permission get this many
+# homes. Grant a tier permission (see homes-limit-tiers below) to give a
+# group a higher limit — the highest tier they have wins.
+homes-default-limit: 10
+# Which tiers to check for poppy.homes.<n> permissions. All limits are
+# capped at 54 (one double chest, the /homes GUI's physical size).
+homes-limit-tiers: [5, 10, 20, 30, 54]

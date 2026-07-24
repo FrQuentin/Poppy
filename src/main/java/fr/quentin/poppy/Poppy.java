@@ -33,12 +33,12 @@ public final class Poppy extends JavaPlugin {
     public void onEnable() {
         saveDefaultConfig();
 
-        homeManager = new HomeManager(this);
+        PoppyConfig config = new PoppyConfig(this);
+        homeManager = new HomeManager(this, config);
         spawnManager = new SpawnManager(this);
         stats = new PoppyStats();
 
         Messages messages = new Messages(this);
-        PoppyConfig config = new PoppyConfig(this);
         PoppyLogger poppyLogger = new PoppyLogger(this, config);
 
         TpaManager tpaManager = new TpaManager(this, messages, config, poppyLogger);

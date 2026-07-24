@@ -124,6 +124,7 @@ permissions:
       poppy.poppy: true
       poppy.deathchest.bypass: true
       poppy.reload: true
+      poppy.homes.54: true
 
   poppy.sethome:
     description: Allows creating homes with /sethome.
@@ -176,3 +177,18 @@ permissions:
   poppy.reload:
     description: Allows reloading config.yml and messages.yml with /poppy reload.
     default: op
+  poppy.homes.5:
+    description: Grants a home limit of 5 (only applies if higher than the default limit).
+    default: false
+  poppy.homes.10:
+    description: Grants a home limit of 10 (only applies if higher than the default limit).
+    default: false
+  poppy.homes.20:
+    description: Grants a home limit of 20 (only applies if higher than the default limit).
+    default: false
+  poppy.homes.30:
+    description: Grants a home limit of 30 (only applies if higher than the default limit).
+    default: false
+  poppy.homes.54:
+    description: Grants the maximum home limit of 54 (one double chest).
+    default: false

@@ -22,7 +22,7 @@ delhome:
   success: "&4[!] You've deleted your home, {home}!"
 
 gui:
-  title: "&8Your Homes"
+  title: "&8Your Homes ({current}/{max})"
   home-name: "&f{home}"
   lore-created: "&7Created: &f{date}"
   lore-world: "&7World: &f{world}"

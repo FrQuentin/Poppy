@@ -162,4 +162,12 @@ public final class PoppyConfig {
     public boolean loggingCategoryEnabled(String categoryName) {
         return plugin.getConfig().getBoolean("logging.categories." + categoryName.toLowerCase(), true);
     }
+
+    public int homesDefaultLimit() {
+        return plugin.getConfig().getInt("homes-default-limit", 10);
+    }
+
+    public java.util.List<Integer> homesLimitTiers() {
+        return plugin.getConfig().getIntegerList("homes-limit-tiers");
+    }
 }

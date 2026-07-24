@@ -68,8 +68,8 @@ public class SetHomeCommand extends SafeCommand {
             return true;
         }
 
-        if (homeManager.isFull(player.getUniqueId())) {
-            player.sendMessage(messages.get("sethome.full", "max", String.valueOf(HomeManager.MAX_HOMES)));
+        if (homeManager.isFull(player)) {
+            player.sendMessage(messages.get("sethome.full", "max", String.valueOf(homeManager.getLimit(player))));
             return true;
         }
 

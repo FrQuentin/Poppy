@@ -26,8 +26,9 @@ import java.util.Locale;
 /**
  * Builds the double-chest inventory listing every home the player owns.
  * Inventory size is tied to {@link HomeManager#MAX_HOMES} (54 = one double
- * chest), so every home always fits in a single page — there is no
- * pagination because the cap and the GUI size are kept in lockstep.
+ * chest, the physical maximum), independent of the player's actual limit
+ * from {@link HomeManager#getLimit(Player)} — every home always fits in
+ * a single page regardless of tier, since no permission tier can exceed 54.
  */
 public final class HomesGUI {
 
@@ -46,11 +47,17 @@ public final class HomesGUI {
     }
 
     /**
-     * Opens (or refreshes) the /homes GUI for a player.
+     * Opens (or refreshes) the /homes GUI for a player. The title shows
+     * their current home count against their permission-based limit (see
+     * {@link HomeManager#getLimit(Player)}), e.g. "Your Homes (3/20)".
      */
     public void open(Player player, HomeManager homeManager) {
+        int current = homeManager.getHomes(player.getUniqueId()).size();
+        int limit = homeManager.getLimit(player);
+
         PoppyHomesHolder holder = new PoppyHomesHolder();
-        Inventory inventory = Bukkit.createInventory(holder, HomeManager.MAX_HOMES, messages.get("gui.title"));
+        Inventory inventory = Bukkit.createInventory(holder, HomeManager.MAX_HOMES,
+                messages.get("gui.title", "current", String.valueOf(current), "max", String.valueOf(limit)));
         holder.setInventory(inventory);
 
         for (Home home : homeManager.getHomes(player.getUniqueId()).values()) {
@@ -103,13 +110,7 @@ public final class HomesGUI {
         return item;
     }
 
-    /**
-     * Note: if the home's world is currently unloaded, we deliberately show
-     * "Unknown" rather than guessing NORMAL/Nether/End from a default — a
-     * silent wrong guess (e.g. showing "Overworld" for a Nether home) is
-     * worse than an honest "we don't know right now".
-     */
-    public String worldLabel(String worldName) {
+    private String worldLabel(String worldName) {
         World world = Bukkit.getWorld(worldName);
         if (world == null) {
             return "Unknown";

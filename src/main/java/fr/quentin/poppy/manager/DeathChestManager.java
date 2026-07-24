@@ -23,6 +23,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryMoveItemEvent;
@@ -43,9 +44,53 @@ import java.util.List;
 import java.util.UUID;
 import java.util.logging.Level;
 
+/**
+ * On death, places the player's dropped items — and, if enabled, a bottle
+ * holding their lost XP — into a protected chest (a double chest if there
+ * are more than 27 items) at or near the death location, instead of
+ * scattering them on the ground. Toggleable via {@code death-chest-enabled}
+ * in config.yml; if the {@code keepInventory} gamerule is on,
+ * {@link PlayerDeathEvent#getDrops()} is already empty by the time this
+ * runs, so nothing happens automatically — no special-casing needed.
+ *
+ * <p>Ownership and creation time are stored directly on the chest block's
+ * {@link org.bukkit.persistence.PersistentDataContainer} (chests are tile
+ * entities, so this survives a server restart without any extra file).
+ * The scheduled expiry task from {@link #onDeath} does <b>not</b> survive a
+ * restart, though — a chest created right before a shutdown would
+ * otherwise stay protected and unbreakable forever, with the
+ * {@code createdAt} timestamp sitting unread in its PDC. The constructor
+ * and {@link #onChunkLoad} cover that gap: every already-loaded chunk is
+ * scanned at startup, and every chunk is scanned again as it loads, so an
+ * expired chest is caught (and its remaining contents dropped) even if the
+ * server was off past its expiry time.
+ *
+ * <p>Placement is guarded by a simulated {@link BlockPlaceEvent} (see
+ * {@link #isProtected}) before any world mutation happens — without this,
+ * {@code block.setType(...)} bypasses protection plugins (WorldGuard,
+ * GriefPrevention, Lands...) entirely, since it mutates the world at the
+ * engine level with no event involved, letting a death chest appear
+ * inside someone else's claim.
+ *
+ * <p>Once emptied, a death chest despawns immediately (see {@link #onClose})
+ * rather than lingering as a real, minable {@code Material.CHEST} block, and
+ * breaking it is blocked outright (see {@link #onBreak}) — without both of
+ * these, a player could deliberately die repeatedly and either break or
+ * empty-then-mine each chest for a free chest item, an infinite farm.
+ * Hoppers are blocked from draining or filling a death chest too (see
+ * {@link #onItemMove}), since they bypass {@link #onOpen}'s protection
+ * entirely by never firing an inventory-open event.
+ */
 public class DeathChestManager implements Listener {
 
     private static final int SEARCH_RADIUS = 5;
+
+    // Fixed facing for every death chest. With this facing, a double chest
+    // only visually/functionally merges when the second half sits directly
+    // WEST (making the first chest LEFT) or EAST (making it RIGHT) of the
+    // first — this is a vanilla rule tied to the chosen facing direction,
+    // not an arbitrary choice, so the search for a second half is
+    // restricted to exactly those two directions.
     private static final BlockFace CHEST_FACING = BlockFace.SOUTH;
     private static final BlockFace LEFT_DIRECTION = BlockFace.WEST;
     private static final BlockFace RIGHT_DIRECTION = BlockFace.EAST;
@@ -94,12 +139,12 @@ public class DeathChestManager implements Listener {
                 return;
             }
 
-            Location primary = findPlacementSpot(player.getLocation());
+            Location primary = findPlacementSpot(player.getLocation(), player);
             if (primary == null) {
                 return;
             }
 
-            Location secondary = drops.size() > 27 ? findAdjacentSpot(primary) : null;
+            Location secondary = drops.size() > 27 ? findAdjacentSpot(primary, player) : null;
 
             event.getDrops().clear();
 
@@ -182,6 +227,11 @@ public class DeathChestManager implements Listener {
         }
     }
 
+    /**
+     * Despawns a death chest the moment it's closed empty, so it can't be
+     * mined afterward for a free chest item — see the class-level doc for
+     * why that matters.
+     */
     @EventHandler
     public void onClose(@NonNull InventoryCloseEvent event) {
         if (!config.deathChestEnabled()) {
@@ -208,6 +258,14 @@ public class DeathChestManager implements Listener {
         }
     }
 
+    /**
+     * Cancels breaking a death chest entirely — even for its owner, unless
+     * they have the bypass permission. Without this, breaking the block
+     * drops its contents on the ground regardless of {@link #onOpen}'s
+     * protection (bypassing it for a non-owner stealing the items), and
+     * also hands out a free chest item that could be farmed by repeatedly
+     * dying and breaking each emptied chest.
+     */
     @EventHandler
     public void onBreak(@NonNull BlockBreakEvent event) {
         if (!config.deathChestEnabled()) {
@@ -242,6 +300,14 @@ public class DeathChestManager implements Listener {
         }
     }
 
+    /**
+     * Blocks hoppers (and hopper minecarts) from either draining or filling
+     * a death chest. Hoppers never fire {@link InventoryOpenEvent} — they
+     * transfer items via a completely different event — so without this,
+     * {@link #onOpen}'s ownership check and the whole anti-farm design
+     * could be bypassed simply by placing a hopper under (or above)
+     * someone else's death chest.
+     */
     @EventHandler
     public void onItemMove(@NonNull InventoryMoveItemEvent event) {
         if (!config.deathChestEnabled()) {
@@ -265,6 +331,13 @@ public class DeathChestManager implements Listener {
         return chest.getPersistentDataContainer().get(ownerKey, PersistentDataType.STRING) != null;
     }
 
+    /**
+     * Consumes a death-chest XP bottle on right-click, restoring the exact
+     * XP it was created with. Triggers on both {@link Action#RIGHT_CLICK_AIR}
+     * and {@link Action#RIGHT_CLICK_BLOCK} — a regular experience bottle
+     * throws on either, so this must intercept both to reliably prevent
+     * the vanilla throw behavior.
+     */
     @EventHandler
     public void onXpBottleUse(@NonNull PlayerInteractEvent event) {
         if (!config.deathChestEnabled() || !config.deathChestStoreXp()) {
@@ -291,7 +364,7 @@ public class DeathChestManager implements Listener {
 
             int storedXp = meta.getPersistentDataContainer().getOrDefault(xpAmountKey, PersistentDataType.INTEGER, 0);
             if (storedXp <= 0) {
-                return;
+                return; // a regular experience bottle, not one of ours
             }
 
             event.setCancelled(true);
@@ -311,6 +384,13 @@ public class DeathChestManager implements Listener {
         }
     }
 
+    /**
+     * Scans every already-loaded chunk of every already-loaded world for
+     * expired death chests, called once from the constructor. Covers
+     * chests sitting in spawn-kept-loaded chunks (or any chunk a player
+     * happened to already be standing in) at the moment the plugin enables
+     * — {@link #onChunkLoad} covers everything else as chunks load later.
+     */
     private void scanAlreadyLoadedChunks() {
         if (config.deathChestExpiryMillis() <= 0) {
             return;
@@ -336,6 +416,15 @@ public class DeathChestManager implements Listener {
         }
     }
 
+    /**
+     * Checks every tile entity in the chunk for a death chest whose
+     * {@code createdAt} timestamp is past the configured expiry, and
+     * expires it via {@link #dropRemainingAndClear} — the same cleanup
+     * path used by the normal in-session {@link #expireChest}. Each half
+     * of a double chest carries its own copy of the owner/createdAt tags
+     * (see {@link #placeChest}), so this naturally handles both halves
+     * independently without needing to know which location was "primary".
+     */
     private void scanChunkForExpiredChests(Chunk chunk) {
         long expiryMillis = config.deathChestExpiryMillis();
 
@@ -425,6 +514,11 @@ public class DeathChestManager implements Listener {
         }
     }
 
+    /**
+     * A double chest's InventoryHolder is a {@link DoubleChest}, not a
+     * {@link Chest} — this resolves either case to one underlying Chest so
+     * ownership can be read the same way regardless of chest size.
+     */
     private Chest resolveChest(InventoryHolder holder) {
         if (holder instanceof Chest chest) {
             return chest;
@@ -466,6 +560,12 @@ public class DeathChestManager implements Listener {
         }
     }
 
+    /**
+     * Verifies the block is still the exact chest we placed (it could have
+     * already been emptied and despawned by {@link #onClose}, or broken)
+     * before touching it — matching on the stored owner avoids destroying
+     * an unrelated chest someone else placed at the same coordinates.
+     */
     private boolean dropRemainingAndClear(Location location, UUID owner) {
         Block block = location.getBlock();
         if (block.getType() != Material.CHEST) {
@@ -490,8 +590,16 @@ public class DeathChestManager implements Listener {
         return droppedAnything;
     }
 
-    private Location findPlacementSpot(Location deathLocation) {
-        if (isPlaceable(deathLocation)) {
+    /**
+     * Finds a spot to place the primary chest: the death location itself if
+     * placeable and not hazardous, otherwise the closest such spot within
+     * {@link #SEARCH_RADIUS} blocks — same search shape as
+     * {@link fr.quentin.poppy.commands.DeathBackCommand}'s safe-spot search,
+     * but "placeable" here means the block is replaceable, not hazardous,
+     * and not protected by another plugin (see {@link #isPlaceable}).
+     */
+    private Location findPlacementSpot(Location deathLocation, Player owner) {
+        if (isPlaceable(deathLocation, owner)) {
             return centered(deathLocation);
         }
 
@@ -505,7 +613,7 @@ public class DeathChestManager implements Listener {
                         continue;
                     }
                     Location candidate = deathLocation.clone().add(dx, dy, dz);
-                    if (!isPlaceable(candidate)) {
+                    if (!isPlaceable(candidate, owner)) {
                         continue;
                     }
                     double distanceSquared = (double) dx * dx + (double) dy * dy + (double) dz * dz;
@@ -520,10 +628,17 @@ public class DeathChestManager implements Listener {
         return best == null ? null : centered(best);
     }
 
-    private Location findAdjacentSpot(Location primary) {
+    /**
+     * Looks for a spot to place the second half of a double chest, only
+     * along {@link #EXTEND_FACES} — the two directions that actually merge
+     * with {@link #CHEST_FACING}. Any other direction would place a second,
+     * unrelated single chest right next to the first instead of a proper
+     * double chest.
+     */
+    private Location findAdjacentSpot(Location primary, Player owner) {
         for (BlockFace face : EXTEND_FACES) {
             Location candidate = primary.clone().add(face.getDirection());
-            if (isPlaceable(candidate)) {
+            if (isPlaceable(candidate, owner)) {
                 return centered(candidate);
             }
         }
@@ -540,7 +655,7 @@ public class DeathChestManager implements Listener {
         return BlockFace.SOUTH;
     }
 
-    private boolean isPlaceable(Location location) {
+    private boolean isPlaceable(Location location, Player owner) {
         World world = location.getWorld();
         if (location.getY() < world.getMinHeight() || location.getY() > world.getMaxHeight()) {
             return false;
@@ -552,13 +667,51 @@ public class DeathChestManager implements Listener {
         }
 
         Material type = block.getType();
-        return type != Material.LAVA && type != Material.FIRE && type != Material.SOUL_FIRE;
+        if (type == Material.LAVA || type == Material.FIRE || type == Material.SOUL_FIRE) {
+            return false;
+        }
+
+        return !isProtected(location, owner);
+    }
+
+    /**
+     * Fires a simulated {@link BlockPlaceEvent} for the given location
+     * before any world mutation happens, so protection plugins
+     * (WorldGuard, GriefPrevention, Lands...) that listen on that event
+     * get a chance to cancel it — exactly as if the player had physically
+     * placed a chest there. Without this, {@code block.setType(...)}
+     * bypasses the whole protection plugin ecosystem entirely, since it
+     * mutates the world at the engine level with no event involved.
+     *
+     * <p>The block is not modified before this check — {@code replacedState}
+     * is a snapshot of the block's current (pre-placement) state, and
+     * {@code placedBlock} is the same {@link Block} reference the world
+     * still has as-is. Protection plugins check the location and the
+     * player, not the physical material, so this works without a
+     * temporary real placement and revert.
+     */
+    private boolean isProtected(Location location, Player owner) {
+        Block block = location.getBlock();
+        BlockState replacedState = block.getState();
+        Block placedAgainst = block.getRelative(BlockFace.DOWN);
+        ItemStack chestItem = new ItemStack(Material.CHEST);
+
+        BlockPlaceEvent placeEvent = new BlockPlaceEvent(block, replacedState, placedAgainst, chestItem, owner, true, EquipmentSlot.HAND);
+        Bukkit.getPluginManager().callEvent(placeEvent);
+
+        return placeEvent.isCancelled() || !placeEvent.canBuild();
     }
 
     private Location centered(Location location) {
         return new Location(location.getWorld(), location.getBlockX(), location.getBlockY(), location.getBlockZ());
     }
 
+    /**
+     * Resolves an owner UUID string to a name for logging when no
+     * {@link Player} object is at hand (e.g. during expiry, or when the
+     * closer isn't the owner). Falls back to the raw UUID string if the
+     * name can't be resolved.
+     */
     private String ownerName(String ownerUuidString) {
         try {
             OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(UUID.fromString(ownerUuidString));

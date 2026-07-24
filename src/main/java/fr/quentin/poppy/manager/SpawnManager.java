@@ -8,6 +8,8 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.logging.Level;
 
 /**
@@ -124,12 +126,26 @@ public class SpawnManager {
         return config;
     }
 
+    /**
+     * Writes to a temporary file first, then atomically renames it over the
+     * real file — {@code YamlConfiguration#save(File)} on its own writes
+     * directly into the destination file, so a crash, out-of-disk-space
+     * error, or forced kill mid-write could leave spawn.yml truncated and
+     * unparsable. A rename on the same filesystem is atomic at the OS level:
+     * readers only ever see the fully-old or fully-new file, never a
+     * half-written one. Same fix as HomeManager#writeToDisk.
+     */
     private void writeToDisk(YamlConfiguration config) {
+        File tempFile = new File(file.getParentFile(), file.getName() + ".tmp");
+
         synchronized (writeLock) {
             try {
-                config.save(file);
+                config.save(tempFile);
+                Files.move(tempFile.toPath(), file.toPath(),
+                        StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             } catch (IOException e) {
                 plugin.getLogger().log(Level.SEVERE, "Could not save spawn.yml", e);
+                tempFile.delete();
             }
         }
     }

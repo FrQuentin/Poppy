@@ -200,18 +200,29 @@ public class TeleportManager implements Listener {
 
         backManager.recordLocation(player);
 
-        player.teleportAsync(location).thenAccept(success -> {
-            if (!success) {
-                plugin.getLogger().warning("Teleport of " + player.getName() + " to '" + home.name() + "' did not complete successfully");
-                return;
-            }
+        player.teleportAsync(location)
+                .thenAccept(success -> {
+                    if (!success) {
+                        plugin.getLogger().warning("Teleport of " + player.getName() + " to '" + home.name() + "' did not complete successfully");
+                        return;
+                    }
 
-            stats.incrementTeleports();
+                    stats.incrementTeleports();
 
-            logger.log(PoppyLogger.Category.TELEPORT, player, "teleported to '" + home.name() + "' at "
-                    + home.worldName() + ": " + (int) home.x() + ", " + (int) home.y() + ", " + (int) home.z());
+                    logger.log(PoppyLogger.Category.TELEPORT, player, "teleported to '" + home.name() + "' at "
+                            + home.worldName() + ": " + (int) home.x() + ", " + (int) home.y() + ", " + (int) home.z());
 
-            player.sendMessage(messages.get(successMessagePath, "home", home.name()));
-        });
+                    player.sendMessage(messages.get(successMessagePath, "home", home.name()));
+                })
+                .exceptionally(throwable -> {
+                    // thenAccept runs asynchronously relative to the caller, so without this
+                    // handler an exception here would vanish silently inside the CompletableFuture
+                    // — same reasoning as RtpCommand's identical .exceptionally(...).
+                    plugin.getLogger().log(Level.SEVERE, "Error teleporting " + player.getName() + " to '" + home.name() + "'", throwable);
+                    if (player.isOnline()) {
+                        player.sendMessage(messages.get("general.error"));
+                    }
+                    return null;
+                });
     }
 }

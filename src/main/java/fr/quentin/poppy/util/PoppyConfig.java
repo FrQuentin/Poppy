@@ -170,4 +170,15 @@ public final class PoppyConfig {
     public java.util.List<Integer> homesLimitTiers() {
         return plugin.getConfig().getIntegerList("homes-limit-tiers");
     }
+
+    /**
+     * Percentage (0-100) of the player's total XP restored via the death
+     * chest bottle. 100 (the default) fully negates vanilla's death XP
+     * penalty — the player gets back everything they lost. Set lower to keep
+     * some penalty; vanilla itself only drops {@code min(7 × level, 100)} XP
+     * points on death, so a value well under 100 here gets closer to that.
+     */
+    public int deathChestXpRefundPercent() {
+        return Math.clamp(plugin.getConfig().getInt("death-chest-xp-refund-percent", 100), 0, 100);
+    }
 }

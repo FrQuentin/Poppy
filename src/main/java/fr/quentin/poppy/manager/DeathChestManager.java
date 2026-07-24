@@ -80,6 +80,14 @@ import java.util.logging.Level;
  * Hoppers are blocked from draining or filling a death chest too (see
  * {@link #onItemMove}), since they bypass {@link #onOpen}'s protection
  * entirely by never firing an inventory-open event.
+ *
+ * <p>XP refund is a percentage of the player's total XP, not a fixed
+ * amount — {@code death-chest-xp-refund-percent} in config.yml, 100 by
+ * default. At 100, the death XP penalty is fully negated (the bottle
+ * gives back everything). Admins who want death to still cost XP should
+ * lower this; vanilla itself only drops {@code min(7 × level, 100)} on
+ * death, so this plugin's default is meaningfully more forgiving than
+ * vanilla unless explicitly tuned down.
  */
 public class DeathChestManager implements Listener {
 
@@ -129,10 +137,12 @@ public class DeathChestManager implements Listener {
             if (config.deathChestStoreXp()) {
                 int levelAtDeath = player.getLevel();
                 int totalXp = getTotalExperience(player, levelAtDeath);
-                if (totalXp > 0) {
-                    drops.add(createXpBottle(levelAtDeath, totalXp));
-                    event.setDroppedExp(0);
+                int refundXp = (int) ((long) totalXp * config.deathChestXpRefundPercent() / 100);
+
+                if (refundXp > 0) {
+                    drops.add(createXpBottle(levelAtDeath, refundXp));
                 }
+                event.setDroppedExp(0);
             }
 
             if (drops.isEmpty()) {

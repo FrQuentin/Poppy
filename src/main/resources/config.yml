@@ -117,3 +117,10 @@ homes-default-limit: 10
 # Which tiers to check for poppy.homes.<n> permissions. All limits are
 # capped at 54 (one double chest, the /homes GUI's physical size).
 homes-limit-tiers: [5, 10, 20, 30, 54]
+
+# Percentage (0-100) of a dying player's total XP restored via the death
+# chest's XP bottle. 100 fully cancels the death XP penalty (the default,
+# and previously the only behavior — this key just makes it configurable).
+# Vanilla itself only drops min(7 x level, 100) XP on death, so a lower
+# value here gets you closer to that if you want death to still sting.
+death-chest-xp-refund-percent: 100

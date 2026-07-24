@@ -154,3 +154,7 @@ heal:
   success: "&a[!] Your health has been fully restored!"
   cooldown: "&4[!] You must wait {time} before using /heal again!"
   already-full: "&4[!] Your health is already full!"
+
+silkspawner:
+  success: "&a[!] You picked up a {mob} Spawner!"
+  blacklisted: "&4[!] {mob} spawners can't be picked up!"

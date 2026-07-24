@@ -189,4 +189,12 @@ public final class PoppyConfig {
     public long healCooldownMillis() {
         return Math.max(0, plugin.getConfig().getInt("heal-cooldown-seconds", 180)) * 1000L;
     }
+
+    public boolean silkSpawnerEnabled() {
+        return plugin.getConfig().getBoolean("silkspawner-enabled", true);
+    }
+
+    public java.util.List<String> silkSpawnerBlacklist() {
+        return plugin.getConfig().getStringList("silkspawner-blacklist");
+    }
 }

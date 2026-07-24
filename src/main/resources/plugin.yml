@@ -137,6 +137,7 @@ permissions:
       poppy.homes.54: true
       poppy.feed: true
       poppy.heal: true
+      poppy.silkspawner: true
 
   poppy.sethome:
     description: Allows creating homes with /sethome.
@@ -209,4 +210,7 @@ permissions:
     default: true
   poppy.heal:
     description: Allows restoring health with /heal.
+    default: true
+  poppy.silkspawner:
+    description: Allows picking up mob spawners with Silk Touch.
     default: true

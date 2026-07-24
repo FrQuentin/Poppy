@@ -141,6 +141,7 @@ public final class Poppy extends JavaPlugin {
         getServer().getPluginManager().registerEvents(deathChestManager, this);
         getServer().getPluginManager().registerEvents(sleepPercentageListener, this);
         getServer().getPluginManager().registerEvents(new SleepStatusListener(this, messages, config, poppyLogger), this);
+        getServer().getPluginManager().registerEvents(new SilkSpawnerListener(this, messages, config), this);
 
         // Always scheduled now (rather than only if afk-auto-enabled at startup) —
         // AutoAfkTask checks the setting live each run, so it can be toggled via

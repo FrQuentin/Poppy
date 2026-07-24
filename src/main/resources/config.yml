@@ -130,3 +130,14 @@ feed-cooldown-seconds: 180
 
 # Cooldown (in seconds) between two /heal uses. Set to 0 to disable.
 heal-cooldown-seconds: 180
+
+# Silk Touch spawners: breaking a mob spawner with a Silk Touch tool drops
+# a placeable spawner item (instead of vanilla's "never drops"), keeping
+# its mob type. Doesn't apply in Creative mode (vanilla never drops items
+# there regardless of enchantments).
+silkspawner-enabled: true
+# Entity type names (vanilla constants, e.g. SKELETON, ZOMBIE,
+# WITHER_SKELETON) that can never be picked up this way, even with Silk
+# Touch — breaking one of these behaves as vanilla (no drop). Empty by
+# default.
+silkspawner-blacklist: []

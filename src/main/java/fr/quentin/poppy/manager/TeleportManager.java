@@ -24,15 +24,21 @@ import java.util.logging.Level;
 
 /**
  * Central point for every Poppy teleport (/home, /spawn, /back, /rtp,
- * /tpa, /deathback, shared-home links). Config values (warmup length,
- * cancel-on-move/damage) are read live from {@link PoppyConfig} rather
- * than cached, so {@code /poppy reload} applies immediately, even to a
- * warmup already in progress.
+ * /tpa, /deathback, shared-home links). Config values are read live from
+ * {@link PoppyConfig}, so {@code /poppy reload} applies immediately.
  *
  * <p>{@code requestTeleport} returns whether the request was accepted
  * (warmup started, or teleport dispatched) versus rejected outright
  * (combat tag) — callers with their own side effects gated on an actual
  * attempt (a cooldown, a stat) must check this.
+ *
+ * <p>An optional {@code onSuccess} callback runs only once the teleport has
+ * actually completed (see {@link #teleportNow}), not merely once it was
+ * requested or accepted — this matters for callers like
+ * {@code DeathBackCommand}, which needs to invalidate the death-location
+ * link only after the player genuinely arrives, not just because the
+ * warmup started (a combat-tag rejection during warmup would otherwise
+ * burn the link for a teleport that never happened).
  *
  * <p>The destination is a {@link Supplier<Home>}, re-resolved right before
  * the actual teleport — so a home/spawn deleted mid-warmup cancels instead
@@ -63,14 +69,31 @@ public class TeleportManager implements Listener {
     }
 
     public boolean requestTeleport(Player player, Home home) {
-        return requestTeleport(player, () -> home, "home.success");
+        return requestTeleport(player, () -> home, "home.success", null);
     }
 
     public boolean requestTeleport(Player player, Home home, String successMessagePath) {
-        return requestTeleport(player, () -> home, successMessagePath);
+        return requestTeleport(player, () -> home, successMessagePath, null);
+    }
+
+    public boolean requestTeleport(Player player, Home home, String successMessagePath, Runnable onSuccess) {
+        return requestTeleport(player, () -> home, successMessagePath, onSuccess);
     }
 
     public boolean requestTeleport(Player player, Supplier<Home> homeSupplier, String successMessagePath) {
+        return requestTeleport(player, homeSupplier, successMessagePath, null);
+    }
+
+    /**
+     * Same as {@link #requestTeleport(Player, Supplier, String)}, but with
+     * an {@code onSuccess} callback run only once the teleport has actually
+     * completed — see the class-level doc for why that distinction matters.
+     *
+     * @return true if the request was accepted (warmup started, or an
+     *         instant teleport was dispatched); false if rejected outright
+     *         because the player is combat-tagged.
+     */
+    public boolean requestTeleport(Player player, Supplier<Home> homeSupplier, String successMessagePath, Runnable onSuccess) {
         UUID uuid = player.getUniqueId();
 
         if (combatManager.isInCombat(uuid)) {
@@ -82,7 +105,7 @@ public class TeleportManager implements Listener {
 
         int warmupSeconds = config.teleportWarmupSeconds();
         if (warmupSeconds <= 0) {
-            teleportNow(player, homeSupplier, successMessagePath);
+            teleportNow(player, homeSupplier, successMessagePath, onSuccess);
             return true;
         }
 
@@ -110,7 +133,7 @@ public class TeleportManager implements Listener {
                     if (remaining <= 0) {
                         pendingTasks.remove(uuid);
                         startLocations.remove(uuid);
-                        teleportNow(player, homeSupplier, successMessagePath);
+                        teleportNow(player, homeSupplier, successMessagePath, onSuccess);
                         cancel();
                         return;
                     }
@@ -185,7 +208,7 @@ public class TeleportManager implements Listener {
         startLocations.remove(uuid);
     }
 
-    protected void teleportNow(Player player, Supplier<Home> homeSupplier, String successMessagePath) {
+    protected void teleportNow(Player player, Supplier<Home> homeSupplier, String successMessagePath, Runnable onSuccess) {
         Home home = homeSupplier.get();
         if (home == null) {
             player.sendMessage(messages.get("teleport.target-missing"));
@@ -213,11 +236,12 @@ public class TeleportManager implements Listener {
                             + home.worldName() + ": " + (int) home.x() + ", " + (int) home.y() + ", " + (int) home.z());
 
                     player.sendMessage(messages.get(successMessagePath, "home", home.name()));
+
+                    if (onSuccess != null) {
+                        onSuccess.run();
+                    }
                 })
                 .exceptionally(throwable -> {
-                    // thenAccept runs asynchronously relative to the caller, so without this
-                    // handler an exception here would vanish silently inside the CompletableFuture
-                    // — same reasoning as RtpCommand's identical .exceptionally(...).
                     plugin.getLogger().log(Level.SEVERE, "Error teleporting " + player.getName() + " to '" + home.name() + "'", throwable);
                     if (player.isOnline()) {
                         player.sendMessage(messages.get("general.error"));

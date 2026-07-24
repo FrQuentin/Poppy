@@ -31,9 +31,13 @@ import org.jspecify.annotations.NonNull;
  * small radius around it for the closest safe alternative, so the player
  * still lands close enough to recover their items on foot.
  *
- * <p>The search radius is small (8 blocks) and runs synchronously — unlike
- * {@code RtpCommand}'s much larger radius, this is cheap enough not to
- * need the async chunk-loading treatment.
+ * <p>The link stays usable across multiple attempts (combat tag rejection,
+ * moving during warmup, etc.) and is only invalidated — via
+ * {@link DeathLocationManager#remove} — once the teleport has genuinely
+ * completed, passed as an {@code onSuccess} callback to
+ * {@link TeleportManager#requestTeleport(Player, Home, String, Runnable)}.
+ * Without this, a rejected or cancelled attempt would burn the link for a
+ * teleport that never actually happened.
  */
 public class DeathBackCommand extends SafeCommand {
 
@@ -74,7 +78,8 @@ public class DeathBackCommand extends SafeCommand {
         }
 
         Home deathHome = Home.fromLocation("death", destination);
-        teleportManager.requestTeleport(player, deathHome, "death.teleport-success");
+        teleportManager.requestTeleport(player, deathHome, "death.teleport-success",
+                () -> deathLocationManager.remove(player.getUniqueId()));
         return true;
     }
 
@@ -93,7 +98,7 @@ public class DeathBackCommand extends SafeCommand {
             for (int dy = -SEARCH_RADIUS; dy <= SEARCH_RADIUS; dy++) {
                 for (int dz = -SEARCH_RADIUS; dz <= SEARCH_RADIUS; dz++) {
                     if (dx == 0 && dy == 0 && dz == 0) {
-                        continue; // already checked as the exact death spot
+                        continue;
                     }
 
                     Location candidate = deathLocation.clone().add(dx, dy, dz);

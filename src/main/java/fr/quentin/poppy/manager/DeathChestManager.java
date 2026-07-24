@@ -40,6 +40,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.jspecify.annotations.NonNull;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import java.util.logging.Level;
@@ -104,6 +105,16 @@ public class DeathChestManager implements Listener {
     private static final BlockFace RIGHT_DIRECTION = BlockFace.EAST;
     private static final BlockFace[] EXTEND_FACES = {RIGHT_DIRECTION, LEFT_DIRECTION};
 
+    // Every non-zero offset within SEARCH_RADIUS, sorted once by squared
+    // distance ascending — computed a single time at class load, not per
+    // death. findPlacementSpot walks this in order and stops at the first
+    // valid candidate, which is therefore already the closest one, instead
+    // of evaluating every single valid candidate in the whole cube just to
+    // find the minimum. This is what keeps the number of simulated
+    // BlockPlaceEvent calls (see isProtected) bounded in the common case,
+    // rather than up to (2 x SEARCH_RADIUS + 1)^3 - 1 = 1330 every death.
+    private static final int[][] SEARCH_OFFSETS = buildSortedOffsets(SEARCH_RADIUS);
+
     private final JavaPlugin plugin;
     private final Messages messages;
     private final PoppyConfig config;
@@ -124,6 +135,22 @@ public class DeathChestManager implements Listener {
         scanAlreadyLoadedChunks();
     }
 
+    private static int[][] buildSortedOffsets(int radius) {
+        List<int[]> offsets = new ArrayList<>();
+        for (int dx = -radius; dx <= radius; dx++) {
+            for (int dy = -radius; dy <= radius; dy++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    if (dx == 0 && dy == 0 && dz == 0) {
+                        continue;
+                    }
+                    offsets.add(new int[] {dx, dy, dz});
+                }
+            }
+        }
+        offsets.sort(Comparator.comparingInt(o -> o[0] * o[0] + o[1] * o[1] + o[2] * o[2]));
+        return offsets.toArray(new int[0][]);
+    }
+
     @EventHandler
     public void onDeath(@NonNull PlayerDeathEvent event) {
         if (!config.deathChestEnabled()) {
@@ -132,31 +159,41 @@ public class DeathChestManager implements Listener {
 
         try {
             Player player = event.getEntity();
-            List<ItemStack> drops = new ArrayList<>(event.getDrops());
 
+            int refundXp = 0;
+            int levelAtDeath = player.getLevel();
             if (config.deathChestStoreXp()) {
-                int levelAtDeath = player.getLevel();
                 int totalXp = getTotalExperience(player, levelAtDeath);
-                int refundXp = (int) ((long) totalXp * config.deathChestXpRefundPercent() / 100);
-
-                if (refundXp > 0) {
-                    drops.add(createXpBottle(levelAtDeath, refundXp));
-                }
-                event.setDroppedExp(0);
+                refundXp = (int) ((long) totalXp * config.deathChestXpRefundPercent() / 100);
             }
 
-            if (drops.isEmpty()) {
+            List<ItemStack> plannedDrops = new ArrayList<>(event.getDrops());
+            if (refundXp > 0) {
+                plannedDrops.add(createXpBottle(levelAtDeath, refundXp));
+            }
+
+            if (plannedDrops.isEmpty()) {
                 return;
             }
 
             Location primary = findPlacementSpot(player.getLocation(), player);
             if (primary == null) {
+                // No safe/unprotected spot found nearby: leave everything on the
+                // vanilla path untouched — items drop as usual, and if refundXp was
+                // going to replace the XP orbs, we never got the chance to commit
+                // to that, so the orbs still drop normally too. Nothing is lost
+                // beyond ordinary vanilla death behavior.
                 return;
             }
 
-            Location secondary = drops.size() > 27 ? findAdjacentSpot(primary, player) : null;
+            Location secondary = plannedDrops.size() > 27 ? findAdjacentSpot(primary, player) : null;
 
+            // Only now, with a placement spot confirmed, do we commit to replacing
+            // the vanilla drops with the chest + bottle.
             event.getDrops().clear();
+            if (refundXp > 0) {
+                event.setDroppedExp(0);
+            }
 
             if (secondary != null) {
                 BlockFace direction = directionBetween(primary, secondary);
@@ -170,7 +207,7 @@ public class DeathChestManager implements Listener {
 
             Inventory inventory = ((Chest) primary.getBlock().getState()).getInventory();
             List<ItemStack> overflow = new ArrayList<>();
-            for (ItemStack item : drops) {
+            for (ItemStack item : plannedDrops) {
                 overflow.addAll(inventory.addItem(item).values());
             }
 
@@ -180,7 +217,7 @@ public class DeathChestManager implements Listener {
 
             logger.log(PoppyLogger.Category.DEATH_CHEST, player, "death chest created at "
                     + primary.getWorld().getName() + ": " + primary.getBlockX() + ", " + primary.getBlockY() + ", " + primary.getBlockZ()
-                    + " (" + drops.size() + " items" + (secondary != null ? ", double chest" : "") + ")");
+                    + " (" + plannedDrops.size() + " items" + (secondary != null ? ", double chest" : "") + ")");
 
             player.sendMessage(messages.get("death.chest-created",
                     "x", String.valueOf(primary.getBlockX()),
@@ -602,40 +639,25 @@ public class DeathChestManager implements Listener {
 
     /**
      * Finds a spot to place the primary chest: the death location itself if
-     * placeable and not hazardous, otherwise the closest such spot within
-     * {@link #SEARCH_RADIUS} blocks — same search shape as
-     * {@link fr.quentin.poppy.commands.DeathBackCommand}'s safe-spot search,
-     * but "placeable" here means the block is replaceable, not hazardous,
-     * and not protected by another plugin (see {@link #isPlaceable}).
+     * placeable, otherwise the closest such spot within {@link #SEARCH_RADIUS}
+     * blocks. Walks {@link #SEARCH_OFFSETS} in ascending-distance order and
+     * returns on the first hit — since the offsets are pre-sorted, the first
+     * valid candidate found is already the closest one, so there's no need
+     * (and no correctness benefit) to keep scanning the rest of the cube.
      */
     private Location findPlacementSpot(Location deathLocation, Player owner) {
         if (isPlaceable(deathLocation, owner)) {
             return centered(deathLocation);
         }
 
-        Location best = null;
-        double bestDistanceSquared = Double.MAX_VALUE;
-
-        for (int dx = -SEARCH_RADIUS; dx <= SEARCH_RADIUS; dx++) {
-            for (int dy = -SEARCH_RADIUS; dy <= SEARCH_RADIUS; dy++) {
-                for (int dz = -SEARCH_RADIUS; dz <= SEARCH_RADIUS; dz++) {
-                    if (dx == 0 && dy == 0 && dz == 0) {
-                        continue;
-                    }
-                    Location candidate = deathLocation.clone().add(dx, dy, dz);
-                    if (!isPlaceable(candidate, owner)) {
-                        continue;
-                    }
-                    double distanceSquared = (double) dx * dx + (double) dy * dy + (double) dz * dz;
-                    if (distanceSquared < bestDistanceSquared) {
-                        bestDistanceSquared = distanceSquared;
-                        best = candidate;
-                    }
-                }
+        for (int[] offset : SEARCH_OFFSETS) {
+            Location candidate = deathLocation.clone().add(offset[0], offset[1], offset[2]);
+            if (isPlaceable(candidate, owner)) {
+                return centered(candidate);
             }
         }
 
-        return best == null ? null : centered(best);
+        return null;
     }
 
     /**

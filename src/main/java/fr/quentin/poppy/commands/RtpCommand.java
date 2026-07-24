@@ -2,7 +2,11 @@ package fr.quentin.poppy.commands;
 
 import fr.quentin.poppy.manager.TeleportManager;
 import fr.quentin.poppy.model.Home;
-import fr.quentin.poppy.util.*;
+import fr.quentin.poppy.util.DurationFormat;
+import fr.quentin.poppy.util.Messages;
+import fr.quentin.poppy.util.PoppyConfig;
+import fr.quentin.poppy.util.PoppyStats;
+import fr.quentin.poppy.util.SafeCommand;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -46,6 +50,13 @@ import java.util.logging.Level;
  * of them has resolved. {@link #inProgress} is removed on every exit path:
  * success, running out of attempts, the player going offline mid-search,
  * an exception, and on quit (see {@link #onQuit}) as a final safety net.
+ *
+ * <p>Unlike {@link #inProgress} (cleared on quit as a genuine safety net —
+ * a lingering flag would otherwise permanently lock an offline player out
+ * after reconnecting), {@link #lastUse} is deliberately <b>not</b> cleared
+ * on quit: doing so would let a player reset their own cooldown for free
+ * by disconnecting and reconnecting. The cooldown is meant to survive a
+ * disconnect/reconnect, and only resets on a full server restart.
  *
  * <p>The Nether needs different vertical placement logic than the
  * Overworld/End: {@link World#getHighestBlockYAt(int, int)} finds the
@@ -176,7 +187,6 @@ public class RtpCommand extends SafeCommand implements Listener {
 
     @EventHandler
     public void onQuit(@NonNull PlayerQuitEvent event) {
-        lastUse.remove(event.getPlayer().getUniqueId());
         inProgress.remove(event.getPlayer().getUniqueId());
     }
 

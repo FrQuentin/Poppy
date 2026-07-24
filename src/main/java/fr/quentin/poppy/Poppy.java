@@ -83,7 +83,7 @@ public final class Poppy extends JavaPlugin {
         Objects.requireNonNull(getCommand("sharehome")).setExecutor(shareHomeCommand);
         Objects.requireNonNull(getCommand("sharehome")).setTabCompleter(shareHomeCommand);
 
-        Objects.requireNonNull(getCommand("poppygoto")).setExecutor(new PoppyGotoCommand(this, shareManager, teleportManager, messages));
+        Objects.requireNonNull(getCommand("poppygoto")).setExecutor(new PoppyGotoCommand(this, shareManager, teleportManager, messages, config, poppyLogger));
         Objects.requireNonNull(getCommand("deathback")).setExecutor(new DeathBackCommand(this, deathLocationManager, teleportManager, messages));
 
         Objects.requireNonNull(getCommand("back")).setExecutor(new BackCommand(this, backManager, teleportManager, messages));

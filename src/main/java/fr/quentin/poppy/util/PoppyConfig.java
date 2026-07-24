@@ -197,4 +197,12 @@ public final class PoppyConfig {
     public java.util.List<String> silkSpawnerBlacklist() {
         return plugin.getConfig().getStringList("silkspawner-blacklist");
     }
+
+    public int sharehomeMaxFailedAttempts() {
+        return Math.max(1, plugin.getConfig().getInt("sharehome-max-failed-attempts", 5));
+    }
+
+    public long sharehomeLockoutMillis() {
+        return Math.max(0, plugin.getConfig().getInt("sharehome-lockout-seconds", 60)) * 1000L;
+    }
 }

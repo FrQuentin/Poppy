@@ -21,7 +21,7 @@ public class ShareManager {
     }
 
     public String share(Home home) {
-        String token = UUID.randomUUID().toString().replace("-", "").substring(0, 10);
+        String token = UUID.randomUUID().toString().replace("-", "");
         shares.put(token, home);
 
         Bukkit.getScheduler().runTaskLater(plugin, () -> shares.remove(token), config.sharehomeExpirySeconds() * 20L);

@@ -66,6 +66,7 @@ sharehome:
   click-hover: "&7Teleport to {home}"
   expired: "&4[!] This shared home link has expired!"
   teleport-success: "&a[!] You have been teleported to the shared home, {home}!"
+  locked-out: "&4[!] Too many invalid links — please wait {seconds}s before trying again!"
 
 back:
   not-found: "&4[!] You don't have anywhere to go back to!"

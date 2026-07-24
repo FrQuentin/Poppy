@@ -40,20 +40,26 @@ import java.util.logging.Level;
  * this in Creative would hand out free spawners for nothing.
  *
  * <p>Breaking a spawner normally drops XP (15-43 points) regardless of
- * tool — vanilla never lets that be exploited since the block is gone for
- * good afterward. Once pickup-and-replace is possible, though, that XP
- * becomes an infinite farm (break, replace, break again...) unless it's
- * suppressed specifically on a successful Silk Touch pickup — see
- * {@code event.setExpToDrop(0)} in {@link #onBreak}. A blacklisted or
- * non-Silk-Touch break still destroys the block for good, exactly like
- * vanilla, so its XP is left untouched in that case.
+ * tool; on a successful Silk Touch pickup that XP is suppressed (see
+ * {@code event.setExpToDrop(0)} in {@link #onBreak}), same reasoning as
+ * vanilla ore Silk Touch — otherwise pick-up-and-replace would be an
+ * infinite XP farm.
+ *
+ * <p>{@link #notifiedKey} tracks, per physical spawner (not per item
+ * instance, which is rebuilt on every break), whether the "you picked up
+ * a spawner" chat message has already been shown for it once. The flag is
+ * written into the dropped item's PDC in {@link #buildSpawnerItem} and
+ * copied onto the block's PDC again on {@link #onPlace} — so it survives
+ * an arbitrary number of break/place cycles for the same spawner. Without
+ * this, a player farming a relocated spawner (break, place, break again)
+ * would get the success message spammed in chat every single time.
  *
  * <p>The spawner's mob type is read from the broken block's
- * {@link CreatureSpawner} state and stored on the dropped item via
- * {@link org.bukkit.persistence.PersistentDataContainer}, then read back
- * and re-applied to the newly placed block in {@link #onPlace} — so the
- * item always places as the same mob type it was picked up as, with a
- * name/lore reflecting that mob (e.g. "Skeleton Spawner" / "Skeleton").
+ * {@link CreatureSpawner} state and stored on the dropped item the same
+ * way, then read back and re-applied to the newly placed block in
+ * {@link #onPlace} — so the item always places as the same mob type it
+ * was picked up as, with a name/lore reflecting that mob (e.g.
+ * "Skeleton Spawner" / "Skeleton").
  */
 public class SilkSpawnerListener implements Listener {
 
@@ -61,12 +67,14 @@ public class SilkSpawnerListener implements Listener {
     private final Messages messages;
     private final PoppyConfig config;
     private final NamespacedKey entityTypeKey;
+    private final NamespacedKey notifiedKey;
 
     public SilkSpawnerListener(JavaPlugin plugin, Messages messages, PoppyConfig config) {
         this.plugin = plugin;
         this.messages = messages;
         this.config = config;
         this.entityTypeKey = new NamespacedKey(plugin, "silk_spawner_entity_type");
+        this.notifiedKey = new NamespacedKey(plugin, "silk_spawner_notified");
     }
 
     @EventHandler
@@ -109,11 +117,16 @@ public class SilkSpawnerListener implements Listener {
                 return;
             }
 
+            boolean alreadyNotified = spawnerState.getPersistentDataContainer()
+                    .getOrDefault(notifiedKey, PersistentDataType.INTEGER, 0) == 1;
+
             event.setDropItems(false);
             event.setExpToDrop(0);
             block.getWorld().dropItemNaturally(block.getLocation(), buildSpawnerItem(entityType));
 
-            player.sendMessage(messages.get("silkspawner.success", "mob", formatName(entityType)));
+            if (!alreadyNotified) {
+                player.sendMessage(messages.get("silkspawner.success", "mob", formatName(entityType)));
+            }
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Error in SilkSpawnerListener#onBreak for " + event.getPlayer().getName(), e);
         }
@@ -147,6 +160,9 @@ public class SilkSpawnerListener implements Listener {
             }
 
             spawnerState.setSpawnedType(entityType);
+            // Propagate the "already notified" flag onto the block too, so a future
+            // break of this exact spawner also sees it — see the class-level doc.
+            spawnerState.getPersistentDataContainer().set(notifiedKey, PersistentDataType.INTEGER, 1);
             spawnerState.update(true, false);
         } catch (IllegalArgumentException e) {
             plugin.getLogger().log(Level.WARNING, "Silk-touched spawner item had an invalid stored entity type", e);
@@ -163,6 +179,10 @@ public class SilkSpawnerListener implements Listener {
         meta.displayName(Component.text(name + " Spawner", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
         meta.lore(List.of(Component.text(name, NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)));
         meta.getPersistentDataContainer().set(entityTypeKey, PersistentDataType.STRING, entityType.name());
+        // Once an item exists, this spawner has necessarily already been broken (and
+        // therefore already notified) once — carry that forward so a later re-place
+        // (see onPlace) keeps the flag on the block too.
+        meta.getPersistentDataContainer().set(notifiedKey, PersistentDataType.INTEGER, 1);
 
         item.setItemMeta(meta);
         return item;

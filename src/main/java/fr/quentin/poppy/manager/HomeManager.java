@@ -308,7 +308,7 @@ public class HomeManager {
      * the same filesystem is atomic at the OS level: readers only ever see
      * the fully-old or fully-new file, never a half-written one.
      */
-    private void writeToDisk(YamlConfiguration config, File file, UUID uuid) {
+    protected void writeToDisk(YamlConfiguration config, File file, UUID uuid) {
         File tempFile = new File(file.getParentFile(), file.getName() + ".tmp");
 
         try {

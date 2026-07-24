@@ -1,7 +1,6 @@
 package fr.quentin.poppy.manager;
 
 import fr.quentin.poppy.model.Home;
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -17,11 +16,18 @@ import java.util.logging.Level;
  * spawn.yml. Modeled after {@link HomeManager} but simpler: one spawn, one
  * file, no per-player cache.
  *
- * <p>{@link #save} writes asynchronously while {@link #saveSync} (called
- * from {@code Poppy#onDisable}) writes synchronously from the main thread —
- * {@link #writeLock} guards against both racing on the same file if
- * {@code /setspawn} runs right before shutdown. {@link #clearSpawn()} also
- * takes the lock since it deletes the same file.
+ * <p>Unlike {@link HomeManager} (which writes async via a dedicated
+ * executor to stay off the main thread during frequent home
+ * creates/deletes), every write here is synchronous. {@code /setspawn}
+ * and {@code /delspawn} are rare admin-only actions, not something a
+ * player triggers repeatedly — so the small main-thread I/O cost isn't
+ * worth the complexity, and it sidesteps a real ordering bug an earlier
+ * async version had: {@code save()} queuing a write on Bukkit's scheduler
+ * while {@code clearSpawn()} deleted the file synchronously could let the
+ * queued write wake up *after* the deletion and resurrect spawn.yml right
+ * after an admin removed it. With everything synchronous and in-order on
+ * the calling thread, that race can't happen, and the old {@code writeLock}
+ * (which only provided mutual exclusion, not ordering) is no longer needed.
  */
 public class SpawnManager {
 
@@ -29,7 +35,6 @@ public class SpawnManager {
 
     private final JavaPlugin plugin;
     private final File file;
-    private final Object writeLock = new Object();
     private Home cachedSpawn;
     private boolean loaded;
 
@@ -58,17 +63,13 @@ public class SpawnManager {
     /**
      * Clears the spawn point: removes it from the cache and deletes
      * spawn.yml from disk, so {@link #hasSpawn()} returns false afterward.
-     * Runs synchronously since /delspawn is a rare admin action, not
-     * something that needs to be off the main thread.
      */
     public void clearSpawn() {
         cachedSpawn = null;
         loaded = true;
 
-        synchronized (writeLock) {
-            if (file.exists() && !file.delete()) {
-                plugin.getLogger().log(Level.WARNING, "Could not delete spawn.yml");
-            }
+        if (file.exists() && !file.delete()) {
+            plugin.getLogger().log(Level.WARNING, "Could not delete spawn.yml");
         }
     }
 
@@ -102,16 +103,17 @@ public class SpawnManager {
             return;
         }
 
-        YamlConfiguration config = buildConfig(cachedSpawn);
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> writeToDisk(config));
+        writeToDisk(buildConfig(cachedSpawn));
     }
 
+    /**
+     * Kept as a separate public method for {@code Poppy#onDisable} to call
+     * explicitly — functionally identical to {@link #save()} now that
+     * every write is synchronous, but the name documents intent at the
+     * call site (a final flush before shutdown).
+     */
     public void saveSync() {
-        if (cachedSpawn == null) {
-            return;
-        }
-
-        writeToDisk(buildConfig(cachedSpawn));
+        save();
     }
 
     private YamlConfiguration buildConfig(Home spawn) {
@@ -127,26 +129,24 @@ public class SpawnManager {
     }
 
     /**
-     * Writes to a temporary file first, then atomically renames it over the
-     * real file — {@code YamlConfiguration#save(File)} on its own writes
-     * directly into the destination file, so a crash, out-of-disk-space
+     * Writes to a temporary file first, then atomically renames it over
+     * the real file — {@code YamlConfiguration#save(File)} on its own
+     * writes directly into the destination file, so a crash, out-of-disk
      * error, or forced kill mid-write could leave spawn.yml truncated and
-     * unparsable. A rename on the same filesystem is atomic at the OS level:
-     * readers only ever see the fully-old or fully-new file, never a
-     * half-written one. Same fix as HomeManager#writeToDisk.
+     * unparsable. A rename on the same filesystem is atomic at the OS
+     * level: readers only ever see the fully-old or fully-new file, never
+     * a half-written one. Same fix as {@link HomeManager#writeToDisk}.
      */
-    private void writeToDisk(YamlConfiguration config) {
+    protected void writeToDisk(YamlConfiguration config) {
         File tempFile = new File(file.getParentFile(), file.getName() + ".tmp");
 
-        synchronized (writeLock) {
-            try {
-                config.save(tempFile);
-                Files.move(tempFile.toPath(), file.toPath(),
-                        StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch (IOException e) {
-                plugin.getLogger().log(Level.SEVERE, "Could not save spawn.yml", e);
-                tempFile.delete();
-            }
+        try {
+            config.save(tempFile);
+            Files.move(tempFile.toPath(), file.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (IOException e) {
+            plugin.getLogger().log(Level.SEVERE, "Could not save spawn.yml", e);
+            tempFile.delete();
         }
     }
 }

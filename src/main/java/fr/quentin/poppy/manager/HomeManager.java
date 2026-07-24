@@ -26,6 +26,17 @@ import java.util.logging.Level;
  * where a slow async {@code save()} could complete after {@code unload()}
  * and resurrect a deleted home).
  *
+ * <p>A player with zero homes has no file at all: {@link #save} deletes
+ * the file (via {@link #deleteFromDisk}) instead of writing an empty
+ * {@code homes:} section once their last home is removed. Without this,
+ * every player who ever created and later deleted their homes would leave
+ * a permanently empty {@code .yml} behind, which both wastes disk space
+ * and inflates {@link #countPlayersWithHomes()} — that count (and
+ * {@link #countTotalHomes()}) actually parses each file's home count
+ * rather than just counting {@code .yml} files present, precisely so a
+ * stray empty file (e.g. from a version predating this fix) doesn't skew
+ * the startup banner.
+ *
  * <p>{@link #MAX_HOMES} (54, one double chest) is the hard ceiling tied to
  * the /homes GUI's inventory size — it never changes. The actual per-player
  * limit is looked up per-permission via {@link #getLimit(Player)}: the
@@ -156,29 +167,60 @@ public class HomeManager {
         return homes;
     }
 
+    /**
+     * Queues an async write (or a deletion, if the player now has zero
+     * homes) and returns immediately — the normal path, called after every
+     * mutation ({@link #addHome}/{@link #removeHome}).
+     */
     public void save(UUID uuid) {
         LinkedHashMap<String, Home> homes = cache.get(uuid);
         if (homes == null) {
             return;
         }
 
-        YamlConfiguration config = buildConfig(homes);
         File file = fileFor(uuid);
+
+        if (homes.isEmpty()) {
+            ioExecutor.submit(() -> deleteFromDisk(file, uuid));
+            return;
+        }
+
+        YamlConfiguration config = buildConfig(homes);
         ioExecutor.submit(() -> writeToDisk(config, file, uuid));
     }
 
     public void saveAllSync() {
         for (Map.Entry<UUID, LinkedHashMap<String, Home>> entry : cache.entrySet()) {
-            YamlConfiguration config = buildConfig(entry.getValue());
             File file = fileFor(entry.getKey());
-            awaitWrite(config, file, entry.getKey());
+            if (entry.getValue().isEmpty()) {
+                awaitDelete(file, entry.getKey());
+            } else {
+                YamlConfiguration config = buildConfig(entry.getValue());
+                awaitWrite(config, file, entry.getKey());
+            }
         }
         ioExecutor.shutdown();
     }
 
+    /**
+     * Counts players who actually have at least one home — parses each
+     * {@code .yml} file's {@code homes:} section rather than just counting
+     * files present, so a stray empty file left over from before the
+     * empty-file cleanup fix doesn't get counted.
+     */
     public int countPlayersWithHomes() {
         File[] files = homesFolder.listFiles((dir, name) -> name.endsWith(".yml"));
-        return files == null ? 0 : files.length;
+        if (files == null) {
+            return 0;
+        }
+
+        int count = 0;
+        for (File file : files) {
+            if (fileHomeCount(file) > 0) {
+                count++;
+            }
+        }
+        return count;
     }
 
     public int countTotalHomes() {
@@ -188,13 +230,15 @@ public class HomeManager {
         }
         int total = 0;
         for (File file : files) {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
-            ConfigurationSection homesSection = config.getConfigurationSection("homes");
-            if (homesSection != null) {
-                total += homesSection.getKeys(false).size();
-            }
+            total += fileHomeCount(file);
         }
         return total;
+    }
+
+    private int fileHomeCount(File file) {
+        YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+        ConfigurationSection homesSection = config.getConfigurationSection("homes");
+        return homesSection == null ? 0 : homesSection.getKeys(false).size();
     }
 
     private YamlConfiguration buildConfig(LinkedHashMap<String, Home> homes) {
@@ -217,11 +261,32 @@ public class HomeManager {
         return config;
     }
 
+    /**
+     * Only ever runs on {@link #ioExecutor}'s single thread, so no
+     * synchronization is needed here — the executor itself is what
+     * prevents concurrent writes.
+     */
     private void writeToDisk(YamlConfiguration config, File file, UUID uuid) {
         try {
             config.save(file);
         } catch (IOException e) {
             plugin.getLogger().log(Level.SEVERE, "Could not save homes for " + uuid, e);
+        }
+    }
+
+    /**
+     * Removes a player's homes file entirely once they have zero homes
+     * left — see the class-level doc for why an empty file is never kept
+     * around. A missing file is not an error (nothing to delete), so
+     * {@code file.exists()} is checked first rather than treating
+     * {@code File#delete()}'s false return as a failure in that case.
+     */
+    private void deleteFromDisk(File file, UUID uuid) {
+        if (!file.exists()) {
+            return;
+        }
+        if (!file.delete()) {
+            plugin.getLogger().log(Level.WARNING, "Could not delete empty homes file for " + uuid);
         }
     }
 
@@ -236,12 +301,27 @@ public class HomeManager {
         }
     }
 
+    private void awaitDelete(File file, UUID uuid) {
+        try {
+            ioExecutor.submit(() -> deleteFromDisk(file, uuid)).get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            plugin.getLogger().log(Level.SEVERE, "Interrupted while deleting homes file for " + uuid, e);
+        } catch (ExecutionException e) {
+            plugin.getLogger().log(Level.SEVERE, "Error deleting homes file for " + uuid, e);
+        }
+    }
+
     public void unload(UUID uuid) {
         LinkedHashMap<String, Home> homes = cache.get(uuid);
         if (homes != null) {
-            YamlConfiguration config = buildConfig(homes);
             File file = fileFor(uuid);
-            awaitWrite(config, file, uuid);
+            if (homes.isEmpty()) {
+                awaitDelete(file, uuid);
+            } else {
+                YamlConfiguration config = buildConfig(homes);
+                awaitWrite(config, file, uuid);
+            }
             cache.remove(uuid);
         }
     }

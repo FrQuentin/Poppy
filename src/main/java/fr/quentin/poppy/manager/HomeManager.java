@@ -329,17 +329,33 @@ public class HomeManager {
         }
     }
 
+    /**
+     * Called when a player leaves: evicts them from the in-memory cache and
+     * queues their homes to be flushed to disk — without blocking the calling
+     * thread (typically the main thread, from PlayerQuitEvent) on the actual
+     * write. This is safe because {@link #buildConfig} takes its snapshot
+     * synchronously right here, before queuing, and {@link #ioExecutor} is a
+     * single-thread executor that preserves submission order — so this write
+     * is guaranteed to land after any earlier queued write for this player,
+     * with no need to wait for it to finish. Blocking here used to be
+     * intentional "for safety", but on a mass disconnect (server stop, netsplit)
+     * that would mean waiting on the I/O thread for every single quitting
+     * player in sequence, stalling the tick for no actual benefit — only
+     * {@link #saveAllSync()} has a real reason to block, since it must
+     * guarantee everything is on disk before the executor shuts down.
+     */
     public void unload(UUID uuid) {
-        LinkedHashMap<String, Home> homes = cache.get(uuid);
-        if (homes != null) {
-            File file = fileFor(uuid);
-            if (homes.isEmpty()) {
-                awaitDelete(file, uuid);
-            } else {
-                YamlConfiguration config = buildConfig(homes);
-                awaitWrite(config, file, uuid);
-            }
-            cache.remove(uuid);
+        LinkedHashMap<String, Home> homes = cache.remove(uuid);
+        if (homes == null) {
+            return;
+        }
+
+        File file = fileFor(uuid);
+        if (homes.isEmpty()) {
+            ioExecutor.submit(() -> deleteFromDisk(file, uuid));
+        } else {
+            YamlConfiguration config = buildConfig(homes);
+            ioExecutor.submit(() -> writeToDisk(config, file, uuid));
         }
     }
 }

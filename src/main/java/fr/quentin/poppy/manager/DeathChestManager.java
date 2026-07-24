@@ -40,7 +40,6 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.jspecify.annotations.NonNull;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import java.util.logging.Level;
@@ -50,9 +49,15 @@ import java.util.logging.Level;
  * holding their lost XP — into a protected chest (a double chest if there
  * are more than 27 items) at or near the death location, instead of
  * scattering them on the ground. Toggleable via {@code death-chest-enabled}
- * in config.yml; if the {@code keepInventory} gamerule is on,
- * {@link PlayerDeathEvent#getDrops()} is already empty by the time this
- * runs, so nothing happens automatically — no special-casing needed.
+ * in config.yml. If either the {@code keepInventory} or {@code keepLevel}
+ * gamerule is on, {@link #onDeath} bails out immediately — the player
+ * already keeps everything vanilla-side, so there's nothing to compensate
+ * for. This check is explicit rather than relying on
+ * {@link PlayerDeathEvent#getDrops()} being empty: {@code keepLevel} has
+ * no effect on that list at all, so without the explicit check, an XP
+ * refund bottle would still get created (and the death chest with it)
+ * even though the player never actually lost any XP — letting them redeem
+ * the bottle on top of their untouched vanilla XP, an infinite levels farm.
  *
  * <p>Ownership and creation time are stored directly on the chest block's
  * {@link org.bukkit.persistence.PersistentDataContainer} (chests are tile
@@ -65,6 +70,14 @@ import java.util.logging.Level;
  * scanned at startup, and every chunk is scanned again as it loads, so an
  * expired chest is caught (and its remaining contents dropped) even if the
  * server was off past its expiry time.
+ *
+ * <p>XP refund is a percentage of the player's total XP, not a fixed
+ * amount — {@code death-chest-xp-refund-percent} in config.yml, 100 by
+ * default. At 100, the death XP penalty is fully negated (the bottle
+ * gives back everything). Admins who want death to still cost XP should
+ * lower this; vanilla itself only drops {@code min(7 × level, 100)} on
+ * death, so this plugin's default is meaningfully more forgiving than
+ * vanilla unless explicitly tuned down.
  *
  * <p>Placement is guarded by a simulated {@link BlockPlaceEvent} (see
  * {@link #isProtected}) before any world mutation happens — without this,
@@ -81,14 +94,6 @@ import java.util.logging.Level;
  * Hoppers are blocked from draining or filling a death chest too (see
  * {@link #onItemMove}), since they bypass {@link #onOpen}'s protection
  * entirely by never firing an inventory-open event.
- *
- * <p>XP refund is a percentage of the player's total XP, not a fixed
- * amount — {@code death-chest-xp-refund-percent} in config.yml, 100 by
- * default. At 100, the death XP penalty is fully negated (the bottle
- * gives back everything). Admins who want death to still cost XP should
- * lower this; vanilla itself only drops {@code min(7 × level, 100)} on
- * death, so this plugin's default is meaningfully more forgiving than
- * vanilla unless explicitly tuned down.
  */
 public class DeathChestManager implements Listener {
 
@@ -104,16 +109,6 @@ public class DeathChestManager implements Listener {
     private static final BlockFace LEFT_DIRECTION = BlockFace.WEST;
     private static final BlockFace RIGHT_DIRECTION = BlockFace.EAST;
     private static final BlockFace[] EXTEND_FACES = {RIGHT_DIRECTION, LEFT_DIRECTION};
-
-    // Every non-zero offset within SEARCH_RADIUS, sorted once by squared
-    // distance ascending — computed a single time at class load, not per
-    // death. findPlacementSpot walks this in order and stops at the first
-    // valid candidate, which is therefore already the closest one, instead
-    // of evaluating every single valid candidate in the whole cube just to
-    // find the minimum. This is what keeps the number of simulated
-    // BlockPlaceEvent calls (see isProtected) bounded in the common case,
-    // rather than up to (2 x SEARCH_RADIUS + 1)^3 - 1 = 1330 every death.
-    private static final int[][] SEARCH_OFFSETS = buildSortedOffsets(SEARCH_RADIUS);
 
     private final JavaPlugin plugin;
     private final Messages messages;
@@ -135,25 +130,21 @@ public class DeathChestManager implements Listener {
         scanAlreadyLoadedChunks();
     }
 
-    private static int[][] buildSortedOffsets(int radius) {
-        List<int[]> offsets = new ArrayList<>();
-        for (int dx = -radius; dx <= radius; dx++) {
-            for (int dy = -radius; dy <= radius; dy++) {
-                for (int dz = -radius; dz <= radius; dz++) {
-                    if (dx == 0 && dy == 0 && dz == 0) {
-                        continue;
-                    }
-                    offsets.add(new int[] {dx, dy, dz});
-                }
-            }
-        }
-        offsets.sort(Comparator.comparingInt(o -> o[0] * o[0] + o[1] * o[1] + o[2] * o[2]));
-        return offsets.toArray(new int[0][]);
-    }
-
     @EventHandler
     public void onDeath(@NonNull PlayerDeathEvent event) {
         if (!config.deathChestEnabled()) {
+            return;
+        }
+
+        if (event.getKeepInventory() || event.getKeepLevel()) {
+            // Both gamerules mean the player already keeps everything vanilla-side —
+            // nothing for this plugin to compensate for. Bailing out here (rather than
+            // just relying on event.getDrops() being empty) matters specifically for
+            // keepLevel: it doesn't affect getDrops() at all, so without this check
+            // refundXp would still get computed and non-zero, and a chest holding just
+            // an XP bottle would still get created even though items didn't need
+            // replacing — letting the player keep their vanilla XP *and* redeem the
+            // bottle for another full refund, an infinite levels farm.
             return;
         }
 
@@ -639,25 +630,40 @@ public class DeathChestManager implements Listener {
 
     /**
      * Finds a spot to place the primary chest: the death location itself if
-     * placeable, otherwise the closest such spot within {@link #SEARCH_RADIUS}
-     * blocks. Walks {@link #SEARCH_OFFSETS} in ascending-distance order and
-     * returns on the first hit — since the offsets are pre-sorted, the first
-     * valid candidate found is already the closest one, so there's no need
-     * (and no correctness benefit) to keep scanning the rest of the cube.
+     * placeable and not hazardous, otherwise the closest such spot within
+     * {@link #SEARCH_RADIUS} blocks — same search shape as
+     * {@link fr.quentin.poppy.commands.DeathBackCommand}'s safe-spot search,
+     * but "placeable" here means the block is replaceable, not "safe to
+     * stand on".
      */
     private Location findPlacementSpot(Location deathLocation, Player owner) {
         if (isPlaceable(deathLocation, owner)) {
             return centered(deathLocation);
         }
 
-        for (int[] offset : SEARCH_OFFSETS) {
-            Location candidate = deathLocation.clone().add(offset[0], offset[1], offset[2]);
-            if (isPlaceable(candidate, owner)) {
-                return centered(candidate);
+        Location best = null;
+        double bestDistanceSquared = Double.MAX_VALUE;
+
+        for (int dx = -SEARCH_RADIUS; dx <= SEARCH_RADIUS; dx++) {
+            for (int dy = -SEARCH_RADIUS; dy <= SEARCH_RADIUS; dy++) {
+                for (int dz = -SEARCH_RADIUS; dz <= SEARCH_RADIUS; dz++) {
+                    if (dx == 0 && dy == 0 && dz == 0) {
+                        continue;
+                    }
+                    Location candidate = deathLocation.clone().add(dx, dy, dz);
+                    if (!isPlaceable(candidate, owner)) {
+                        continue;
+                    }
+                    double distanceSquared = (double) dx * dx + (double) dy * dy + (double) dz * dz;
+                    if (distanceSquared < bestDistanceSquared) {
+                        bestDistanceSquared = distanceSquared;
+                        best = candidate;
+                    }
+                }
             }
         }
 
-        return null;
+        return best == null ? null : centered(best);
     }
 
     /**

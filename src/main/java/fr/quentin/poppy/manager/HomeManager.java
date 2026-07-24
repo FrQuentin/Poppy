@@ -20,23 +20,23 @@ import java.util.logging.Level;
  * Loads, caches, and persists every player's homes as one YAML file per
  * player under {@code plugins/Poppy/homes/<uuid>.yml}.
  *
- * <p>{@code cache} is only ever touched from the main thread, so the map
- * itself needs no synchronization. All disk I/O goes through
- * {@link #ioExecutor}, a single-thread executor — see {@link #writeToDisk}
- * for why (a per-player lock used to be here, but had a real ordering bug
- * where a slow async {@code save()} could complete after {@code unload()}
- * and resurrect a deleted home).
+ * <p>{@code cache} and {@link #pendingWrites} are only ever touched from
+ * the main thread, so neither needs synchronization. All disk I/O goes
+ * through {@link #ioExecutor}, a single-thread executor, so writes for a
+ * given player are strictly ordered by submission time.
  *
- * <p>A player with zero homes has no file at all: {@link #save} deletes
- * the file (via {@link #deleteFromDisk}) instead of writing an empty
- * {@code homes:} section once their last home is removed. Without this,
- * every player who ever created and later deleted their homes would leave
- * a permanently empty {@code .yml} behind, which both wastes disk space
- * and inflates {@link #countPlayersWithHomes()} — that count (and
- * {@link #countTotalHomes()}) actually parses each file's home count
- * rather than just counting {@code .yml} files present, precisely so a
- * stray empty file (e.g. from a version predating this fix) doesn't skew
- * the startup banner.
+ * <p>{@link #pendingWrites} closes a real race between {@link #unload}
+ * (queues a write asynchronously on quit) and {@link #load} (reads the
+ * file synchronously on the main thread, e.g. on a fast reconnect, or via
+ * {@code /poppygoto} teleporting into someone else's shared home which
+ * calls {@link #getHomes}): without it, a reconnect quick enough could
+ * read the file before the queued write from the previous session landed,
+ * see stale homes, and then have the old write overwrite the freshly
+ * reloaded cache moments later — a real, if narrow, data-loss window.
+ * {@link #load} now waits on the most recently queued write for that UUID
+ * (if any) before touching the file; because {@link #ioExecutor} is
+ * single-threaded and FIFO, the most recent write having completed
+ * implies every earlier one for that UUID has too.
  *
  * <p>{@link #MAX_HOMES} (54, one double chest) is the hard ceiling tied to
  * the /homes GUI's inventory size — it never changes. The actual per-player
@@ -44,6 +44,10 @@ import java.util.logging.Level;
  * highest {@code poppy.homes.<n>} tier the player has wins, falling back
  * to {@code homes-default-limit} in config.yml if they have none, and
  * always capped at {@link #MAX_HOMES}.
+ *
+ * <p>A player with zero homes has no file at all: {@link #save} deletes
+ * the file instead of writing an empty {@code homes:} section once their
+ * last home is removed.
  *
  * <p>{@link #unload(UUID)} must be called on player quit — see
  * {@link HomeCacheListener}.
@@ -56,6 +60,7 @@ public class HomeManager {
     private final PoppyConfig config;
     private final File homesFolder;
     private final Map<UUID, LinkedHashMap<String, Home>> cache = new LinkedHashMap<>();
+    private final Map<UUID, Future<?>> pendingWrites = new HashMap<>();
     private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor(runnable -> {
         Thread thread = new Thread(runnable, "Poppy-HomeManager-IO");
         thread.setDaemon(true);
@@ -135,7 +140,13 @@ public class HomeManager {
         return suggestions;
     }
 
+    /**
+     * Waits for the most recently queued write for this UUID (if any) to
+     * finish before reading the file — see the class-level doc for why.
+     */
     private LinkedHashMap<String, Home> load(UUID uuid) {
+        awaitPendingWrite(uuid);
+
         LinkedHashMap<String, Home> homes = new LinkedHashMap<>();
         File file = fileFor(uuid);
         if (!file.exists()) {
@@ -168,16 +179,35 @@ public class HomeManager {
         return homes;
     }
 
+    private void awaitPendingWrite(UUID uuid) {
+        Future<?> future = pendingWrites.remove(uuid);
+        if (future == null) {
+            return;
+        }
+
+        try {
+            future.get();
+        } catch (CancellationException ignored) {
+            // Nothing left to wait for.
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            plugin.getLogger().log(Level.SEVERE, "Interrupted while waiting for a pending homes write for " + uuid, e);
+        } catch (ExecutionException e) {
+            plugin.getLogger().log(Level.SEVERE, "Error waiting for a pending homes write for " + uuid, e);
+        }
+    }
+
     /**
      * Queues an async write (or a deletion, if the player now has zero
      * homes) and returns immediately — the normal path, called after every
-     * mutation ({@link #addHome}/{@link #removeHome}).
+     * mutation ({@link #addHome}/{@link #removeHome}). The resulting
+     * {@link Future} is tracked in {@link #pendingWrites} so a later
+     * {@link #load} for the same player can wait on it.
      *
      * <p>Guarded against {@link RejectedExecutionException}: after
      * {@link #saveAllSync()} shuts {@link #ioExecutor} down, any late call
-     * here (a lingering event handler, a hot reload of the plugin) would
-     * otherwise throw straight into the caller instead of just logging and
-     * moving on — nothing more can be done for this write at that point.
+     * here would otherwise throw straight into the caller instead of just
+     * logging and moving on.
      */
     public void save(UUID uuid) {
         LinkedHashMap<String, Home> homes = cache.get(uuid);
@@ -185,15 +215,36 @@ public class HomeManager {
             return;
         }
 
+        queueWrite(uuid, homes);
+    }
+
+    /**
+     * Called when a player leaves: evicts them from the in-memory cache and
+     * queues their homes to be flushed to disk — without blocking the
+     * calling thread on the actual write (see {@link #pendingWrites} for
+     * how a later reload waits on it instead).
+     */
+    public void unload(UUID uuid) {
+        LinkedHashMap<String, Home> homes = cache.remove(uuid);
+        if (homes == null) {
+            return;
+        }
+
+        queueWrite(uuid, homes);
+    }
+
+    private void queueWrite(UUID uuid, LinkedHashMap<String, Home> homes) {
         File file = fileFor(uuid);
 
         try {
+            Future<?> future;
             if (homes.isEmpty()) {
-                ioExecutor.submit(() -> deleteFromDisk(file, uuid));
+                future = ioExecutor.submit(() -> deleteFromDisk(file, uuid));
             } else {
                 YamlConfiguration config = buildConfig(homes);
-                ioExecutor.submit(() -> writeToDisk(config, file, uuid));
+                future = ioExecutor.submit(() -> writeToDisk(config, file, uuid));
             }
+            pendingWrites.put(uuid, future);
         } catch (RejectedExecutionException e) {
             plugin.getLogger().log(Level.WARNING, "Could not queue homes save for " + uuid + " (I/O executor already shut down)", e);
         }
@@ -202,19 +253,9 @@ public class HomeManager {
     /**
      * Called at plugin shutdown for any player still left in {@code cache}
      * (normally none, since {@link #unload} already queued a flush for
-     * everyone on quit — see the class-level doc). Blocks on each write in
-     * turn — the one place in this class that still has a real reason to
-     * block, since it must guarantee every queued write, including anything
-     * still in flight from {@link #unload}'s asynchronous flushes, actually
-     * lands on disk before the plugin (and likely the JVM) exits.
-     *
-     * <p>{@link #ioExecutor}'s thread is a daemon thread, so it does nothing
-     * on its own to keep the JVM alive — {@code shutdown()} alone doesn't
-     * wait for queued tasks to finish, it just stops accepting new ones. On
-     * a full server stop this could otherwise lose any homes write still
-     * sitting in the queue at the moment the JVM exits. {@code awaitTermination}
-     * closes that gap by blocking here until the executor has actually
-     * drained.
+     * everyone on quit). Blocks on each write in turn, then shuts
+     * {@link #ioExecutor} down and waits for it to fully drain — see the
+     * class-level doc on why blocking matters here specifically.
      */
     public void saveAllSync() {
         for (Map.Entry<UUID, LinkedHashMap<String, Home>> entry : cache.entrySet()) {
@@ -237,12 +278,6 @@ public class HomeManager {
         }
     }
 
-    /**
-     * Counts players who actually have at least one home — parses each
-     * {@code .yml} file's {@code homes:} section rather than just counting
-     * files present, so a stray empty file left over from before the
-     * empty-file cleanup fix doesn't get counted.
-     */
     public int countPlayersWithHomes() {
         File[] files = homesFolder.listFiles((dir, name) -> name.endsWith(".yml"));
         if (files == null) {
@@ -302,13 +337,9 @@ public class HomeManager {
      * prevents concurrent writes.
      *
      * <p>Writes to a temporary file first, then atomically renames it over
-     * the real file — see the class-level rationale. If the filesystem
-     * doesn't support atomic moves (some Docker overlay filesystems, some
-     * network mounts), {@link AtomicMoveNotSupportedException} is a
-     * subclass of {@link IOException}: without a specific fallback, it would
-     * silently fall into the generic error path below and the save would be
-     * lost entirely. The fallback here still performs the write — just
-     * without the atomicity guarantee — rather than losing it.
+     * the real file. If the filesystem doesn't support atomic moves (some
+     * Docker overlay filesystems, some network mounts),
+     * {@link AtomicMoveNotSupportedException} falls back to a plain move.
      */
     private void writeToDisk(YamlConfiguration config, File file, UUID uuid) {
         File tempFile = new File(file.getParentFile(), file.getName() + ".tmp");
@@ -329,10 +360,7 @@ public class HomeManager {
 
     /**
      * Removes a player's homes file entirely once they have zero homes
-     * left — see the class-level doc for why an empty file is never kept
-     * around. A missing file is not an error (nothing to delete), so
-     * {@code file.exists()} is checked first rather than treating
-     * {@code File#delete()}'s false return as a failure in that case.
+     * left. A missing file is not an error.
      */
     private void deleteFromDisk(File file, UUID uuid) {
         if (!file.exists()) {
@@ -366,32 +394,6 @@ public class HomeManager {
             plugin.getLogger().log(Level.SEVERE, "Interrupted while deleting homes file for " + uuid, e);
         } catch (ExecutionException e) {
             plugin.getLogger().log(Level.SEVERE, "Error deleting homes file for " + uuid, e);
-        }
-    }
-
-    /**
-     * Called when a player leaves: evicts them from the in-memory cache and
-     * queues their homes to be flushed to disk — without blocking the calling
-     * thread on the actual write, see the class-level doc. Guarded against
-     * {@link RejectedExecutionException} for the same reason as {@link #save}.
-     */
-    public void unload(UUID uuid) {
-        LinkedHashMap<String, Home> homes = cache.remove(uuid);
-        if (homes == null) {
-            return;
-        }
-
-        File file = fileFor(uuid);
-
-        try {
-            if (homes.isEmpty()) {
-                ioExecutor.submit(() -> deleteFromDisk(file, uuid));
-            } else {
-                YamlConfiguration config = buildConfig(homes);
-                ioExecutor.submit(() -> writeToDisk(config, file, uuid));
-            }
-        } catch (RejectedExecutionException e) {
-            plugin.getLogger().log(Level.WARNING, "Could not queue homes flush for " + uuid + " (I/O executor already shut down)", e);
         }
     }
 }

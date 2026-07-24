@@ -12,9 +12,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.*;
 import java.util.logging.Level;
 
 /**
@@ -173,6 +171,12 @@ public class HomeManager {
      * Queues an async write (or a deletion, if the player now has zero
      * homes) and returns immediately — the normal path, called after every
      * mutation ({@link #addHome}/{@link #removeHome}).
+     *
+     * <p>Guarded against {@link RejectedExecutionException}: after
+     * {@link #saveAllSync()} shuts {@link #ioExecutor} down, any late call
+     * here (a lingering event handler, a hot reload of the plugin) would
+     * otherwise throw straight into the caller instead of just logging and
+     * moving on — nothing more can be done for this write at that point.
      */
     public void save(UUID uuid) {
         LinkedHashMap<String, Home> homes = cache.get(uuid);
@@ -182,15 +186,35 @@ public class HomeManager {
 
         File file = fileFor(uuid);
 
-        if (homes.isEmpty()) {
-            ioExecutor.submit(() -> deleteFromDisk(file, uuid));
-            return;
+        try {
+            if (homes.isEmpty()) {
+                ioExecutor.submit(() -> deleteFromDisk(file, uuid));
+            } else {
+                YamlConfiguration config = buildConfig(homes);
+                ioExecutor.submit(() -> writeToDisk(config, file, uuid));
+            }
+        } catch (RejectedExecutionException e) {
+            plugin.getLogger().log(Level.WARNING, "Could not queue homes save for " + uuid + " (I/O executor already shut down)", e);
         }
-
-        YamlConfiguration config = buildConfig(homes);
-        ioExecutor.submit(() -> writeToDisk(config, file, uuid));
     }
 
+    /**
+     * Called at plugin shutdown for any player still left in {@code cache}
+     * (normally none, since {@link #unload} already queued a flush for
+     * everyone on quit — see the class-level doc). Blocks on each write in
+     * turn — the one place in this class that still has a real reason to
+     * block, since it must guarantee every queued write, including anything
+     * still in flight from {@link #unload}'s asynchronous flushes, actually
+     * lands on disk before the plugin (and likely the JVM) exits.
+     *
+     * <p>{@link #ioExecutor}'s thread is a daemon thread, so it does nothing
+     * on its own to keep the JVM alive — {@code shutdown()} alone doesn't
+     * wait for queued tasks to finish, it just stops accepting new ones. On
+     * a full server stop this could otherwise lose any homes write still
+     * sitting in the queue at the moment the JVM exits. {@code awaitTermination}
+     * closes that gap by blocking here until the executor has actually
+     * drained.
+     */
     public void saveAllSync() {
         for (Map.Entry<UUID, LinkedHashMap<String, Home>> entry : cache.entrySet()) {
             File file = fileFor(entry.getKey());
@@ -201,7 +225,15 @@ public class HomeManager {
                 awaitWrite(config, file, entry.getKey());
             }
         }
+
         ioExecutor.shutdown();
+        try {
+            if (!ioExecutor.awaitTermination(10, TimeUnit.SECONDS)) {
+                plugin.getLogger().warning("Timed out flushing homes to disk");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     /**
@@ -310,6 +342,8 @@ public class HomeManager {
     private void awaitWrite(YamlConfiguration config, File file, UUID uuid) {
         try {
             ioExecutor.submit(() -> writeToDisk(config, file, uuid)).get();
+        } catch (RejectedExecutionException e) {
+            plugin.getLogger().log(Level.WARNING, "Could not queue homes write for " + uuid + " (I/O executor already shut down)", e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             plugin.getLogger().log(Level.SEVERE, "Interrupted while flushing homes for " + uuid, e);
@@ -321,6 +355,8 @@ public class HomeManager {
     private void awaitDelete(File file, UUID uuid) {
         try {
             ioExecutor.submit(() -> deleteFromDisk(file, uuid)).get();
+        } catch (RejectedExecutionException e) {
+            plugin.getLogger().log(Level.WARNING, "Could not queue homes file deletion for " + uuid + " (I/O executor already shut down)", e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             plugin.getLogger().log(Level.SEVERE, "Interrupted while deleting homes file for " + uuid, e);
@@ -332,17 +368,8 @@ public class HomeManager {
     /**
      * Called when a player leaves: evicts them from the in-memory cache and
      * queues their homes to be flushed to disk — without blocking the calling
-     * thread (typically the main thread, from PlayerQuitEvent) on the actual
-     * write. This is safe because {@link #buildConfig} takes its snapshot
-     * synchronously right here, before queuing, and {@link #ioExecutor} is a
-     * single-thread executor that preserves submission order — so this write
-     * is guaranteed to land after any earlier queued write for this player,
-     * with no need to wait for it to finish. Blocking here used to be
-     * intentional "for safety", but on a mass disconnect (server stop, netsplit)
-     * that would mean waiting on the I/O thread for every single quitting
-     * player in sequence, stalling the tick for no actual benefit — only
-     * {@link #saveAllSync()} has a real reason to block, since it must
-     * guarantee everything is on disk before the executor shuts down.
+     * thread on the actual write, see the class-level doc. Guarded against
+     * {@link RejectedExecutionException} for the same reason as {@link #save}.
      */
     public void unload(UUID uuid) {
         LinkedHashMap<String, Home> homes = cache.remove(uuid);
@@ -351,11 +378,16 @@ public class HomeManager {
         }
 
         File file = fileFor(uuid);
-        if (homes.isEmpty()) {
-            ioExecutor.submit(() -> deleteFromDisk(file, uuid));
-        } else {
-            YamlConfiguration config = buildConfig(homes);
-            ioExecutor.submit(() -> writeToDisk(config, file, uuid));
+
+        try {
+            if (homes.isEmpty()) {
+                ioExecutor.submit(() -> deleteFromDisk(file, uuid));
+            } else {
+                YamlConfiguration config = buildConfig(homes);
+                ioExecutor.submit(() -> writeToDisk(config, file, uuid));
+            }
+        } catch (RejectedExecutionException e) {
+            plugin.getLogger().log(Level.WARNING, "Could not queue homes flush for " + uuid + " (I/O executor already shut down)", e);
         }
     }
 }

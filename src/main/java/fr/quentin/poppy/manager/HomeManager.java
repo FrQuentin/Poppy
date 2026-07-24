@@ -9,6 +9,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
@@ -301,24 +302,27 @@ public class HomeManager {
      * prevents concurrent writes.
      *
      * <p>Writes to a temporary file first, then atomically renames it over
-     * the real file — {@code YamlConfiguration#save(File)} on its own writes
-     * directly into the destination file, so a crash, out-of-disk-space
-     * error, or forced kill mid-write could leave a truncated, unparsable
-     * {@code .yml} behind, silently destroying every home in it. A rename on
-     * the same filesystem is atomic at the OS level: readers only ever see
-     * the fully-old or fully-new file, never a half-written one.
+     * the real file — see the class-level rationale. If the filesystem
+     * doesn't support atomic moves (some Docker overlay filesystems, some
+     * network mounts), {@link AtomicMoveNotSupportedException} is a
+     * subclass of {@link IOException}: without a specific fallback, it would
+     * silently fall into the generic error path below and the save would be
+     * lost entirely. The fallback here still performs the write — just
+     * without the atomicity guarantee — rather than losing it.
      */
-    protected void writeToDisk(YamlConfiguration config, File file, UUID uuid) {
+    private void writeToDisk(YamlConfiguration config, File file, UUID uuid) {
         File tempFile = new File(file.getParentFile(), file.getName() + ".tmp");
 
         try {
             config.save(tempFile);
-            Files.move(tempFile.toPath(), file.toPath(),
-                    StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            try {
+                Files.move(tempFile.toPath(), file.toPath(),
+                        StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException e) {
+                Files.move(tempFile.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            }
         } catch (IOException e) {
             plugin.getLogger().log(Level.SEVERE, "Could not save homes for " + uuid, e);
-            // Best-effort cleanup: leave nothing but the (untouched) original file behind
-            // if the temp write or the move itself failed partway through.
             tempFile.delete();
         }
     }

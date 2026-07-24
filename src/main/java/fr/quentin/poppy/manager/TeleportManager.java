@@ -155,6 +155,10 @@ public class TeleportManager implements Listener {
     @EventHandler
     public void onMove(@NonNull PlayerMoveEvent event) {
         try {
+            if (startLocations.isEmpty()) {
+                return;
+            }
+
             if (!config.cancelOnMove()) {
                 return;
             }

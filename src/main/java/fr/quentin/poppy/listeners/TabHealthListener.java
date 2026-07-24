@@ -11,11 +11,15 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 import org.jspecify.annotations.NonNull;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 import java.util.logging.Level;
 
 /**
@@ -33,12 +37,21 @@ import java.util.logging.Level;
  * a player already showing "❤ X" at reload time would stay stuck with
  * that exact text forever (it's never refreshed again once disabled),
  * rather than reverting to their normal name.
+ *
+ * <p>{@link #lastSentText} caches the plain-text form of each player's
+ * last sent tab name, and {@link #updatePlayer} skips the actual
+ * {@code playerListName(...)} call when the new text is identical to what
+ * was already sent — a player whose health/AFK status hasn't changed
+ * between ticks would otherwise get a redundant packet sent every single
+ * interval, for every online player, forever. Evicted on quit (see
+ * {@link #onQuit}) to avoid an unbounded map over a long server uptime.
  */
 public class TabHealthListener implements Listener {
 
     private final JavaPlugin plugin;
     private final AfkManager afkManager;
     private final PoppyConfig config;
+    private final Map<UUID, String> lastSentText = new HashMap<>();
 
     private BukkitTask updateTask;
 
@@ -67,6 +80,7 @@ public class TabHealthListener implements Listener {
         for (Player player : Bukkit.getOnlinePlayers()) {
             try {
                 player.playerListName(null);
+                lastSentText.remove(player.getUniqueId());
             } catch (Exception e) {
                 plugin.getLogger().log(Level.SEVERE, "Error clearing tab list name for " + player.getName(), e);
             }
@@ -99,6 +113,11 @@ public class TabHealthListener implements Listener {
         }
     }
 
+    @EventHandler
+    public void onQuit(@NonNull PlayerQuitEvent event) {
+        lastSentText.remove(event.getPlayer().getUniqueId());
+    }
+
     private void updateAll() {
         if (!config.showHealthInTab()) {
             return;
@@ -117,9 +136,23 @@ public class TabHealthListener implements Listener {
         double hearts = Math.round(heartsRaw * 2) / 2.0;
         String heartsText = (hearts == Math.floor(hearts)) ? String.valueOf((int) hearts) : String.valueOf(hearts);
 
+        boolean afk = afkManager.isAfk(player.getUniqueId());
+
+        // Plain-text cache key covering everything that affects the rendered
+        // name: the player's current display name, AFK prefix, and hearts
+        // text/color. If none of these changed since the last tick, skip the
+        // packet entirely.
+        String cacheKey = (afk ? "AFK|" : "|") + player.displayName() + "|" + heartsText;
+
+        UUID uuid = player.getUniqueId();
+        if (cacheKey.equals(lastSentText.get(uuid))) {
+            return;
+        }
+        lastSentText.put(uuid, cacheKey);
+
         NamedTextColor color = healthColor(player.getHealth(), maxHealth(player));
 
-        Component prefix = afkManager.isAfk(player.getUniqueId())
+        Component prefix = afk
                 ? Component.text("[AFK] ", NamedTextColor.GRAY)
                 : Component.empty();
 

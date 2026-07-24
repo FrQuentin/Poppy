@@ -124,3 +124,9 @@ homes-limit-tiers: [5, 10, 20, 30, 54]
 # Vanilla itself only drops min(7 x level, 100) XP on death, so a lower
 # value here gets you closer to that if you want death to still sting.
 death-chest-xp-refund-percent: 100
+
+# Cooldown (in seconds) between two /feed uses. Set to 0 to disable.
+feed-cooldown-seconds: 180
+
+# Cooldown (in seconds) between two /heal uses. Set to 0 to disable.
+heal-cooldown-seconds: 180

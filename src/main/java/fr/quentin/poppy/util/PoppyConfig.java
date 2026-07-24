@@ -181,4 +181,12 @@ public final class PoppyConfig {
     public int deathChestXpRefundPercent() {
         return Math.clamp(plugin.getConfig().getInt("death-chest-xp-refund-percent", 100), 0, 100);
     }
+
+    public long feedCooldownMillis() {
+        return Math.max(0, plugin.getConfig().getInt("feed-cooldown-seconds", 180)) * 1000L;
+    }
+
+    public long healCooldownMillis() {
+        return Math.max(0, plugin.getConfig().getInt("heal-cooldown-seconds", 180)) * 1000L;
+    }
 }

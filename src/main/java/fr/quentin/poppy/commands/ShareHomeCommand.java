@@ -3,11 +3,7 @@ package fr.quentin.poppy.commands;
 import fr.quentin.poppy.manager.HomeManager;
 import fr.quentin.poppy.manager.ShareManager;
 import fr.quentin.poppy.model.Home;
-import fr.quentin.poppy.util.Messages;
-import fr.quentin.poppy.util.PoppyConfig;
-import fr.quentin.poppy.util.PoppyLogger;
-import fr.quentin.poppy.util.PoppyStats;
-import fr.quentin.poppy.util.SafeCommand;
+import fr.quentin.poppy.util.*;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
@@ -56,7 +52,7 @@ public class ShareHomeCommand extends SafeCommand implements TabCompleter, Liste
 
         long remaining = cooldownRemaining(player.getUniqueId());
         if (remaining > 0) {
-            player.sendMessage(messages.get("sharehome.cooldown", "seconds", String.valueOf(remaining)));
+            player.sendMessage(messages.get("sharehome.cooldown", "time", DurationFormat.format(remaining)));
             return true;
         }
 

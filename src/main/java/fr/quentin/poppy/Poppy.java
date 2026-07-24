@@ -120,6 +120,9 @@ public final class Poppy extends JavaPlugin {
         Objects.requireNonNull(getCommand("poppy")).setExecutor(poppyCommand);
         Objects.requireNonNull(getCommand("poppy")).setTabCompleter(poppyCommand);
 
+        Objects.requireNonNull(getCommand("feed")).setExecutor(new FeedCommand(this, messages, config));
+        Objects.requireNonNull(getCommand("heal")).setExecutor(new HealCommand(this, messages, config));
+
         getServer().getPluginManager().registerEvents(
                 new HomesGUIListener(this, homeManager, homesGUI, confirmDeleteGUI, confirmOverwriteGUI, teleportManager, messages, stats, poppyLogger), this);
         getServer().getPluginManager().registerEvents(teleportManager, this);

@@ -101,6 +101,16 @@ commands:
     usage: /poppy [reload]
     permission: poppy.poppy
     permission-message: "&4[!] You don't have permission to do this."
+  feed:
+    description: Fully restore your hunger and saturation.
+    usage: /feed
+    permission: poppy.feed
+    permission-message: "&4[!] You don't have permission to do this."
+  heal:
+    description: Fully restore your health.
+    usage: /heal
+    permission: poppy.heal
+    permission-message: "&4[!] You don't have permission to do this."
 
 permissions:
   poppy.*:
@@ -125,6 +135,8 @@ permissions:
       poppy.deathchest.bypass: true
       poppy.reload: true
       poppy.homes.54: true
+      poppy.feed: true
+      poppy.heal: true
 
   poppy.sethome:
     description: Allows creating homes with /sethome.
@@ -192,3 +204,9 @@ permissions:
   poppy.homes.54:
     description: Grants the maximum home limit of 54 (one double chest).
     default: false
+  poppy.feed:
+    description: Allows restoring hunger and saturation with /feed.
+    default: true
+  poppy.heal:
+    description: Allows restoring health with /heal.
+    default: true

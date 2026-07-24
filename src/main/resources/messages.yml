@@ -60,7 +60,7 @@ spawn:
 sharehome:
   usage: "&4[!] Usage: &r/sharehome <home>"
   not-found: "&4[!] You don't have a home with this name!"
-  cooldown: "&4[!] You must wait {seconds}s before using /sharehome again!"
+  cooldown: "&4[!] You must wait {time} before using /sharehome again!"
   broadcast-prefix: "&a{player} has shared the home &f\"{home}\"&a. "
   click-text: "&e&nClick here to teleport&r"
   click-hover: "&7Teleport to {home}"
@@ -74,7 +74,7 @@ back:
 rtp:
   success: "&a[!] You have been randomly teleported!"
   failed: "&4[!] Couldn't find a safe spot, try again!"
-  cooldown: "&4[!] You must wait {seconds}s before using /rtp again!"
+  cooldown: "&4[!] You must wait {time} before using /rtp again!"
   already-searching: "&4[!] You're already searching for a spot, please wait!"
 
 trash:
@@ -123,7 +123,7 @@ poppy:
   no-poppy: "&4[!] You don't have a poppy in your inventory!"
   success: "&d[!] You drop a poppy on the ground. &7*plop*"
   reload-success: "&a[!] Poppy's config.yml and messages.yml have been reloaded!"
-  lore-cooldown: "&4[!] Please wait {minutes} more minute(s) before hearing the poppy's story again!"
+  lore-cooldown: "&4[!] Please wait {time} before hearing the poppy's story again!"
   lore-line-1: "&d~ The Poppy ~"
   lore-line-2: "&7Legend says the very first poppy in this world grew from a"
   lore-line-3: "&7single seed a wandering trader dropped by accident, right"
@@ -138,9 +138,19 @@ death:
   chest-created: "&e[!] Your items have been stored in a chest at {x}, {y}, {z}!"
   chest-not-yours: "&4[!] This death chest doesn't belong to you!"
   chest-unbreakable: "&4[!] You can't break a death chest — empty it by right-clicking instead!"
-  xp-bottle-name: "&dLevel &5{levels} &dBottle"
+  xp-bottle-name: "&eLevel &6{levels} &eBottle"
   xp-bottle-lore: "&7Right-click to regain your {levels} levels!"
   xp-restored: "&a[!] You feel your experience returning..."
 
 sleep:
   status: "&e[!] {player} is now sleeping ({sleeping}/{total} players sleeping)"
+
+feed:
+  success: "&a[!] Your hunger has been fully restored!"
+  cooldown: "&4[!] You must wait {time} before using /feed again!"
+  already-full: "&4[!] Your hunger is already full!"
+
+heal:
+  success: "&a[!] Your health has been fully restored!"
+  cooldown: "&4[!] You must wait {time} before using /heal again!"
+  already-full: "&4[!] Your health is already full!"

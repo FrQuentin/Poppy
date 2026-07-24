@@ -1,5 +1,6 @@
 package fr.quentin.poppy.listeners;
 
+import fr.quentin.poppy.util.DurationFormat;
 import fr.quentin.poppy.util.Messages;
 import fr.quentin.poppy.util.PoppyConfig;
 import fr.quentin.poppy.util.PoppyLogger;
@@ -55,7 +56,7 @@ public class PoppyLoreListener implements Listener {
 
             long remainingSeconds = cooldownRemainingSeconds(player.getUniqueId());
             if (remainingSeconds > 0) {
-                player.sendMessage(messages.get("poppy.lore-cooldown", "minutes", String.valueOf((remainingSeconds / 60) + 1)));
+                player.sendMessage(messages.get("poppy.lore-cooldown", "time", DurationFormat.format(remainingSeconds)));
                 return;
             }
 

@@ -2,10 +2,7 @@ package fr.quentin.poppy.commands;
 
 import fr.quentin.poppy.manager.TeleportManager;
 import fr.quentin.poppy.model.Home;
-import fr.quentin.poppy.util.Messages;
-import fr.quentin.poppy.util.PoppyConfig;
-import fr.quentin.poppy.util.PoppyStats;
-import fr.quentin.poppy.util.SafeCommand;
+import fr.quentin.poppy.util.*;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -81,7 +78,7 @@ public class RtpCommand extends SafeCommand implements Listener {
 
         long remaining = cooldownRemaining(player.getUniqueId());
         if (remaining > 0) {
-            player.sendMessage(messages.get("rtp.cooldown", "seconds", String.valueOf(remaining)));
+            player.sendMessage(messages.get("rtp.cooldown", "time", DurationFormat.format(remaining)));
             return true;
         }
 

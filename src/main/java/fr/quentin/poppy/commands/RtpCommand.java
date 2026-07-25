@@ -39,6 +39,18 @@ import java.util.logging.Level;
  * matters a lot here since the default 5000-block max radius routinely
  * lands outside already-generated terrain.
  *
+ * <p>{@link #handleChunkLoaded} — the code that touches world blocks and
+ * this class's own {@link #inProgress}/{@link #lastUse} collections —
+ * explicitly re-schedules itself onto the main thread via
+ * {@link Bukkit#getScheduler()}'s {@code runTask} if it isn't already
+ * running there, rather than assuming it. Paper's {@code getChunkAtAsync}
+ * future does complete on the main thread in practice, but that's an
+ * implementation detail of the current Paper version, not something this
+ * code should silently depend on without a fallback — an unsynchronized
+ * {@link HashSet}/{@link HashMap} touched off the main thread, or a world
+ * block read off it, would otherwise be a silent corruption/crash risk if
+ * that guarantee ever changed.
+ *
  * <p>{@link #inProgress} guards against a player spamming /rtp before their
  * first search resolves: without it, each call fires an independent async
  * chunk-generation chain (up to {@code rtp-max-attempts} chunk generations
@@ -121,32 +133,7 @@ public class RtpCommand extends SafeCommand implements Listener {
         int z = (int) (center.getZ() + Math.sin(angle) * distance);
 
         world.getChunkAtAsync(x >> 4, z >> 4)
-                .thenAccept(chunk -> {
-                    if (!player.isOnline()) {
-                        inProgress.remove(player.getUniqueId());
-                        return;
-                    }
-
-                    Location candidate = world.getEnvironment() == World.Environment.NETHER
-                            ? findNetherCandidate(world, x, z)
-                            : buildOverworldCandidate(world, x, z);
-
-                    if (candidate != null && isSafe(candidate)) {
-                        Home rtpHome = Home.fromLocation("rtp", candidate);
-                        boolean accepted = teleportManager.requestTeleport(player, rtpHome, "rtp.success");
-
-                        inProgress.remove(player.getUniqueId());
-
-                        // Only consume the cooldown/stat if the teleport was actually accepted —
-                        // a combat-tag rejection shouldn't cost the player their /rtp attempt.
-                        if (accepted) {
-                            lastUse.put(player.getUniqueId(), System.currentTimeMillis());
-                            stats.incrementRtpUsed();
-                        }
-                    } else {
-                        attemptFindSafeLocation(player, center, attemptsLeft - 1);
-                    }
-                })
+                .thenAccept(chunk -> handleChunkLoaded(player, world, x, z, center, attemptsLeft))
                 .exceptionally(throwable -> {
                     // thenAccept runs after execute(...) has already returned, so this is
                     // outside SafeCommand's try/catch — without this handler an exception
@@ -158,6 +145,43 @@ public class RtpCommand extends SafeCommand implements Listener {
                     }
                     return null;
                 });
+    }
+
+    /**
+     * Everything that reads/writes world blocks or this class's own
+     * collections lives here, guarded by an explicit main-thread check —
+     * see the class-level doc for why this isn't just assumed.
+     */
+    private void handleChunkLoaded(Player player, World world, int x, int z, Location center, int attemptsLeft) {
+        if (!Bukkit.isPrimaryThread()) {
+            Bukkit.getScheduler().runTask(plugin, () -> handleChunkLoaded(player, world, x, z, center, attemptsLeft));
+            return;
+        }
+
+        if (!player.isOnline()) {
+            inProgress.remove(player.getUniqueId());
+            return;
+        }
+
+        Location candidate = world.getEnvironment() == World.Environment.NETHER
+                ? findNetherCandidate(world, x, z)
+                : buildOverworldCandidate(world, x, z);
+
+        if (candidate != null && isSafe(candidate)) {
+            Home rtpHome = Home.fromLocation("rtp", candidate);
+            boolean accepted = teleportManager.requestTeleport(player, rtpHome, "rtp.success");
+
+            inProgress.remove(player.getUniqueId());
+
+            // Only consume the cooldown/stat if the teleport was actually accepted —
+            // a combat-tag rejection shouldn't cost the player their /rtp attempt.
+            if (accepted) {
+                lastUse.put(player.getUniqueId(), System.currentTimeMillis());
+                stats.incrementRtpUsed();
+            }
+        } else {
+            attemptFindSafeLocation(player, center, attemptsLeft - 1);
+        }
     }
 
     private Location buildOverworldCandidate(World world, int x, int z) {

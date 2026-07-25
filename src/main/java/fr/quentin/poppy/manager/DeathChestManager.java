@@ -23,7 +23,11 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockExplodeEvent;
+import org.bukkit.event.block.BlockPistonExtendEvent;
+import org.bukkit.event.block.BlockPistonRetractEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryMoveItemEvent;
@@ -85,6 +89,20 @@ import java.util.logging.Level;
  * GriefPrevention, Lands...) entirely, since it mutates the world at the
  * engine level with no event involved, letting a death chest appear
  * inside someone else's claim.
+ *
+ * <p>Explosions ({@link EntityExplodeEvent}, {@link BlockExplodeEvent})
+ * and pistons ({@link BlockPistonExtendEvent}, {@link BlockPistonRetractEvent})
+ * are also blocked from affecting a death chest — both destroy or move
+ * the block without ever firing {@link BlockBreakEvent}, so relying only
+ * on {@link #onBreak}/{@link #onOpen}/{@link #onItemMove} left those two
+ * vectors completely open: anyone could blow up or push someone else's
+ * death chest to loot (or, combined with bad timing around emptying, dupe)
+ * its contents. This event-by-event protection model is inherently
+ * fragile — any future world-mutation vector not explicitly handled here
+ * bypasses protection by construction. Fully closing that gap would mean
+ * not storing contents in a real world block at all (an in-memory/file
+ * inventory behind a cosmetic chest), which is a larger redesign than
+ * this incremental fix.
  *
  * <p>Once emptied, a death chest despawns immediately (see {@link #onClose})
  * rather than lingering as a real, minable {@code Material.CHEST} block, and
@@ -336,6 +354,90 @@ public class DeathChestManager implements Listener {
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Error in DeathChestManager#onBreak", e);
         }
+    }
+
+    /**
+     * Strips death chest blocks out of any explosion's block list — a
+     * creeper, a bed exploding in the Nether, TNT, or an end crystal can all
+     * destroy a chest without ever firing {@link BlockBreakEvent}, letting
+     * anyone loot (or, combined with a badly-timed empty/despawn, duplicate)
+     * its contents. This is checked and fixed on the raw block list rather
+     * than relying on {@link #onBreak}, {@link #onOpen}, or
+     * {@link #onItemMove} alone — see the class-level doc for why enumerating
+     * removal vectors one event at a time is inherently fragile.
+     */
+    @EventHandler
+    public void onEntityExplode(@NonNull EntityExplodeEvent event) {
+        if (!config.deathChestEnabled()) {
+            return;
+        }
+        try {
+            event.blockList().removeIf(this::isDeathChestBlock);
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE, "Error in DeathChestManager#onEntityExplode", e);
+        }
+    }
+
+    /**
+     * Same protection as {@link #onEntityExplode}, for block-sourced
+     * explosions.
+     */
+    @EventHandler
+    public void onBlockExplode(@NonNull BlockExplodeEvent event) {
+        if (!config.deathChestEnabled()) {
+            return;
+        }
+        try {
+            event.blockList().removeIf(this::isDeathChestBlock);
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE, "Error in DeathChestManager#onBlockExplode", e);
+        }
+    }
+
+    /**
+     * Pushing a death chest with a piston moves the block (and, for a
+     * double chest, can separate its two halves) without ever firing
+     * {@link BlockBreakEvent} — cancelled outright rather than allowed to
+     * relocate, which would also risk stripping its
+     * {@link org.bukkit.persistence.PersistentDataContainer} tags in some
+     * edge cases and effectively unprotect it.
+     */
+    @EventHandler
+    public void onPistonExtend(@NonNull BlockPistonExtendEvent event) {
+        if (!config.deathChestEnabled()) {
+            return;
+        }
+        try {
+            if (event.getBlocks().stream().anyMatch(this::isDeathChestBlock)) {
+                event.setCancelled(true);
+            }
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE, "Error in DeathChestManager#onPistonExtend", e);
+        }
+    }
+
+    /**
+     * Same protection as {@link #onPistonExtend}, for sticky pistons
+     * pulling a death chest back.
+     */
+    @EventHandler
+    public void onPistonRetract(@NonNull BlockPistonRetractEvent event) {
+        if (!config.deathChestEnabled()) {
+            return;
+        }
+        try {
+            if (event.getBlocks().stream().anyMatch(this::isDeathChestBlock)) {
+                event.setCancelled(true);
+            }
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE, "Error in DeathChestManager#onPistonRetract", e);
+        }
+    }
+
+    private boolean isDeathChestBlock(Block block) {
+        return block.getType() == Material.CHEST
+                && block.getState() instanceof Chest chestState
+                && chestState.getPersistentDataContainer().has(ownerKey, PersistentDataType.STRING);
     }
 
     /**

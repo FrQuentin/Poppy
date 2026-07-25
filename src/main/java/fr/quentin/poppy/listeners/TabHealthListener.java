@@ -4,6 +4,7 @@ import fr.quentin.poppy.manager.AfkManager;
 import fr.quentin.poppy.util.PoppyConfig;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
@@ -131,6 +132,8 @@ public class TabHealthListener implements Listener {
         }
     }
 
+    private final PlainTextComponentSerializer plainTextSerializer = PlainTextComponentSerializer.plainText();
+
     private void updatePlayer(Player player) {
         double heartsRaw = (player.getHealth() + player.getAbsorptionAmount()) / 2.0;
         double hearts = Math.round(heartsRaw * 2) / 2.0;
@@ -141,8 +144,15 @@ public class TabHealthListener implements Listener {
         // Plain-text cache key covering everything that affects the rendered
         // name: the player's current display name, AFK prefix, and hearts
         // text/color. If none of these changed since the last tick, skip the
-        // packet entirely.
-        String cacheKey = (afk ? "AFK|" : "|") + player.displayName() + "|" + heartsText;
+        // packet entirely. Serialized via PlainTextComponentSerializer rather
+        // than relying on Component#toString() (or concatenating the
+        // Component directly, which falls back to the same thing) — the
+        // default toString() output is a verbose dump of Adventure's internal
+        // structure, not the rendered text, so it works for equality checks
+        // but allocates a much larger string than necessary on every tick for
+        // every online player. Plain text serialization gives the same
+        // change-detection guarantee at a fraction of the allocation cost.
+        String cacheKey = (afk ? "AFK|" : "|") + plainTextSerializer.serialize(player.displayName()) + "|" + heartsText;
 
         UUID uuid = player.getUniqueId();
         if (cacheKey.equals(lastSentText.get(uuid))) {

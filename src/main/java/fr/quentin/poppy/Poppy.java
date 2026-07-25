@@ -105,7 +105,7 @@ public final class Poppy extends JavaPlugin {
         Objects.requireNonNull(getCommand("tpahere")).setExecutor(tpaHereCommand);
         Objects.requireNonNull(getCommand("tpahere")).setTabCompleter(tpaHereCommand);
 
-        TpaAcceptCommand tpaAcceptCommand = new TpaAcceptCommand(this, tpaManager, teleportManager, messages, poppyLogger);
+        TpaAcceptCommand tpaAcceptCommand = new TpaAcceptCommand(this, tpaManager, teleportManager, messages, config, poppyLogger);
         Objects.requireNonNull(getCommand("tpaccept")).setExecutor(tpaAcceptCommand);
         Objects.requireNonNull(getCommand("tpaccept")).setTabCompleter(tpaAcceptCommand);
 

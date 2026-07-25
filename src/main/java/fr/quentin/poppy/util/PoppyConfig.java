@@ -213,4 +213,12 @@ public final class PoppyConfig {
     public boolean flyParticlesEnabled() {
         return plugin.getConfig().getBoolean("fly-particles-enabled", true);
     }
+
+    public double tpaMaxDistance() {
+        return Math.max(0, plugin.getConfig().getDouble("tpa-max-distance", 0));
+    }
+
+    public boolean tpaAllowCrossWorld() {
+        return plugin.getConfig().getBoolean("tpa-allow-cross-world", true);
+    }
 }

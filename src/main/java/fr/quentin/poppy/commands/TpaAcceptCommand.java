@@ -4,6 +4,7 @@ import fr.quentin.poppy.manager.TeleportManager;
 import fr.quentin.poppy.manager.TpaManager;
 import fr.quentin.poppy.model.Home;
 import fr.quentin.poppy.util.Messages;
+import fr.quentin.poppy.util.PoppyConfig;
 import fr.quentin.poppy.util.PoppyLogger;
 import fr.quentin.poppy.util.SafeCommand;
 import org.bukkit.Bukkit;
@@ -24,17 +25,30 @@ import java.util.List;
  * <p>The actual teleport goes through {@link TeleportManager#requestTeleport},
  * so the usual warmup/cancel-on-move/combat-tag rules apply to whoever is
  * moving, exactly like /home or /back.
+ *
+ * <p>{@link #withinAllowedRange} enforces {@code tpa-max-distance} and
+ * {@code tpa-allow-cross-world} (config.yml, both permissive/unlimited by
+ * default) before actually teleporting — without a limit, /tpa and
+ * /tpahere function as an unrestricted, instant teleport network between
+ * two accounts across the whole map (or between dimensions), which is
+ * often considered an exploit on a competitive public server even though
+ * it isn't a technical bug. Checked here (accept time), not at request
+ * time, since positions can change during the {@code tpa-expiry-seconds}
+ * window a request stays pending.
  */
 public class TpaAcceptCommand extends SafeCommand implements TabCompleter {
 
     private final TpaManager tpaManager;
     private final TeleportManager teleportManager;
+    private final PoppyConfig config;
     private final PoppyLogger logger;
 
-    public TpaAcceptCommand(JavaPlugin plugin, TpaManager tpaManager, TeleportManager teleportManager, Messages messages, PoppyLogger logger) {
+    public TpaAcceptCommand(JavaPlugin plugin, TpaManager tpaManager, TeleportManager teleportManager,
+                            Messages messages, PoppyConfig config, PoppyLogger logger) {
         super(plugin, messages);
         this.tpaManager = tpaManager;
         this.teleportManager = teleportManager;
+        this.config = config;
         this.logger = logger;
     }
 
@@ -65,6 +79,12 @@ public class TpaAcceptCommand extends SafeCommand implements TabCompleter {
             return true;
         }
 
+        if (!withinAllowedRange(player, requester)) {
+            player.sendMessage(messages.get("tpa.too-far"));
+            requester.sendMessage(messages.get("tpa.too-far"));
+            return true;
+        }
+
         if (request.type() == TpaManager.Type.NORMAL) {
             // the requester moves to the accepter (this player)
             logger.log(PoppyLogger.Category.TPA, player, "accepted /tpa from " + requester.getName());
@@ -80,6 +100,21 @@ public class TpaAcceptCommand extends SafeCommand implements TabCompleter {
         }
 
         return true;
+    }
+
+    private boolean withinAllowedRange(Player a, Player b) {
+        boolean sameWorld = a.getWorld().equals(b.getWorld());
+
+        if (!sameWorld) {
+            return config.tpaAllowCrossWorld();
+        }
+
+        double maxDistance = config.tpaMaxDistance();
+        if (maxDistance <= 0) {
+            return true;
+        }
+
+        return a.getLocation().distance(b.getLocation()) <= maxDistance;
     }
 
     @Override

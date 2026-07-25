@@ -118,6 +118,7 @@ tpa:
   cancel-success: "&4[!] You have cancelled your teleport request to {player}."
   cancel-notify: "&4[!] {player} has cancelled their teleport request."
   no-outgoing-request: "&4[!] You have no pending teleport request to {player}!"
+  too-far: "&4[!] You're too far apart (or in different worlds) for this teleport request!"
 
 poppy:
   wrong-gamemode: "&4[!] You need to be in Survival or Creative mode to do this!"

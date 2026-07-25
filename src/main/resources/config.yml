@@ -158,3 +158,12 @@ fly-lockout-seconds: 30
 # (the command, not Creative/Spectator flight) is active and they're
 # airborne — makes the two visually distinguishable.
 fly-particles-enabled: true
+
+# Maximum distance (in blocks) allowed between requester and target for
+# /tpaccept to actually teleport them — set to 0 for no limit. Prevents
+# /tpa or /tpahere being used as a free, instant, world-wide teleport
+# network between two accounts.
+tpa-max-distance: 0
+# If false, /tpaccept refuses to teleport across different worlds
+# (Overworld/Nether/End), even within tpa-max-distance.
+tpa-allow-cross-world: true

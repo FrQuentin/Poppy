@@ -6,15 +6,20 @@ import fr.quentin.poppy.util.Messages;
 import fr.quentin.poppy.util.PoppyConfig;
 import fr.quentin.poppy.util.PoppyLogger;
 import fr.quentin.poppy.util.SafeCommand;
+import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
+import org.bukkit.block.BlockState;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
+import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jspecify.annotations.NonNull;
@@ -28,6 +33,15 @@ import java.util.List;
  * can't just be read live via {@link PoppyConfig} on their own — the
  * sleep gamerule and the tab-health refresh interval (see
  * {@link #handleReload}).
+ *
+ * <p>{@link #handleEasterEgg} guards its placement with a simulated
+ * {@link BlockPlaceEvent} (see {@link #isProtected}) — same pattern as
+ * {@code DeathChestManager#isProtected} — before calling
+ * {@code setBlockData(...)} directly, which otherwise bypasses protection
+ * plugins (WorldGuard, GriefPrevention...) entirely since it mutates the
+ * world at the engine level with no event involved.
+ * {@link Block#canPlace(BlockData)} alone only checks physical
+ * placement validity (soil type, replaceability), never claims/regions.
  */
 public class PoppyCommand extends SafeCommand implements TabCompleter {
 
@@ -106,15 +120,15 @@ public class PoppyCommand extends SafeCommand implements TabCompleter {
             return true;
         }
 
+        Block feetBlock = player.getLocation().getBlock();
+        BlockData poppyData = Material.POPPY.createBlockData();
+        boolean canPlaceHere = feetBlock.canPlace(poppyData) && !isProtected(feetBlock, poppyData, player);
+
         if (!creative) {
             player.getInventory().removeItem(poppy);
         }
 
-        Block feetBlock = player.getLocation().getBlock();
-        BlockData poppyData = Material.POPPY.createBlockData();
-        boolean placedAsBlock = feetBlock.canPlace(poppyData);
-
-        if (placedAsBlock) {
+        if (canPlaceHere) {
             feetBlock.setBlockData(poppyData);
             player.getWorld().playSound(player.getLocation(), Sound.ITEM_CROP_PLANT, 1.0f, 1.0f);
         } else {
@@ -122,9 +136,27 @@ public class PoppyCommand extends SafeCommand implements TabCompleter {
             player.getWorld().playSound(player.getLocation(), Sound.BLOCK_GRASS_BREAK, 1.0f, 1.0f);
         }
 
-        logger.log(PoppyLogger.Category.EASTER_EGG, player, "used /poppy (" + (placedAsBlock ? "placed as block" : "dropped as item") + ")");
+        logger.log(PoppyLogger.Category.EASTER_EGG, player, "used /poppy (" + (canPlaceHere ? "placed as block" : "dropped as item") + ")");
 
         player.sendMessage(messages.get("poppy.success"));
         return true;
+    }
+
+    /**
+     * Fires a simulated {@link BlockPlaceEvent} before any world mutation
+     * happens, so protection plugins (WorldGuard, GriefPrevention,
+     * Lands...) that listen on that event get a chance to cancel it —
+     * exactly as if the player had physically placed a poppy there. Same
+     * approach as {@code DeathChestManager#isProtected}.
+     */
+    private boolean isProtected(Block block, BlockData placedData, Player player) {
+        BlockState replacedState = block.getState();
+        Block placedAgainst = block.getRelative(BlockFace.DOWN);
+        ItemStack poppyItem = new ItemStack(Material.POPPY);
+
+        BlockPlaceEvent placeEvent = new BlockPlaceEvent(block, replacedState, placedAgainst, poppyItem, player, true, EquipmentSlot.HAND);
+        Bukkit.getPluginManager().callEvent(placeEvent);
+
+        return placeEvent.isCancelled() || !placeEvent.canBuild();
     }
 }

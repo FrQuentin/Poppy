@@ -209,4 +209,8 @@ public final class PoppyConfig {
     public long flyLockoutMillis() {
         return Math.max(0, plugin.getConfig().getInt("fly-lockout-seconds", 30)) * 1000L;
     }
+
+    public boolean flyParticlesEnabled() {
+        return plugin.getConfig().getBoolean("fly-particles-enabled", true);
+    }
 }

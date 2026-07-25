@@ -2,7 +2,11 @@ package fr.quentin.poppy.manager;
 
 import fr.quentin.poppy.util.Messages;
 import fr.quentin.poppy.util.PoppyConfig;
+import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
+import org.bukkit.Location;
+import org.bukkit.Particle;
+import org.bukkit.World;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
@@ -12,48 +16,63 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.player.PlayerChangedWorldEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.projectiles.ProjectileSource;
 import org.jspecify.annotations.NonNull;
 
+import java.util.HashSet;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Level;
 
 /**
  * Backs /fly: disables flight the moment a flying (or fly-enabled) player
  * takes any damage, and blocks /fly for {@code fly-lockout-seconds}
- * afterward via its own {@link #lockoutUntil} timer — long enough to deal
- * with whatever hit them before flight is available again.
+ * afterward via its own {@link #lockoutUntil} timer.
  *
  * <p>Integrated with {@link CombatManager}: {@link #isLocked} also treats
- * an active PvP combat tag as a lockout, not just this class's own timer.
- * That matters because {@link #onDamage} (generic {@link EntityDamageEvent})
- * only ever fires for whichever entity <b>received</b> the damage — on its
- * own, an attacker landing hits (but never taking one back) could keep
- * flying indefinitely. {@link #onPvpDamage} closes that gap by also
- * grounding the resolved attacker on every hit they land (PvP or PvE), the
- * same attacker resolution {@link CombatListener} uses for tagging — and
- * tells them who/what they just attacked, since they may not otherwise
- * notice their flight got cut mid-swing.
+ * an active PvP combat tag as a lockout. {@link #onPvpDamage} grounds the
+ * attacker on every hit they land (PvP or PvE), which the generic
+ * {@link #onDamage} (only reacts to whoever received the damage) never
+ * covers on its own, and tells them who/what they just attacked.
  *
  * <p>Fall damage never triggers this: turning /fly off mid-air naturally
- * causes fall damage on landing, which is the player's own doing, not
- * combat, and shouldn't relock them right after they voluntarily grounded
- * themselves.
+ * causes fall damage on landing, which shouldn't relock the player right
+ * after they voluntarily grounded themselves.
  *
- * <p>Only touches Survival/Adventure players. Creative and Spectator
- * already have their own native flight tied to the gamemode itself; this
- * system never interacts with that.
+ * <p>Flight can't be enabled while in the End — see {@link #toggle} — and
+ * is force-disabled if an already-flying player ends up there anyway (an
+ * End portal, an ender pearl thrown while flying, etc. — see
+ * {@link #onWorldChange}), since free flight trivializes finding End
+ * cities/elytras. Not restricted in the Overworld or Nether.
  *
- * <p>The lockout is deliberately <b>not</b> cleared on quit — same
- * reasoning as {@code FeedCommand}/{@code HealCommand}: clearing it would
- * let a player dodge the wait entirely by disconnecting and reconnecting
- * right after taking damage.
+ * <p>{@link #activeFly} tracks who currently has flight active
+ * specifically via this system — distinct from {@link Player#isFlying()},
+ * which is also true for Creative/Spectator flight. This is what lets
+ * {@link #spawnFlightParticles} show a particle ring only for genuine
+ * /fly users, visually telling them apart from someone flying because of
+ * their gamemode.
+ *
+ * <p>The post-damage lockout timer is deliberately <b>not</b> cleared on
+ * quit — same reasoning as {@code FeedCommand}/{@code HealCommand}:
+ * clearing it would let a player dodge the wait by disconnecting and
+ * reconnecting. {@link #activeFly} itself IS cleared on quit (see
+ * {@link #onQuit}), since Bukkit resets actual flight state on rejoin
+ * anyway and there's no reason to keep tracking an offline player as
+ * "currently flying".
  */
 public class FlyManager implements Listener {
+
+    public enum ToggleResult { ENABLED, DISABLED, BLOCKED_END }
+
+    private static final long PARTICLE_INTERVAL_TICKS = 4L;
+    private static final double PARTICLE_RADIUS = 0.6;
+    private static final int PARTICLE_POINTS = 8;
 
     private final JavaPlugin plugin;
     private final Messages messages;
@@ -61,22 +80,41 @@ public class FlyManager implements Listener {
     private final CombatManager combatManager;
 
     private final Map<UUID, Long> lockoutUntil = new HashMap<>();
+    private final Set<UUID> activeFly = new HashSet<>();
 
     public FlyManager(JavaPlugin plugin, Messages messages, PoppyConfig config, CombatManager combatManager) {
         this.plugin = plugin;
         this.messages = messages;
         this.config = config;
         this.combatManager = combatManager;
+
+        Bukkit.getScheduler().runTaskTimer(plugin, this::tickParticles, PARTICLE_INTERVAL_TICKS, PARTICLE_INTERVAL_TICKS);
     }
 
     /**
-     * @return true if flight was toggled on, false if toggled off
+     * Toggles flight for the player. Returns {@link ToggleResult#BLOCKED_END}
+     * without changing anything if they're currently in the End and trying
+     * to turn flight on — turning it off is always allowed regardless of
+     * world.
      */
-    public boolean toggle(Player player) {
-        boolean nowFlying = !player.getAllowFlight();
-        player.setAllowFlight(nowFlying);
-        player.setFlying(nowFlying);
-        return nowFlying;
+    public ToggleResult toggle(Player player) {
+        UUID uuid = player.getUniqueId();
+
+        if (activeFly.contains(uuid)) {
+            activeFly.remove(uuid);
+            player.setAllowFlight(false);
+            player.setFlying(false);
+            return ToggleResult.DISABLED;
+        }
+
+        if (player.getWorld().getEnvironment() == World.Environment.THE_END) {
+            return ToggleResult.BLOCKED_END;
+        }
+
+        activeFly.add(uuid);
+        player.setAllowFlight(true);
+        player.setFlying(true);
+        return ToggleResult.ENABLED;
     }
 
     /**
@@ -119,8 +157,6 @@ public class FlyManager implements Listener {
             }
 
             if (event.getCause() == EntityDamageEvent.DamageCause.FALL) {
-                // Turning off /fly mid-air naturally causes fall damage on landing —
-                // that's the player's own doing, not combat, so it shouldn't relock them.
                 return;
             }
 
@@ -134,14 +170,6 @@ public class FlyManager implements Listener {
         }
     }
 
-    /**
-     * Fires on the same event {@link CombatListener} tags PvP combat from —
-     * this specifically grounds the attacker, which the generic
-     * {@link #onDamage} above never touches since it only reacts to the
-     * entity receiving damage. Also covers PvE (attacking a mob), not just
-     * PvP, since "who/what got attacked" is passed straight to the target
-     * for the notification message.
-     */
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPvpDamage(@NonNull EntityDamageByEntityEvent event) {
         try {
@@ -158,6 +186,40 @@ public class FlyManager implements Listener {
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Error in FlyManager#onPvpDamage", e);
         }
+    }
+
+    /**
+     * Force-disables flight if an active /fly user ends up in the End by
+     * any means other than the /fly command itself (portal, ender pearl
+     * while flying, etc.) — {@link #toggle} alone only stops them from
+     * turning it on there, not from arriving there already flying.
+     */
+    @EventHandler
+    public void onWorldChange(@NonNull PlayerChangedWorldEvent event) {
+        try {
+            Player player = event.getPlayer();
+            UUID uuid = player.getUniqueId();
+
+            if (!activeFly.contains(uuid)) {
+                return;
+            }
+
+            if (player.getWorld().getEnvironment() != World.Environment.THE_END) {
+                return;
+            }
+
+            activeFly.remove(uuid);
+            player.setAllowFlight(false);
+            player.setFlying(false);
+            player.sendMessage(messages.get("fly.blocked-end"));
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE, "Error in FlyManager#onWorldChange for " + event.getPlayer().getName(), e);
+        }
+    }
+
+    @EventHandler
+    public void onQuit(@NonNull PlayerQuitEvent event) {
+        activeFly.remove(event.getPlayer().getUniqueId());
     }
 
     /**
@@ -179,6 +241,7 @@ public class FlyManager implements Listener {
 
         player.setFlying(false);
         player.setAllowFlight(false);
+        activeFly.remove(player.getUniqueId());
 
         long lockoutMillis = config.flyLockoutMillis();
         if (lockoutMillis > 0) {
@@ -192,6 +255,38 @@ public class FlyManager implements Listener {
         }
     }
 
+    /**
+     * Draws a small ring of particles at each active /fly user's feet,
+     * only while they're actually airborne ({@link Player#isFlying()}) —
+     * grounded-but-toggled-on doesn't need the visual. Skipped entirely
+     * if {@code fly-particles-enabled} is off.
+     */
+    private void tickParticles() {
+        if (!config.flyParticlesEnabled() || activeFly.isEmpty()) {
+            return;
+        }
+
+        for (UUID uuid : activeFly) {
+            Player player = Bukkit.getPlayer(uuid);
+            if (player == null || !player.isOnline() || !player.isFlying()) {
+                continue;
+            }
+            spawnFlightParticles(player);
+        }
+    }
+
+    private void spawnFlightParticles(Player player) {
+        Location center = player.getLocation();
+        World world = player.getWorld();
+
+        for (int i = 0; i < PARTICLE_POINTS; i++) {
+            double angle = 2 * Math.PI * i / PARTICLE_POINTS;
+            double x = center.getX() + PARTICLE_RADIUS * Math.cos(angle);
+            double z = center.getZ() + PARTICLE_RADIUS * Math.sin(angle);
+            world.spawnParticle(Particle.END_ROD, x, center.getY() + 0.1, z, 1, 0, 0, 0, 0);
+        }
+    }
+
     private String targetName(Entity target) {
         if (target instanceof Player targetPlayer) {
             return targetPlayer.getName();
@@ -199,12 +294,6 @@ public class FlyManager implements Listener {
         return formatEntityTypeName(target.getType());
     }
 
-    /**
-     * Converts a vanilla entity type constant into a readable name, e.g.
-     * {@code WITHER_SKELETON} → "Wither Skeleton" — same approach as
-     * {@code SilkSpawnerListener#formatName}, works for any entity type
-     * without a hand-maintained name list.
-     */
     private String formatEntityTypeName(EntityType entityType) {
         String[] parts = entityType.name().split("_");
         StringBuilder builder = new StringBuilder();

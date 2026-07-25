@@ -153,3 +153,8 @@ sharehome-lockout-seconds: 60
 # How long (in seconds) /fly is locked out after a player who was flying
 # (or had flight enabled) takes damage. Set to 0 to disable the lockout.
 fly-lockout-seconds: 30
+
+# If true, shows a small particle ring under a player's feet while /fly
+# (the command, not Creative/Spectator flight) is active and they're
+# airborne — makes the two visually distinguishable.
+fly-particles-enabled: true

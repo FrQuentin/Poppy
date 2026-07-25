@@ -36,8 +36,12 @@ public class FlyCommand extends SafeCommand {
             return true;
         }
 
-        boolean nowFlying = flyManager.toggle(player);
-        player.sendMessage(messages.get(nowFlying ? "fly.enabled" : "fly.disabled"));
+        FlyManager.ToggleResult result = flyManager.toggle(player);
+        switch (result) {
+            case ENABLED -> player.sendMessage(messages.get("fly.enabled"));
+            case DISABLED -> player.sendMessage(messages.get("fly.disabled"));
+            case BLOCKED_END -> player.sendMessage(messages.get("fly.blocked-end"));
+        }
         return true;
     }
 }

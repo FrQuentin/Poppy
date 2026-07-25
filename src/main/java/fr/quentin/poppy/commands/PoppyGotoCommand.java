@@ -1,5 +1,6 @@
 package fr.quentin.poppy.commands;
 
+import fr.quentin.poppy.manager.HomeManager;
 import fr.quentin.poppy.manager.ShareManager;
 import fr.quentin.poppy.manager.TeleportManager;
 import fr.quentin.poppy.model.Home;
@@ -24,16 +25,20 @@ import java.util.UUID;
  * access control, so any player who received (or guessed) a valid token can
  * use it.
  *
+ * <p>The token resolves to the sharer's UUID and home name, re-fetched
+ * live from {@link HomeManager} at teleport time via a
+ * {@link java.util.function.Supplier} rather than a frozen snapshot — see
+ * {@link ShareManager} for why. If the home no longer exists by the time
+ * someone clicks the link (deleted after sharing), this fails the same
+ * way an expired token would.
+ *
  * <p>The token is a full UUID (128 bits of randomness), making brute-force
  * guessing already computationally infeasible within the token's short
  * expiry window on its own. {@link #failedAttempts}/{@link #lockedUntil}
  * add defense-in-depth on top of that: after
  * {@code sharehome-max-failed-attempts} wrong tokens in a row from the
  * same player, they're locked out of trying again for
- * {@code sharehome-lockout-seconds} — this only slows down a single
- * logged-in account spamming guesses (an attacker would need to be an
- * actual connected player to try at all, since this command requires a
- * {@link Player} sender), but it's a cheap additional barrier.
+ * {@code sharehome-lockout-seconds}.
  *
  * <p>Deliberately not cleared on quit — same reasoning as
  * {@code PoppyLoreListener}'s cooldown map: clearing it would let a
@@ -43,6 +48,7 @@ import java.util.UUID;
 public class PoppyGotoCommand extends SafeCommand {
 
     private final ShareManager shareManager;
+    private final HomeManager homeManager;
     private final TeleportManager teleportManager;
     private final PoppyConfig config;
     private final PoppyLogger logger;
@@ -50,10 +56,11 @@ public class PoppyGotoCommand extends SafeCommand {
     private final Map<UUID, Integer> failedAttempts = new HashMap<>();
     private final Map<UUID, Long> lockedUntil = new HashMap<>();
 
-    public PoppyGotoCommand(JavaPlugin plugin, ShareManager shareManager, TeleportManager teleportManager,
+    public PoppyGotoCommand(JavaPlugin plugin, ShareManager shareManager, HomeManager homeManager, TeleportManager teleportManager,
                             Messages messages, PoppyConfig config, PoppyLogger logger) {
         super(plugin, messages);
         this.shareManager = shareManager;
+        this.homeManager = homeManager;
         this.teleportManager = teleportManager;
         this.config = config;
         this.logger = logger;
@@ -71,15 +78,27 @@ public class PoppyGotoCommand extends SafeCommand {
             return true;
         }
 
-        Home home = shareManager.get(args[0]);
-        if (home == null) {
+        ShareManager.SharedHome shared = shareManager.get(args[0]);
+        if (shared == null) {
             registerFailedAttempt(player);
             player.sendMessage(messages.get("sharehome.expired"));
             return true;
         }
 
         failedAttempts.remove(player.getUniqueId());
-        teleportManager.requestTeleport(player, home, "sharehome.teleport-success");
+
+        UUID ownerUuid = shared.ownerUuid();
+        String homeName = shared.homeName();
+
+        Home home = homeManager.getHome(ownerUuid, homeName);
+        if (home == null) {
+            // The owner deleted or renamed this home since sharing it — the link is
+            // no longer meaningful, treat it the same as an expired one.
+            player.sendMessage(messages.get("sharehome.expired"));
+            return true;
+        }
+
+        teleportManager.requestTeleport(player, () -> homeManager.getHome(ownerUuid, homeName), "sharehome.teleport-success");
         return true;
     }
 

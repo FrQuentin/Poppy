@@ -68,7 +68,7 @@ public class ShareHomeCommand extends SafeCommand implements TabCompleter, Liste
             return true;
         }
 
-        String token = shareManager.share(home);
+        String token = shareManager.share(player.getUniqueId(), home.name());
         lastUse.put(player.getUniqueId(), System.currentTimeMillis());
         stats.incrementSharesCreated();
 

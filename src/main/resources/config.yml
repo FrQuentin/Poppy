@@ -119,11 +119,13 @@ homes-default-limit: 10
 homes-limit-tiers: [5, 10, 20, 30, 54]
 
 # Percentage (0-100) of a dying player's total XP restored via the death
-# chest's XP bottle. 100 fully cancels the death XP penalty (the default,
-# and previously the only behavior — this key just makes it configurable).
-# Vanilla itself only drops min(7 x level, 100) XP on death, so a lower
-# value here gets you closer to that if you want death to still sting.
-death-chest-xp-refund-percent: 100
+# chest's XP bottle. 50 by default — a middle ground: 100 would fully
+# cancel the death XP penalty, which combined with items also surviving
+# death makes dying nearly consequence-free on a survival server; 0 means
+# the bottle doesn't buy back any of it. The bottle is bound to whoever
+# died, so it can't be traded to another player to transfer XP between
+# accounts. Vanilla itself only drops min(7 x level, 100) XP on death.
+death-chest-xp-refund-percent: 50
 
 # Cooldown (in seconds) between two /feed uses. Set to 0 to disable.
 feed-cooldown-seconds: 180

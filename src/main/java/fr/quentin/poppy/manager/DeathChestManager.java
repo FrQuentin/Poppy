@@ -62,28 +62,35 @@ import java.util.logging.Level;
  * {@link PlayerDeathEvent#getDrops()} being empty: {@code keepLevel} has
  * no effect on that list at all, so without the explicit check, an XP
  * refund bottle would still get created (and the death chest with it)
- * even though the player never actually lost any XP — letting them redeem
- * the bottle on top of their untouched vanilla XP, an infinite levels farm.
+ * even though the player never actually lost any XP.
  *
  * <p>Ownership and creation time are stored directly on the chest block's
  * {@link org.bukkit.persistence.PersistentDataContainer} (chests are tile
  * entities, so this survives a server restart without any extra file).
  * The scheduled expiry task from {@link #onDeath} does <b>not</b> survive a
- * restart, though — a chest created right before a shutdown would
- * otherwise stay protected and unbreakable forever, with the
- * {@code createdAt} timestamp sitting unread in its PDC. The constructor
- * and {@link #onChunkLoad} cover that gap: every already-loaded chunk is
- * scanned at startup, and every chunk is scanned again as it loads, so an
- * expired chest is caught (and its remaining contents dropped) even if the
- * server was off past its expiry time.
+ * restart, though — the constructor and {@link #onChunkLoad} cover that
+ * gap: every already-loaded chunk is scanned at startup, and every chunk
+ * is scanned again as it loads, so an expired chest is caught (and its
+ * remaining contents dropped) even if the server was off past its expiry
+ * time.
  *
- * <p>XP refund is a percentage of the player's total XP, not a fixed
- * amount — {@code death-chest-xp-refund-percent} in config.yml, 100 by
- * default. At 100, the death XP penalty is fully negated (the bottle
- * gives back everything). Admins who want death to still cost XP should
- * lower this; vanilla itself only drops {@code min(7 × level, 100)} on
- * death, so this plugin's default is meaningfully more forgiving than
- * vanilla unless explicitly tuned down.
+ * <p>XP refund is a percentage of the player's total XP —
+ * {@code death-chest-xp-refund-percent} in config.yml, 50 by default (a
+ * deliberate middle ground: 100 would fully negate the death XP penalty,
+ * which combined with items also surviving death makes dying nearly
+ * consequence-free on a survival server; 0 would mean losing the bottle
+ * doesn't even buy back any of it). XP totals are computed and stored as
+ * {@code long}, not {@code int} — a player at a very high level (the
+ * quadratic XP-per-level formula grows fast) could otherwise silently
+ * overflow {@link Integer#MAX_VALUE}. {@link Player#giveExp(int)} only
+ * accepts an {@code int}, so the stored {@code long} is clamped to that
+ * range only at the point of actually giving it back (see
+ * {@link #onXpBottleUse}), not anywhere the value is computed or stored.
+ *
+ * <p>Each XP bottle is bound to the player it was created for via
+ * {@code xpBottleOwnerKey} — redeemable only by them, even if the item is
+ * traded, dropped, or otherwise ends up in someone else's inventory,
+ * closing off using it as a way to transfer XP between accounts.
  *
  * <p>Placement is guarded by a simulated {@link BlockPlaceEvent} (see
  * {@link #isProtected}) before any world mutation happens — without this,
@@ -95,23 +102,31 @@ import java.util.logging.Level;
  * <p>Explosions ({@link EntityExplodeEvent}, {@link BlockExplodeEvent})
  * and pistons ({@link BlockPistonExtendEvent}, {@link BlockPistonRetractEvent})
  * are also blocked from affecting a death chest — both destroy or move
- * the block without ever firing {@link BlockBreakEvent}, so relying only
- * on {@link #onBreak}/{@link #onOpen}/{@link #onItemMove} left those two
- * vectors completely open: anyone could blow up or push someone else's
- * death chest to loot (or, combined with bad timing around emptying, dupe)
- * its contents. This event-by-event protection model is inherently
- * fragile — any future world-mutation vector not explicitly handled here
- * bypasses protection by construction. Fully closing that gap would mean
- * not storing contents in a real world block at all (an in-memory/file
- * inventory behind a cosmetic chest), which is a larger redesign than
- * this incremental fix.
+ * the block without ever firing {@link BlockBreakEvent}. This event-by-event
+ * protection model is inherently fragile — any future world-mutation
+ * vector not explicitly handled here bypasses protection by construction.
+ *
+ * <p>{@link #onBreak} runs at {@link EventPriority#HIGHEST} with
+ * {@code ignoreCancelled = true}: without this, a protection plugin
+ * (WorldGuard, GriefPrevention...) cancelling the break at a later
+ * priority than a naive {@code NORMAL} handler would still have already
+ * let items drop or the chest get flagged unbreakable-bypassed before the
+ * cancellation was visible — running last and ignoring already-cancelled
+ * events means this only ever acts once the break is genuinely going to
+ * happen.
  *
  * <p>Once emptied, a death chest despawns immediately (see {@link #onClose})
- * rather than lingering as a real, minable {@code Material.CHEST} block, and
- * breaking it is blocked outright (see {@link #onBreak}) — without both of
- * these, a player could deliberately die repeatedly and either break or
- * empty-then-mine each chest for a free chest item, an infinite farm.
- * Hoppers are blocked from draining or filling a death chest too (see
+ * rather than lingering as a real, minable {@code Material.CHEST} block.
+ * Any current viewer is force-closed before contents are dropped by
+ * {@link #dropRemainingAndClear} (expiry, or a bypass-permission removal)
+ * — without this, a player mid-transfer (an item on their cursor from
+ * that exact inventory) when this fires could end up with that item both
+ * dropped on the ground AND still on their cursor, a partial duplication.
+ * {@link #onClose} itself re-checks the live block type before removing
+ * it, since the chest may have already been removed by another code path
+ * between the close event being queued and handled.
+ *
+ * <p>Hoppers are blocked from draining or filling a death chest too (see
  * {@link #onItemMove}), since they bypass {@link #onOpen}'s protection
  * entirely by never firing an inventory-open event.
  */
@@ -137,6 +152,7 @@ public class DeathChestManager implements Listener {
     private final NamespacedKey ownerKey;
     private final NamespacedKey createdAtKey;
     private final NamespacedKey xpAmountKey;
+    private final NamespacedKey xpBottleOwnerKey;
 
     public DeathChestManager(JavaPlugin plugin, Messages messages, PoppyConfig config, PoppyLogger logger) {
         this.plugin = plugin;
@@ -146,6 +162,7 @@ public class DeathChestManager implements Listener {
         this.ownerKey = new NamespacedKey(plugin, "death_chest_owner");
         this.createdAtKey = new NamespacedKey(plugin, "death_chest_created");
         this.xpAmountKey = new NamespacedKey(plugin, "death_chest_xp_amount");
+        this.xpBottleOwnerKey = new NamespacedKey(plugin, "death_chest_xp_bottle_owner");
 
         scanAlreadyLoadedChunks();
     }
@@ -157,30 +174,22 @@ public class DeathChestManager implements Listener {
         }
 
         if (event.getKeepInventory() || event.getKeepLevel()) {
-            // Both gamerules mean the player already keeps everything vanilla-side —
-            // nothing for this plugin to compensate for. Bailing out here (rather than
-            // just relying on event.getDrops() being empty) matters specifically for
-            // keepLevel: it doesn't affect getDrops() at all, so without this check
-            // refundXp would still get computed and non-zero, and a chest holding just
-            // an XP bottle would still get created even though items didn't need
-            // replacing — letting the player keep their vanilla XP *and* redeem the
-            // bottle for another full refund, an infinite levels farm.
             return;
         }
 
         try {
             Player player = event.getEntity();
 
-            int refundXp = 0;
+            long refundXp = 0;
             int levelAtDeath = player.getLevel();
             if (config.deathChestStoreXp()) {
-                int totalXp = getTotalExperience(player, levelAtDeath);
-                refundXp = (int) ((long) totalXp * config.deathChestXpRefundPercent() / 100);
+                long totalXp = getTotalExperience(player, levelAtDeath);
+                refundXp = (totalXp * config.deathChestXpRefundPercent()) / 100;
             }
 
             List<ItemStack> plannedDrops = new ArrayList<>(event.getDrops());
             if (refundXp > 0) {
-                plannedDrops.add(createXpBottle(levelAtDeath, refundXp));
+                plannedDrops.add(createXpBottle(player, levelAtDeath, refundXp));
             }
 
             if (plannedDrops.isEmpty()) {
@@ -189,18 +198,11 @@ public class DeathChestManager implements Listener {
 
             Location primary = findPlacementSpot(player.getLocation(), player);
             if (primary == null) {
-                // No safe/unprotected spot found nearby: leave everything on the
-                // vanilla path untouched — items drop as usual, and if refundXp was
-                // going to replace the XP orbs, we never got the chance to commit
-                // to that, so the orbs still drop normally too. Nothing is lost
-                // beyond ordinary vanilla death behavior.
                 return;
             }
 
             Location secondary = plannedDrops.size() > 27 ? findAdjacentSpot(primary, player) : null;
 
-            // Only now, with a placement spot confirmed, do we commit to replacing
-            // the vanilla drops with the chest + bottle.
             event.getDrops().clear();
             if (refundXp > 0) {
                 event.setDroppedExp(0);
@@ -285,11 +287,6 @@ public class DeathChestManager implements Listener {
         }
     }
 
-    /**
-     * Despawns a death chest the moment it's closed empty, so it can't be
-     * mined afterward for a free chest item — see the class-level doc for
-     * why that matters.
-     */
     @EventHandler
     public void onClose(@NonNull InventoryCloseEvent event) {
         if (!config.deathChestEnabled()) {
@@ -308,10 +305,6 @@ public class DeathChestManager implements Listener {
                 return;
             }
 
-            // The chest may have already been removed by another code path (expiry,
-            // a bypass-permission break, etc.) between this close event being queued
-            // and handled here — re-check the live block rather than trusting the
-            // Chest snapshot, so we never attempt a redundant/racy removal.
             if (chest.getBlock().getType() != Material.CHEST) {
                 return;
             }
@@ -324,14 +317,6 @@ public class DeathChestManager implements Listener {
         }
     }
 
-    /**
-     * Cancels breaking a death chest entirely — even for its owner, unless
-     * they have the bypass permission. Without this, breaking the block
-     * drops its contents on the ground regardless of {@link #onOpen}'s
-     * protection (bypassing it for a non-owner stealing the items), and
-     * also hands out a free chest item that could be farmed by repeatedly
-     * dying and breaking each emptied chest.
-     */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBreak(@NonNull BlockBreakEvent event) {
         if (!config.deathChestEnabled()) {
@@ -366,16 +351,6 @@ public class DeathChestManager implements Listener {
         }
     }
 
-    /**
-     * Strips death chest blocks out of any explosion's block list — a
-     * creeper, a bed exploding in the Nether, TNT, or an end crystal can all
-     * destroy a chest without ever firing {@link BlockBreakEvent}, letting
-     * anyone loot (or, combined with a badly-timed empty/despawn, duplicate)
-     * its contents. This is checked and fixed on the raw block list rather
-     * than relying on {@link #onBreak}, {@link #onOpen}, or
-     * {@link #onItemMove} alone — see the class-level doc for why enumerating
-     * removal vectors one event at a time is inherently fragile.
-     */
     @EventHandler
     public void onEntityExplode(@NonNull EntityExplodeEvent event) {
         if (!config.deathChestEnabled()) {
@@ -388,10 +363,6 @@ public class DeathChestManager implements Listener {
         }
     }
 
-    /**
-     * Same protection as {@link #onEntityExplode}, for block-sourced
-     * explosions.
-     */
     @EventHandler
     public void onBlockExplode(@NonNull BlockExplodeEvent event) {
         if (!config.deathChestEnabled()) {
@@ -404,14 +375,6 @@ public class DeathChestManager implements Listener {
         }
     }
 
-    /**
-     * Pushing a death chest with a piston moves the block (and, for a
-     * double chest, can separate its two halves) without ever firing
-     * {@link BlockBreakEvent} — cancelled outright rather than allowed to
-     * relocate, which would also risk stripping its
-     * {@link org.bukkit.persistence.PersistentDataContainer} tags in some
-     * edge cases and effectively unprotect it.
-     */
     @EventHandler
     public void onPistonExtend(@NonNull BlockPistonExtendEvent event) {
         if (!config.deathChestEnabled()) {
@@ -426,10 +389,6 @@ public class DeathChestManager implements Listener {
         }
     }
 
-    /**
-     * Same protection as {@link #onPistonExtend}, for sticky pistons
-     * pulling a death chest back.
-     */
     @EventHandler
     public void onPistonRetract(@NonNull BlockPistonRetractEvent event) {
         if (!config.deathChestEnabled()) {
@@ -450,14 +409,6 @@ public class DeathChestManager implements Listener {
                 && chestState.getPersistentDataContainer().has(ownerKey, PersistentDataType.STRING);
     }
 
-    /**
-     * Blocks hoppers (and hopper minecarts) from either draining or filling
-     * a death chest. Hoppers never fire {@link InventoryOpenEvent} — they
-     * transfer items via a completely different event — so without this,
-     * {@link #onOpen}'s ownership check and the whole anti-farm design
-     * could be bypassed simply by placing a hopper under (or above)
-     * someone else's death chest.
-     */
     @EventHandler
     public void onItemMove(@NonNull InventoryMoveItemEvent event) {
         if (!config.deathChestEnabled()) {
@@ -483,10 +434,12 @@ public class DeathChestManager implements Listener {
 
     /**
      * Consumes a death-chest XP bottle on right-click, restoring the exact
-     * XP it was created with. Triggers on both {@link Action#RIGHT_CLICK_AIR}
-     * and {@link Action#RIGHT_CLICK_BLOCK} — a regular experience bottle
-     * throws on either, so this must intercept both to reliably prevent
-     * the vanilla throw behavior.
+     * XP it was created with — but only for the player it was bound to at
+     * creation time (see {@link #xpBottleOwnerKey}); anyone else trying to
+     * use one gets denied and keeps the bottle. Triggers on both
+     * {@link Action#RIGHT_CLICK_AIR} and {@link Action#RIGHT_CLICK_BLOCK}
+     * — a regular experience bottle throws on either, so this must
+     * intercept both to reliably prevent the vanilla throw behavior.
      */
     @EventHandler
     public void onXpBottleUse(@NonNull PlayerInteractEvent event) {
@@ -512,21 +465,33 @@ public class DeathChestManager implements Listener {
                 return;
             }
 
-            int storedXp = meta.getPersistentDataContainer().getOrDefault(xpAmountKey, PersistentDataType.INTEGER, 0);
+            long storedXp = meta.getPersistentDataContainer().getOrDefault(xpAmountKey, PersistentDataType.LONG, 0L);
             if (storedXp <= 0) {
                 return; // a regular experience bottle, not one of ours
             }
 
+            Player player = event.getPlayer();
+
+            String boundOwner = meta.getPersistentDataContainer().get(xpBottleOwnerKey, PersistentDataType.STRING);
+            if (boundOwner != null && !boundOwner.equals(player.getUniqueId().toString())) {
+                event.setCancelled(true);
+                player.sendMessage(messages.get("death.xp-bottle-not-yours"));
+                return;
+            }
+
             event.setCancelled(true);
 
-            Player player = event.getPlayer();
             if (item.getAmount() > 1) {
                 item.setAmount(item.getAmount() - 1);
             } else {
                 player.getInventory().setItemInMainHand(null);
             }
 
-            player.giveExp(storedXp);
+            // Player#giveExp only takes an int — clamp the stored long at the point of
+            // actually giving it back, not anywhere it's computed or stored, so the
+            // stored value itself is never silently truncated.
+            int xpToGive = (int) Math.min(storedXp, Integer.MAX_VALUE);
+            player.giveExp(xpToGive);
             player.getWorld().playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f);
             player.sendMessage(messages.get("death.xp-restored"));
         } catch (Exception e) {
@@ -534,13 +499,6 @@ public class DeathChestManager implements Listener {
         }
     }
 
-    /**
-     * Scans every already-loaded chunk of every already-loaded world for
-     * expired death chests, called once from the constructor. Covers
-     * chests sitting in spawn-kept-loaded chunks (or any chunk a player
-     * happened to already be standing in) at the moment the plugin enables
-     * — {@link #onChunkLoad} covers everything else as chunks load later.
-     */
     private void scanAlreadyLoadedChunks() {
         if (config.deathChestExpiryMillis() <= 0) {
             return;
@@ -566,15 +524,6 @@ public class DeathChestManager implements Listener {
         }
     }
 
-    /**
-     * Checks every tile entity in the chunk for a death chest whose
-     * {@code createdAt} timestamp is past the configured expiry, and
-     * expires it via {@link #dropRemainingAndClear} — the same cleanup
-     * path used by the normal in-session {@link #expireChest}. Each half
-     * of a double chest carries its own copy of the owner/createdAt tags
-     * (see {@link #placeChest}), so this naturally handles both halves
-     * independently without needing to know which location was "primary".
-     */
     private void scanChunkForExpiredChests(Chunk chunk) {
         long expiryMillis = config.deathChestExpiryMillis();
 
@@ -606,39 +555,46 @@ public class DeathChestManager implements Listener {
         }
     }
 
-    private ItemStack createXpBottle(int levelAtDeath, int totalXp) {
+    private ItemStack createXpBottle(Player owner, int levelAtDeath, long totalXp) {
         ItemStack bottle = new ItemStack(Material.EXPERIENCE_BOTTLE, 1);
         ItemMeta meta = bottle.getItemMeta();
 
         meta.displayName(messages.get("death.xp-bottle-name", "levels", String.valueOf(levelAtDeath)));
         meta.lore(List.of(messages.get("death.xp-bottle-lore", "levels", String.valueOf(levelAtDeath))));
-        meta.getPersistentDataContainer().set(xpAmountKey, PersistentDataType.INTEGER, totalXp);
+        meta.getPersistentDataContainer().set(xpAmountKey, PersistentDataType.LONG, totalXp);
+        meta.getPersistentDataContainer().set(xpBottleOwnerKey, PersistentDataType.STRING, owner.getUniqueId().toString());
 
         bottle.setItemMeta(meta);
         return bottle;
     }
 
-    private int getTotalExperience(Player player, int level) {
+    /**
+     * Computed as {@code long} throughout, not {@code int} — the quadratic
+     * per-level XP cost grows fast enough that a very high-level player
+     * could otherwise silently overflow {@link Integer#MAX_VALUE} both
+     * here and in the stored bottle amount.
+     */
+    private long getTotalExperience(Player player, int level) {
         return getExpAtLevel(level) + Math.round(player.getExp() * getExpToNextLevel(level));
     }
 
-    private int getExpAtLevel(int level) {
+    private long getExpAtLevel(int level) {
         if (level <= 15) {
-            return (level * level) + (6 * level);
+            return (long) level * level + (6L * level);
         } else if (level <= 30) {
-            return (int) ((2.5 * level * level) - (40.5 * level) + 360);
+            return Math.round((2.5 * level * level) - (40.5 * level) + 360);
         } else {
-            return (int) ((4.5 * level * level) - (162.5 * level) + 2220);
+            return Math.round((4.5 * level * level) - (162.5 * level) + 2220);
         }
     }
 
-    private int getExpToNextLevel(int level) {
+    private long getExpToNextLevel(int level) {
         if (level <= 15) {
-            return 2 * level + 7;
+            return 2L * level + 7;
         } else if (level <= 30) {
-            return 5 * level - 38;
+            return 5L * level - 38;
         } else {
-            return 9 * level - 158;
+            return 9L * level - 158;
         }
     }
 
@@ -664,11 +620,6 @@ public class DeathChestManager implements Listener {
         }
     }
 
-    /**
-     * A double chest's InventoryHolder is a {@link DoubleChest}, not a
-     * {@link Chest} — this resolves either case to one underlying Chest so
-     * ownership can be read the same way regardless of chest size.
-     */
     private Chest resolveChest(InventoryHolder holder) {
         if (holder instanceof Chest chest) {
             return chest;
@@ -710,22 +661,6 @@ public class DeathChestManager implements Listener {
         }
     }
 
-    /**
-     * Verifies the block is still the exact chest we placed (it could have
-     * already been emptied and despawned by {@link #onClose}, or broken)
-     * before touching it — matching on the stored owner avoids destroying
-     * an unrelated chest someone else placed at the same coordinates.
-     *
-     * <p>Any current viewer is force-closed before contents are touched —
-     * without this, a player mid-transfer (holding an item on their cursor
-     * from this exact inventory) when this fires could end up with that item
-     * both dropped on the ground below AND still on their cursor, a partial
-     * duplication. Viewers are read from {@link Chest#getInventory()} (the
-     * merged double-chest inventory when applicable), not
-     * {@link Chest#getBlockInventory()}, since that's the actual inventory a
-     * player has open — closing only the raw single-block inventory wouldn't
-     * necessarily close the GUI they're really looking at.
-     */
     private boolean dropRemainingAndClear(Location location, UUID owner) {
         Block block = location.getBlock();
         if (block.getType() != Material.CHEST) {
@@ -738,8 +673,6 @@ public class DeathChestManager implements Listener {
             return false;
         }
 
-        // Copy the viewer list first — closing an inventory mutates the list we'd
-        // otherwise be iterating.
         new ArrayList<>(chestState.getInventory().getViewers()).forEach(HumanEntity::closeInventory);
 
         boolean droppedAnything = false;
@@ -754,14 +687,6 @@ public class DeathChestManager implements Listener {
         return droppedAnything;
     }
 
-    /**
-     * Finds a spot to place the primary chest: the death location itself if
-     * placeable and not hazardous, otherwise the closest such spot within
-     * {@link #SEARCH_RADIUS} blocks — same search shape as
-     * {@link fr.quentin.poppy.commands.DeathBackCommand}'s safe-spot search,
-     * but "placeable" here means the block is replaceable, not "safe to
-     * stand on".
-     */
     private Location findPlacementSpot(Location deathLocation, Player owner) {
         if (isPlaceable(deathLocation, owner)) {
             return centered(deathLocation);
@@ -792,13 +717,6 @@ public class DeathChestManager implements Listener {
         return best == null ? null : centered(best);
     }
 
-    /**
-     * Looks for a spot to place the second half of a double chest, only
-     * along {@link #EXTEND_FACES} — the two directions that actually merge
-     * with {@link #CHEST_FACING}. Any other direction would place a second,
-     * unrelated single chest right next to the first instead of a proper
-     * double chest.
-     */
     private Location findAdjacentSpot(Location primary, Player owner) {
         for (BlockFace face : EXTEND_FACES) {
             Location candidate = primary.clone().add(face.getDirection());
@@ -838,22 +756,6 @@ public class DeathChestManager implements Listener {
         return !isProtected(location, owner);
     }
 
-    /**
-     * Fires a simulated {@link BlockPlaceEvent} for the given location
-     * before any world mutation happens, so protection plugins
-     * (WorldGuard, GriefPrevention, Lands...) that listen on that event
-     * get a chance to cancel it — exactly as if the player had physically
-     * placed a chest there. Without this, {@code block.setType(...)}
-     * bypasses the whole protection plugin ecosystem entirely, since it
-     * mutates the world at the engine level with no event involved.
-     *
-     * <p>The block is not modified before this check — {@code replacedState}
-     * is a snapshot of the block's current (pre-placement) state, and
-     * {@code placedBlock} is the same {@link Block} reference the world
-     * still has as-is. Protection plugins check the location and the
-     * player, not the physical material, so this works without a
-     * temporary real placement and revert.
-     */
     private boolean isProtected(Location location, Player owner) {
         Block block = location.getBlock();
         BlockState replacedState = block.getState();
@@ -870,12 +772,6 @@ public class DeathChestManager implements Listener {
         return new Location(location.getWorld(), location.getBlockX(), location.getBlockY(), location.getBlockZ());
     }
 
-    /**
-     * Resolves an owner UUID string to a name for logging when no
-     * {@link Player} object is at hand (e.g. during expiry, or when the
-     * closer isn't the owner). Falls back to the raw UUID string if the
-     * name can't be resolved.
-     */
     private String ownerName(String ownerUuidString) {
         try {
             OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(UUID.fromString(ownerUuidString));

@@ -143,6 +143,7 @@ death:
   xp-bottle-name: "&eLevel &6{levels} &eBottle"
   xp-bottle-lore: "&7Right-click to regain your {levels} levels!"
   xp-restored: "&a[!] You feel your experience returning..."
+  xp-bottle-not-yours: "&4[!] This XP bottle doesn't belong to you!"
 
 sleep:
   status: "&e[!] {player} is now sleeping ({sleeping}/{total} players sleeping)"

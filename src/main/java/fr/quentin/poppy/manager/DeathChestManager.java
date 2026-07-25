@@ -21,6 +21,7 @@ import org.bukkit.block.data.type.Chest.Type;
 import org.bukkit.entity.HumanEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
@@ -331,7 +332,7 @@ public class DeathChestManager implements Listener {
      * also hands out a free chest item that could be farmed by repeatedly
      * dying and breaking each emptied chest.
      */
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBreak(@NonNull BlockBreakEvent event) {
         if (!config.deathChestEnabled()) {
             return;

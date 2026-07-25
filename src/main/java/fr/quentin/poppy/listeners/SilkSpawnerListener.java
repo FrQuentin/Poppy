@@ -14,6 +14,7 @@ import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
@@ -77,7 +78,7 @@ public class SilkSpawnerListener implements Listener {
         this.notifiedKey = new NamespacedKey(plugin, "silk_spawner_notified");
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBreak(@NonNull BlockBreakEvent event) {
         if (!config.silkSpawnerEnabled()) {
             return;

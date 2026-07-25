@@ -17,6 +17,8 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
+import org.bukkit.event.player.PlayerGameModeChangeEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.projectiles.ProjectileSource;
@@ -58,13 +60,28 @@ import java.util.logging.Level;
  * /fly users, visually telling them apart from someone flying because of
  * their gamemode.
  *
+ * <p><b>Rejoin/gamemode desync protection:</b> {@code allowFlight} is part
+ * of a player's persisted data, not something Bukkit resets on its own —
+ * so a naive quit handler that only forgot {@link #activeFly} without
+ * also clearing the actual flight flags would leave a player able to fly
+ * for free forever after reconnecting: untracked by this class, immune to
+ * the damage lockout and the combat-tag check, invisible to the particle
+ * ring. {@link #onQuit} force-clears both {@code allowFlight} and
+ * {@code isFlying} for anyone still in {@link #activeFly} before removing
+ * them. {@link #onJoin} additionally re-syncs on every login regardless of
+ * prior state: a Survival/Adventure player who isn't tracked in
+ * {@link #activeFly} always gets {@code allowFlight} forced off, closing
+ * the gap even for stale playerdata from before this fix existed, or from
+ * any other source. {@link #onGameModeChange} keeps things in sync the
+ * other way too: switching to Creative/Spectator drops the player from
+ * {@link #activeFly} (their flight becomes gamemode-native, no longer
+ * ours to manage), and switching *back* to Survival/Adventure forces
+ * {@code allowFlight} off unless they're still tracked as active.
+ *
  * <p>The post-damage lockout timer is deliberately <b>not</b> cleared on
  * quit — same reasoning as {@code FeedCommand}/{@code HealCommand}:
  * clearing it would let a player dodge the wait by disconnecting and
- * reconnecting. {@link #activeFly} itself IS cleared on quit (see
- * {@link #onQuit}), since Bukkit resets actual flight state on rejoin
- * anyway and there's no reason to keep tracking an offline player as
- * "currently flying".
+ * reconnecting.
  */
 public class FlyManager implements Listener {
 
@@ -217,9 +234,77 @@ public class FlyManager implements Listener {
         }
     }
 
+    /**
+     * Re-syncs flight state on every login, regardless of what this class
+     * remembers (it remembers nothing about an offline player) — a
+     * Survival/Adventure player always gets {@code allowFlight} forced
+     * off unless {@link #onQuit} is somehow bypassed (e.g. a server crash
+     * instead of a clean quit) or some other source set it. Creative and
+     * Spectator are left untouched, since their flight is gamemode-native.
+     */
+    @EventHandler
+    public void onJoin(@NonNull PlayerJoinEvent event) {
+        try {
+            Player player = event.getPlayer();
+            GameMode mode = player.getGameMode();
+
+            if (mode == GameMode.CREATIVE || mode == GameMode.SPECTATOR) {
+                return;
+            }
+
+            if (!activeFly.contains(player.getUniqueId()) && player.getAllowFlight()) {
+                player.setAllowFlight(false);
+                player.setFlying(false);
+            }
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE, "Error in FlyManager#onJoin for " + event.getPlayer().getName(), e);
+        }
+    }
+
+    /**
+     * Keeps {@link #activeFly} and the real flight flags in sync across a
+     * gamemode switch in either direction — see the class-level doc.
+     */
+    @EventHandler
+    public void onGameModeChange(@NonNull PlayerGameModeChangeEvent event) {
+        try {
+            Player player = event.getPlayer();
+            UUID uuid = player.getUniqueId();
+            GameMode newMode = event.getNewGameMode();
+
+            if (newMode == GameMode.CREATIVE || newMode == GameMode.SPECTATOR) {
+                // Their flight becomes gamemode-native from here on — no longer ours to
+                // manage or show particles for.
+                activeFly.remove(uuid);
+                return;
+            }
+
+            // Switching into Survival/Adventure: if they're not actively tracked as a
+            // /fly user, make sure allowFlight isn't left over from Creative/Spectator.
+            if (!activeFly.contains(uuid) && player.getAllowFlight()) {
+                player.setAllowFlight(false);
+                player.setFlying(false);
+            }
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE, "Error in FlyManager#onGameModeChange for " + event.getPlayer().getName(), e);
+        }
+    }
+
+    /**
+     * Force-clears the actual flight flags for anyone still tracked as an
+     * active /fly user before removing them — see the class-level doc for
+     * why leaving {@code allowFlight} as-is here would grant permanent
+     * free flight on the next login.
+     */
     @EventHandler
     public void onQuit(@NonNull PlayerQuitEvent event) {
-        activeFly.remove(event.getPlayer().getUniqueId());
+        Player player = event.getPlayer();
+        UUID uuid = player.getUniqueId();
+
+        if (activeFly.remove(uuid)) {
+            player.setAllowFlight(false);
+            player.setFlying(false);
+        }
     }
 
     /**

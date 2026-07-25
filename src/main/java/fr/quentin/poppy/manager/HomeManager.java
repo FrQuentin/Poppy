@@ -55,6 +55,7 @@ import java.util.logging.Level;
 public class HomeManager {
 
     public static final int MAX_HOMES = 54;
+    private static final long PENDING_WRITE_TIMEOUT_MILLIS = 2000L;
 
     private final JavaPlugin plugin;
     private final PoppyConfig config;
@@ -179,6 +180,22 @@ public class HomeManager {
         return homes;
     }
 
+    /**
+     * Waits for the most recently queued write for this UUID (if any) to
+     * finish before reading the file — see the class-level doc for why.
+     *
+     * <p>Bounded by {@link #PENDING_WRITE_TIMEOUT_MILLIS}: {@code load} runs
+     * on the main thread (called from {@link #getHomes} via
+     * {@code computeIfAbsent}, including for an offline player — e.g. when
+     * {@code /poppygoto} resolves a shared home), so waiting unboundedly on
+     * disk I/O here would freeze the whole server on a slow disk or a large
+     * file. On timeout, this gives up waiting and proceeds to read whatever
+     * is currently on disk rather than blocking further — in the rare case
+     * the write genuinely hasn't landed yet, the read could be a few
+     * milliseconds stale, which is an acceptable tradeoff against blocking
+     * the entire server. The pending write itself isn't cancelled; it keeps
+     * running on {@link #ioExecutor} and will still land eventually.
+     */
     private void awaitPendingWrite(UUID uuid) {
         Future<?> future = pendingWrites.remove(uuid);
         if (future == null) {
@@ -186,9 +203,12 @@ public class HomeManager {
         }
 
         try {
-            future.get();
+            future.get(PENDING_WRITE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
         } catch (CancellationException ignored) {
             // Nothing left to wait for.
+        } catch (TimeoutException e) {
+            plugin.getLogger().log(Level.WARNING,
+                    "Timed out waiting for a pending homes write for " + uuid + " — reading the file anyway, it may be briefly stale");
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             plugin.getLogger().log(Level.SEVERE, "Interrupted while waiting for a pending homes write for " + uuid, e);

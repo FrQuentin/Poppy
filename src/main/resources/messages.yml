@@ -159,3 +159,10 @@ heal:
 silkspawner:
   success: "&a[!] You picked up a {mob} Spawner!"
   blacklisted: "&4[!] {mob} spawners can't be picked up!"
+
+fly:
+  enabled: "&a[!] Flight enabled!"
+  disabled: "&4[!] Flight disabled!"
+  disabled-damage: "&4[!] Flight disabled because you took damage!"
+  disabled-attack: "&4[!] You just attacked {target} — your flight has been disabled!"
+  locked-out: "&4[!] You must wait {time} before flying again!"

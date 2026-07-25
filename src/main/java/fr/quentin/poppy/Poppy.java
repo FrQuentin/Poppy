@@ -56,6 +56,7 @@ public final class Poppy extends JavaPlugin {
         AfkManager afkManager = new AfkManager();
         DeathLocationManager deathLocationManager = new DeathLocationManager();
         DeathChestManager deathChestManager = new DeathChestManager(this, messages, config, poppyLogger);
+        FlyManager flyManager = new FlyManager(this, messages, config, combatManager);
 
         // Both created here (not inline at registerEvents time) since PoppyCommand
         // needs a reference to each to call reapply() from /poppy reload.
@@ -123,6 +124,8 @@ public final class Poppy extends JavaPlugin {
         Objects.requireNonNull(getCommand("feed")).setExecutor(new FeedCommand(this, messages, config));
         Objects.requireNonNull(getCommand("heal")).setExecutor(new HealCommand(this, messages, config));
 
+        Objects.requireNonNull(getCommand("fly")).setExecutor(new FlyCommand(this, flyManager, messages));
+
         getServer().getPluginManager().registerEvents(
                 new HomesGUIListener(this, homeManager, homesGUI, confirmDeleteGUI, confirmOverwriteGUI, teleportManager, messages, stats, poppyLogger), this);
         getServer().getPluginManager().registerEvents(teleportManager, this);
@@ -142,6 +145,7 @@ public final class Poppy extends JavaPlugin {
         getServer().getPluginManager().registerEvents(sleepPercentageListener, this);
         getServer().getPluginManager().registerEvents(new SleepStatusListener(this, messages, config, poppyLogger), this);
         getServer().getPluginManager().registerEvents(new SilkSpawnerListener(this, messages, config), this);
+        getServer().getPluginManager().registerEvents(flyManager, this);
 
         // Always scheduled now (rather than only if afk-auto-enabled at startup) —
         // AutoAfkTask checks the setting live each run, so it can be toggled via

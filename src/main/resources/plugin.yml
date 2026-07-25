@@ -111,6 +111,11 @@ commands:
     usage: /heal
     permission: poppy.heal
     permission-message: "&4[!] You don't have permission to do this."
+  fly:
+    description: Toggle flight, temporarily disabled after taking damage.
+    usage: /fly
+    permission: poppy.fly
+    permission-message: "&4[!] You don't have permission to do this."
 
 permissions:
   poppy.*:
@@ -138,6 +143,7 @@ permissions:
       poppy.feed: true
       poppy.heal: true
       poppy.silkspawner: true
+      poppy.fly: true
 
   poppy.sethome:
     description: Allows creating homes with /sethome.
@@ -214,3 +220,6 @@ permissions:
   poppy.silkspawner:
     description: Allows picking up mob spawners with Silk Touch.
     default: true
+  poppy.fly:
+    description: Allows toggling flight with /fly.
+    default: op

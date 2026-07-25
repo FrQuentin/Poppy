@@ -205,4 +205,8 @@ public final class PoppyConfig {
     public long sharehomeLockoutMillis() {
         return Math.max(0, plugin.getConfig().getInt("sharehome-lockout-seconds", 60)) * 1000L;
     }
+
+    public long flyLockoutMillis() {
+        return Math.max(0, plugin.getConfig().getInt("fly-lockout-seconds", 30)) * 1000L;
+    }
 }

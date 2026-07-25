@@ -18,6 +18,7 @@ import org.bukkit.block.Chest;
 import org.bukkit.block.DoubleChest;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.block.data.type.Chest.Type;
+import org.bukkit.entity.HumanEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -303,6 +304,14 @@ public class DeathChestManager implements Listener {
 
             String ownerString = chest.getPersistentDataContainer().get(ownerKey, PersistentDataType.STRING);
             if (ownerString == null) {
+                return;
+            }
+
+            // The chest may have already been removed by another code path (expiry,
+            // a bypass-permission break, etc.) between this close event being queued
+            // and handled here — re-check the live block rather than trusting the
+            // Chest snapshot, so we never attempt a redundant/racy removal.
+            if (chest.getBlock().getType() != Material.CHEST) {
                 return;
             }
 
@@ -705,6 +714,16 @@ public class DeathChestManager implements Listener {
      * already been emptied and despawned by {@link #onClose}, or broken)
      * before touching it — matching on the stored owner avoids destroying
      * an unrelated chest someone else placed at the same coordinates.
+     *
+     * <p>Any current viewer is force-closed before contents are touched —
+     * without this, a player mid-transfer (holding an item on their cursor
+     * from this exact inventory) when this fires could end up with that item
+     * both dropped on the ground below AND still on their cursor, a partial
+     * duplication. Viewers are read from {@link Chest#getInventory()} (the
+     * merged double-chest inventory when applicable), not
+     * {@link Chest#getBlockInventory()}, since that's the actual inventory a
+     * player has open — closing only the raw single-block inventory wouldn't
+     * necessarily close the GUI they're really looking at.
      */
     private boolean dropRemainingAndClear(Location location, UUID owner) {
         Block block = location.getBlock();
@@ -717,6 +736,10 @@ public class DeathChestManager implements Listener {
         if (ownerString == null || !ownerString.equals(owner.toString())) {
             return false;
         }
+
+        // Copy the viewer list first — closing an inventory mutates the list we'd
+        // otherwise be iterating.
+        new ArrayList<>(chestState.getInventory().getViewers()).forEach(HumanEntity::closeInventory);
 
         boolean droppedAnything = false;
         for (ItemStack item : chestState.getBlockInventory().getContents()) {

@@ -183,7 +183,11 @@ public class DeathChestManager implements Listener {
 
     private final Map<UUID, ChestData> chests = new HashMap<>();
     private final Set<UUID> chestsBeingRemoved = new HashSet<>();
-    private volatile boolean dirty = false;
+
+    // Not volatile: onChestClick/onChestDrag (event handlers) and flushIfDirty
+    // (via runTaskTimer, not runTaskTimerAsynchronously) all run on the main
+    // thread, so there's no cross-thread access to this flag to guard against.
+    private boolean dirty = false;
 
     private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor(runnable -> {
         Thread thread = new Thread(runnable, "Poppy-DeathChest-IO");
@@ -251,13 +255,10 @@ public class DeathChestManager implements Listener {
             UUID id = UUID.randomUUID();
             placeChestBlock(spot, id);
 
-            ChestData data = createChestData(id, player.getUniqueId(), player.getName(), spot, System.currentTimeMillis(), List.of());
+            ChestData data = createChestData(id, player.getUniqueId(), player.getName(), spot, System.currentTimeMillis());
             chests.put(id, data);
 
-            List<ItemStack> overflow = new ArrayList<>();
-            for (ItemStack item : plannedDrops) {
-                overflow.addAll(data.inventory.addItem(item).values());
-            }
+            List<ItemStack> overflow = fillInventory(data.inventory(), plannedDrops);
             for (ItemStack item : overflow) {
                 player.getWorld().dropItemNaturally(spot, item);
             }
@@ -786,7 +787,22 @@ public class DeathChestManager implements Listener {
         if (!world.isChunkLoaded(location.getBlockX() >> 4, location.getBlockZ() >> 4)) {
             return;
         }
-        if (chestIdOf(location.getBlock()) != null) {
+
+        Block block = location.getBlock();
+        if (chestIdOf(block) != null) {
+            return;
+        }
+
+        if (!block.getBlockData().isReplaceable()) {
+            // Someone built at this exact spot while the marker block was missing
+            // (server was off, WorldEdit, chunk regen, etc.) — don't destroy a
+            // legitimate player-placed block just to force the chest marker back.
+            // The items stay safe in the virtual inventory regardless; they remain
+            // reachable via expiry (dropped on the ground) rather than by silently
+            // overwriting someone's build.
+            plugin.getLogger().warning("Could not re-create a missing death chest block at "
+                    + world.getName() + ": " + location.getBlockX() + ", " + location.getBlockY() + ", " + location.getBlockZ()
+                    + " — occupied by a non-replaceable block (" + block.getType() + ")");
             return;
         }
 
@@ -795,25 +811,11 @@ public class DeathChestManager implements Listener {
                 + world.getName() + ": " + location.getBlockX() + ", " + location.getBlockY() + ", " + location.getBlockZ());
     }
 
-    private ChestData createChestData(UUID id, UUID owner, String ownerName, Location location, long createdAt, List<ItemStack> initialItems) {
+    private ChestData createChestData(UUID id, UUID owner, String ownerName, Location location, long createdAt) {
         DeathChestHolder holder = new DeathChestHolder(id);
         Inventory inventory = Bukkit.createInventory(holder, VIRTUAL_INVENTORY_SIZE,
                 messages.get("death.chest-gui-title", "player", ownerName));
         holder.setInventory(inventory);
-
-        List<ItemStack> overflow = new ArrayList<>();
-        for (ItemStack item : initialItems) {
-            overflow.addAll(inventory.addItem(item).values());
-        }
-
-        for (ItemStack item : overflow) {
-            // Only realistically hit when loadAll restores a corrupted/hand-edited
-            // deathchests.yml with more than 54 unique, non-stackable entries — onDeath
-            // itself never overfills VIRTUAL_INVENTORY_SIZE since it drops its own
-            // overflow before ever calling this method. Dropped at the chest's own
-            // location rather than silently discarded, so nothing just vanishes.
-            location.getWorld().dropItemNaturally(location, item);
-        }
 
         return new ChestData(id, owner, ownerName, location, createdAt, inventory);
     }
@@ -906,6 +908,20 @@ public class DeathChestManager implements Listener {
     }
 
     /**
+     * Adds each item to the inventory, returning whatever didn't fit — shared
+     * by {@link #onDeath} and {@link #loadAll}, which each decide separately
+     * what to do with the overflow (drop immediately vs. defer — see their
+     * respective call sites).
+     */
+    private List<ItemStack> fillInventory(Inventory inventory, List<ItemStack> items) {
+        List<ItemStack> overflow = new ArrayList<>();
+        for (ItemStack item : items) {
+            overflow.addAll(inventory.addItem(item).values());
+        }
+        return overflow;
+    }
+
+    /**
      * Fires a simulated {@link BlockPlaceEvent} before any world mutation
      * happens, so protection plugins get a chance to refuse it. The
      * constructor used here is marked {@code @ApiStatus.Internal} by
@@ -927,6 +943,37 @@ public class DeathChestManager implements Listener {
         Bukkit.getPluginManager().callEvent(placeEvent);
 
         return placeEvent.isCancelled() || !placeEvent.canBuild();
+    }
+
+    /**
+     * Builds the persisted snapshot — shared by {@link #persistAll} and
+     * {@link #persistAllSync} so the clone-on-main-thread logic (see the
+     * class-level doc on {@code ItemStack} thread-safety) only exists in one
+     * place, not duplicated and at risk of drifting between the two callers.
+     */
+    private YamlConfiguration buildSnapshot() {
+        YamlConfiguration yaml = new YamlConfiguration();
+
+        for (ChestData data : chests.values()) {
+            String base = "chests." + data.id();
+            yaml.set(base + ".owner", data.owner().toString());
+            yaml.set(base + ".owner-name", data.ownerName());
+            yaml.set(base + ".world", data.location().getWorld().getName());
+            yaml.set(base + ".x", data.location().getBlockX());
+            yaml.set(base + ".y", data.location().getBlockY());
+            yaml.set(base + ".z", data.location().getBlockZ());
+            yaml.set(base + ".created", data.createdAt());
+
+            List<ItemStack> items = new ArrayList<>();
+            for (ItemStack item : data.inventory().getContents()) {
+                if (item != null) {
+                    items.add(item.clone());
+                }
+            }
+            yaml.set(base + ".items", items);
+        }
+
+        return yaml;
     }
 
     private Location centered(Location location) {
@@ -998,8 +1045,22 @@ public class DeathChestManager implements Listener {
                     }
                 }
 
-                ChestData data = createChestData(id, owner, ownerName, location, createdAt, items);
+                ChestData data = createChestData(id, owner, ownerName, location, createdAt);
                 chests.put(id, data);
+
+                List<ItemStack> overflow = fillInventory(data.inventory(), items);
+                if (!overflow.isEmpty()) {
+                    // Deferred a tick, not dropped immediately: loadAll runs from the
+                    // constructor, very early in onEnable — dropping now could operate on a
+                    // world/chunk that isn't fully ready yet. Only reachable with a
+                    // corrupted/hand-edited deathchests.yml holding more than 54 unique,
+                    // non-stackable entries for a single chest.
+                    Bukkit.getScheduler().runTask(plugin, () -> {
+                        for (ItemStack item : overflow) {
+                            location.getWorld().dropItemNaturally(location, item);
+                        }
+                    });
+                }
 
                 ensureBlockPresent(data);
 
@@ -1028,32 +1089,7 @@ public class DeathChestManager implements Listener {
      * {@link HomeManager#save}.
      */
     private void persistAll() {
-        YamlConfiguration yaml = new YamlConfiguration();
-
-        for (ChestData data : chests.values()) {
-            String base = "chests." + data.id();
-            yaml.set(base + ".owner", data.owner().toString());
-            yaml.set(base + ".world", data.location().getWorld().getName());
-            yaml.set(base + ".x", data.location().getBlockX());
-            yaml.set(base + ".y", data.location().getBlockY());
-            yaml.set(base + ".z", data.location().getBlockZ());
-            yaml.set(base + ".created", data.createdAt());
-
-            // Cloned on the main thread, right here, before ever handing anything to
-            // ioExecutor — see the class-level doc on why this matters: without it,
-            // the async write thread would read these ItemStack objects while the
-            // main thread could still be mutating the same live inventory
-            // (withdrawing/adding items), an unsynchronized concurrent read/write on
-            // objects that aren't thread-safe.
-            List<ItemStack> items = new ArrayList<>();
-            for (ItemStack item : data.inventory().getContents()) {
-                if (item != null) {
-                    items.add(item.clone());
-                }
-            }
-            yaml.set(base + ".items", items);
-        }
-
+        YamlConfiguration yaml = buildSnapshot();
         try {
             ioExecutor.submit(() -> writeAtomically(yaml, storageFile()));
         } catch (RejectedExecutionException e) {
@@ -1067,25 +1103,7 @@ public class DeathChestManager implements Listener {
      * everything is on disk before the plugin (and likely the JVM) exits.
      */
     private void persistAllSync() {
-        YamlConfiguration yaml = new YamlConfiguration();
-
-        for (ChestData data : chests.values()) {
-            String base = "chests." + data.id();
-            yaml.set(base + ".owner", data.owner().toString());
-            yaml.set(base + ".world", data.location().getWorld().getName());
-            yaml.set(base + ".x", data.location().getBlockX());
-            yaml.set(base + ".y", data.location().getBlockY());
-            yaml.set(base + ".z", data.location().getBlockZ());
-            yaml.set(base + ".created", data.createdAt());
-
-            List<ItemStack> items = new ArrayList<>();
-            for (ItemStack item : data.inventory().getContents()) {
-                if (item != null) {
-                    items.add(item.clone());
-                }
-            }
-            yaml.set(base + ".items", items);
-        }
+        YamlConfiguration yaml = buildSnapshot();
 
         try {
             Future<?> future = ioExecutor.submit(() -> writeAtomically(yaml, storageFile()));
@@ -1142,6 +1160,20 @@ public class DeathChestManager implements Listener {
      * without an explicit cancel, a stray {@link #flushIfDirty} tick could
      * still fire after {@code ioExecutor} is closed and hit a (harmless but
      * noisy) {@link RejectedExecutionException}.
+     *
+     * <p>Ordering subtlety worth spelling out: closing a viewer below fires
+     * {@link InventoryCloseEvent} synchronously, which for an emptied chest
+     * calls {@link #removeChest} → {@link #persistAll()} — an <b>async</b>
+     * submission to {@link #ioExecutor}. That happens before this method's
+     * own {@link #persistAllSync()} call further down submits its own write.
+     * Because {@link #ioExecutor} is single-threaded and FIFO, the
+     * removeChest write is guaranteed to run first; {@code persistAllSync}'s
+     * {@code future.get()} only waits for its own submission, but the
+     * subsequent {@code awaitTermination} call drains the entire remaining
+     * queue — including that earlier async write — before returning. So both
+     * writes are guaranteed to land before this method returns, but only
+     * because of that combination; do not remove the {@code awaitTermination}
+     * call from {@link #persistAllSync()} without re-verifying this holds.
      */
     public void shutdown() {
         if (flushTask != null) {

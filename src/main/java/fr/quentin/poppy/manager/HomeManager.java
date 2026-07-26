@@ -72,8 +72,8 @@ public class HomeManager {
         this.plugin = plugin;
         this.config = config;
         this.homesFolder = new File(plugin.getDataFolder(), "homes");
-        if (!homesFolder.exists()) {
-            homesFolder.mkdirs();
+        if (!homesFolder.exists() && !homesFolder.mkdirs()) {
+            plugin.getLogger().warning("Could not create the homes folder: " + homesFolder);
         }
     }
 
@@ -299,7 +299,7 @@ public class HomeManager {
     }
 
     public int countPlayersWithHomes() {
-        File[] files = homesFolder.listFiles((dir, name) -> name.endsWith(".yml"));
+        File[] files = homesFolder.listFiles((_, name) -> name.endsWith(".yml"));
         if (files == null) {
             return 0;
         }
@@ -314,7 +314,7 @@ public class HomeManager {
     }
 
     public int countTotalHomes() {
-        File[] files = homesFolder.listFiles((dir, name) -> name.endsWith(".yml"));
+        File[] files = homesFolder.listFiles((_, name) -> name.endsWith(".yml"));
         if (files == null) {
             return 0;
         }
@@ -361,7 +361,7 @@ public class HomeManager {
      * Docker overlay filesystems, some network mounts),
      * {@link AtomicMoveNotSupportedException} falls back to a plain move.
      */
-    protected void writeToDisk(YamlConfiguration config, File file, UUID uuid) {
+    private void writeToDisk(YamlConfiguration config, File file, UUID uuid) {
         File tempFile = new File(file.getParentFile(), file.getName() + ".tmp");
 
         try {
@@ -374,7 +374,9 @@ public class HomeManager {
             }
         } catch (IOException e) {
             plugin.getLogger().log(Level.SEVERE, "Could not save homes for " + uuid, e);
-            tempFile.delete();
+            if (!tempFile.delete()) {
+                plugin.getLogger().log(Level.WARNING, "Could not delete leftover temp file: " + tempFile);
+            }
         }
     }
 

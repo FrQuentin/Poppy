@@ -90,7 +90,7 @@ public class Messages {
 
         return result.replaceText(TextReplacementConfig.builder()
                 .match(combinedPattern)
-                .replacement((matchResult, builder) -> {
+                .replacement((matchResult, _) -> {
                     // Inserted as a plain, unparsed text leaf — never re-run through the
                     // legacy color-code deserializer, so a substituted value can't inject
                     // its own formatting.

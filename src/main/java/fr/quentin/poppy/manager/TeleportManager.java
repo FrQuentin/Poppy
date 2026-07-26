@@ -170,9 +170,6 @@ public class TeleportManager implements Listener {
             }
 
             Location to = event.getTo();
-            if (to == null) {
-                return;
-            }
 
             if (from.getBlockX() != to.getBlockX() || from.getBlockY() != to.getBlockY() || from.getBlockZ() != to.getBlockZ()) {
                 cancelPending(uuid);

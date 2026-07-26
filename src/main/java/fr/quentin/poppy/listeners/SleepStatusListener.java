@@ -118,8 +118,7 @@ public class SleepStatusListener implements Listener {
                     continue;
                 }
 
-                Boolean advanceTime = world.getGameRuleValue(GameRules.ADVANCE_TIME);
-                if (advanceTime == null || !advanceTime) {
+                if (!world.getGameRuleValue(GameRules.ADVANCE_TIME)) {
                     continue;
                 }
 

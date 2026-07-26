@@ -133,7 +133,7 @@ public class RtpCommand extends SafeCommand implements Listener {
         int z = (int) (center.getZ() + Math.sin(angle) * distance);
 
         world.getChunkAtAsync(x >> 4, z >> 4)
-                .thenAccept(chunk -> handleChunkLoaded(player, world, x, z, center, attemptsLeft))
+                .thenRun(() -> handleChunkLoaded(player, world, x, z, center, attemptsLeft))
                 .exceptionally(throwable -> {
                     // thenAccept runs after execute(...) has already returned, so this is
                     // outside SafeCommand's try/catch — without this handler an exception

@@ -168,7 +168,7 @@ public class TabHealthListener implements Listener {
 
         Component listName = prefix
                 .append(player.displayName())
-                .append(Component.text("  \u2764 " + heartsText, color));
+                .append(Component.text("  ❤ " + heartsText, color));
 
         player.playerListName(listName);
     }

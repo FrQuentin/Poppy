@@ -62,8 +62,8 @@ public class PoppyLogger {
         this.plugin = plugin;
         this.config = config;
         this.logsFolder = new File(plugin.getDataFolder(), "logs");
-        if (!logsFolder.exists()) {
-            logsFolder.mkdirs();
+        if (!logsFolder.exists() && !logsFolder.mkdirs()) {
+            plugin.getLogger().warning("Could not create the logs folder: " + logsFolder);
         }
     }
 
@@ -90,7 +90,14 @@ public class PoppyLogger {
 
     /**
      * Only ever runs on {@link #ioExecutor}'s single thread.
+     *
+     * <p>{@link #writer} is deliberately not opened via try-with-resources —
+     * it's a class field kept open across calls (see {@link #writerForToday}),
+     * closed explicitly on rotation or {@link #shutdown()}, not after every
+     * single line. Wrapping it here would defeat that and reopen the file
+     * per line, which is exactly what the field is meant to avoid.
      */
+    @SuppressWarnings("resource")
     private void writeLine(String line) {
         try {
             BufferedWriter activeWriter = writerForToday();

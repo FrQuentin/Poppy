@@ -152,7 +152,9 @@ public class SpawnManager {
             }
         } catch (IOException e) {
             plugin.getLogger().log(Level.SEVERE, "Could not save spawn.yml", e);
-            tempFile.delete();
+            if (!tempFile.delete()) {
+                plugin.getLogger().log(Level.WARNING, "Could not delete leftover temp file: " + tempFile);
+            }
         }
     }
 }

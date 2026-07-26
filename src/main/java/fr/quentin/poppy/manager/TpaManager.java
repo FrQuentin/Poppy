@@ -39,10 +39,10 @@ public class TpaManager {
     public void createRequest(UUID target, UUID requester, Type type) {
         cancelExpiry(target, requester);
 
-        requestsByTarget.computeIfAbsent(target, key -> new HashMap<>()).put(requester, new Request(requester, type));
+        requestsByTarget.computeIfAbsent(target, _ -> new HashMap<>()).put(requester, new Request(requester, type));
 
         BukkitTask task = Bukkit.getScheduler().runTaskLater(plugin, () -> expire(target, requester), config.tpaExpirySeconds() * 20L);
-        expiryTasks.computeIfAbsent(target, key -> new HashMap<>()).put(requester, task);
+        expiryTasks.computeIfAbsent(target, _ -> new HashMap<>()).put(requester, task);
     }
 
     public Request findRequestByName(UUID target, String requesterName) {

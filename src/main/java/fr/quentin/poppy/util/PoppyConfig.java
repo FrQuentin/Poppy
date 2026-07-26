@@ -83,6 +83,7 @@ public final class PoppyConfig {
         return plugin.getConfig().getBoolean("custom-quit-message", true);
     }
 
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     public boolean showHealthInTab() {
         return plugin.getConfig().getBoolean("show-health-in-tab", true);
     }
@@ -111,14 +112,11 @@ public final class PoppyConfig {
         return plugin.getConfig().getBoolean("custom-unknown-command-message", true);
     }
 
-    public boolean startupStatsEnabled() {
-        return plugin.getConfig().getBoolean("startup-stats-enabled", true);
-    }
-
     public boolean deathCoordsEnabled() {
         return plugin.getConfig().getBoolean("death-coords-enabled", true);
     }
 
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     public boolean deathChestEnabled() {
         return plugin.getConfig().getBoolean("death-chest-enabled", true);
     }
@@ -147,6 +145,7 @@ public final class PoppyConfig {
         return Math.clamp(plugin.getConfig().getInt("sleep-percentage", 50), 0, 100);
     }
 
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     public boolean sleepStatusMessageEnabled() {
         return plugin.getConfig().getBoolean("sleep-status-message-enabled", true);
     }
@@ -190,6 +189,7 @@ public final class PoppyConfig {
         return Math.max(0, plugin.getConfig().getInt("heal-cooldown-seconds", 180)) * 1000L;
     }
 
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     public boolean silkSpawnerEnabled() {
         return plugin.getConfig().getBoolean("silkspawner-enabled", true);
     }

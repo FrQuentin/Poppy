@@ -198,7 +198,7 @@ public class SilkSpawnerListener implements Listener {
         String[] parts = entityType.name().split("_");
         StringBuilder builder = new StringBuilder();
         for (String part : parts) {
-            if (builder.length() > 0) {
+            if (!builder.isEmpty()) {
                 builder.append(' ');
             }
             builder.append(part.substring(0, 1).toUpperCase(Locale.ROOT));

@@ -53,9 +53,6 @@ public class AfkListener implements Listener {
 
             Location from = event.getFrom();
             Location to = event.getTo();
-            if (to == null) {
-                return;
-            }
 
             if (from.getBlockX() == to.getBlockX() && from.getBlockY() == to.getBlockY() && from.getBlockZ() == to.getBlockZ()) {
                 return;

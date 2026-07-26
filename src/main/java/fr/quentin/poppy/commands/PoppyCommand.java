@@ -62,10 +62,12 @@ public class PoppyCommand extends SafeCommand implements TabCompleter {
     @Override
     protected boolean execute(@NonNull CommandSender sender, @NonNull Command command, @NonNull String label, String @NonNull [] args) {
         if (args.length == 1 && args[0].equalsIgnoreCase("reload")) {
-            return handleReload(sender);
+            handleReload(sender);
+            return true;
         }
 
-        return handleEasterEgg(sender);
+        handleEasterEgg(sender);
+        return true;
     }
 
     @Override
@@ -82,10 +84,10 @@ public class PoppyCommand extends SafeCommand implements TabCompleter {
         return List.of("reload");
     }
 
-    private boolean handleReload(CommandSender sender) {
+    private void handleReload(CommandSender sender) {
         if (!sender.hasPermission("poppy.reload")) {
             sender.sendMessage(messages.get("general.no-permission"));
-            return true;
+            return;
         }
 
         config.reload();
@@ -97,19 +99,18 @@ public class PoppyCommand extends SafeCommand implements TabCompleter {
         logger.log(PoppyLogger.Category.ADMIN, actorName, "reloaded config.yml and messages.yml");
 
         sender.sendMessage(messages.get("poppy.reload-success"));
-        return true;
     }
 
-    private boolean handleEasterEgg(CommandSender sender) {
+    private void handleEasterEgg(CommandSender sender) {
         Player player = requirePlayer(sender);
         if (player == null) {
-            return true;
+            return;
         }
 
         GameMode gameMode = player.getGameMode();
         if (gameMode != GameMode.SURVIVAL && gameMode != GameMode.CREATIVE) {
             player.sendMessage(messages.get("poppy.wrong-gamemode"));
-            return true;
+            return;
         }
 
         boolean creative = gameMode == GameMode.CREATIVE;
@@ -117,12 +118,12 @@ public class PoppyCommand extends SafeCommand implements TabCompleter {
 
         if (!creative && !player.getInventory().containsAtLeast(poppy, 1)) {
             player.sendMessage(messages.get("poppy.no-poppy"));
-            return true;
+            return;
         }
 
         Block feetBlock = player.getLocation().getBlock();
         BlockData poppyData = Material.POPPY.createBlockData();
-        boolean canPlaceHere = feetBlock.canPlace(poppyData) && !isProtected(feetBlock, poppyData, player);
+        boolean canPlaceHere = feetBlock.canPlace(poppyData) && !isProtected(feetBlock, player);
 
         if (!creative) {
             player.getInventory().removeItem(poppy);
@@ -139,7 +140,6 @@ public class PoppyCommand extends SafeCommand implements TabCompleter {
         logger.log(PoppyLogger.Category.EASTER_EGG, player, "used /poppy (" + (canPlaceHere ? "placed as block" : "dropped as item") + ")");
 
         player.sendMessage(messages.get("poppy.success"));
-        return true;
     }
 
     /**
@@ -148,15 +148,20 @@ public class PoppyCommand extends SafeCommand implements TabCompleter {
      * Lands...) that listen on that event get a chance to cancel it —
      * exactly as if the player had physically placed a poppy there. Same
      * approach as {@code DeathChestManager#isProtected}.
+     *
+     * <p>The {@link BlockPlaceEvent} constructor used here is marked
+     * {@code @ApiStatus.Internal} by Paper — there's no stable public
+     * alternative for simulating a place event from plugin code. Accepted
+     * since verifying protection before this placement matters more than
+     * the (small) risk of Paper changing the signature in a future version.
      */
-    private boolean isProtected(Block block, BlockData placedData, Player player) {
+    @SuppressWarnings("UnstableApiUsage")
+    private boolean isProtected(Block block, Player player) {
         BlockState replacedState = block.getState();
         Block placedAgainst = block.getRelative(BlockFace.DOWN);
         ItemStack poppyItem = new ItemStack(Material.POPPY);
-
         BlockPlaceEvent placeEvent = new BlockPlaceEvent(block, replacedState, placedAgainst, poppyItem, player, true, EquipmentSlot.HAND);
         Bukkit.getPluginManager().callEvent(placeEvent);
-
         return placeEvent.isCancelled() || !placeEvent.canBuild();
     }
 }

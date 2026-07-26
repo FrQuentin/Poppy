@@ -315,27 +315,33 @@ public class DeathChestManager implements Listener {
                 return;
             }
 
-            boolean isOwner = data.owner.equals(player.getUniqueId());
+            if (isExpired(data)) {
+                expireIfPresent(id);
+                player.sendMessage(messages.get("death.chest-not-yours"));
+                return;
+            }
+
+            boolean isOwner = data.owner().equals(player.getUniqueId());
             boolean bypass = player.hasPermission("poppy.deathchest.bypass");
 
             if (config.deathChestProtect() && !isOwner && !bypass) {
                 logger.log(PoppyLogger.Category.DEATH_CHEST, player,
-                        "attempted to open a death chest owned by " + ownerNameOf(data.owner) + " (denied)");
+                        "attempted to open a death chest owned by " + ownerNameOf(data.owner()) + " (denied)");
                 player.sendMessage(messages.get("death.chest-not-yours"));
                 return;
             }
 
             if (!isOwner) {
                 logger.log(PoppyLogger.Category.ADMIN, player,
-                        "opened a death chest owned by " + ownerNameOf(data.owner) + " using bypass permission");
+                        "opened a death chest owned by " + ownerNameOf(data.owner()) + " using bypass permission");
             }
 
-            player.openInventory(data.inventory);
+            player.openInventory(data.inventory());
             // Right-click is intercepted (setUseInteractedBlock DENY above), so vanilla's
             // own chest-open sound never fires — this replaces it manually. Played via
             // the world (not just to the opener), matching how a real chest's sound is
             // audible to nearby players too.
-            data.location.getWorld().playSound(data.location, Sound.BLOCK_CHEST_OPEN, 0.5f, 1.0f);
+            data.location().getWorld().playSound(data.location(), Sound.BLOCK_CHEST_OPEN, 0.5f, 1.0f);
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Error in DeathChestManager#onInteract for " + event.getPlayer().getName(), e);
         }
@@ -615,6 +621,11 @@ public class DeathChestManager implements Listener {
             return;
         }
         expireIfPresent(data.id);
+    }
+
+    private boolean isExpired(ChestData data) {
+        long expiryMillis = config.deathChestExpiryMillis();
+        return expiryMillis > 0 && System.currentTimeMillis() - data.createdAt() >= expiryMillis;
     }
 
     private boolean locationInChunk(Location location, Chunk chunk) {

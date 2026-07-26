@@ -45,6 +45,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scheduler.BukkitTask;
 import org.jspecify.annotations.NonNull;
 
 import java.io.File;
@@ -190,6 +191,8 @@ public class DeathChestManager implements Listener {
         return thread;
     });
 
+    private final BukkitTask flushTask;
+
     public DeathChestManager(JavaPlugin plugin, Messages messages, PoppyConfig config, PoppyLogger logger) {
         this.plugin = plugin;
         this.messages = messages;
@@ -201,7 +204,7 @@ public class DeathChestManager implements Listener {
 
         loadAll();
         scanAlreadyLoadedChunks();
-        Bukkit.getScheduler().runTaskTimer(plugin, this::flushIfDirty, 20L, 20L);
+        flushTask = Bukkit.getScheduler().runTaskTimer(plugin, this::flushIfDirty, 20L, 20L);
     }
 
     @EventHandler
@@ -399,11 +402,17 @@ public class DeathChestManager implements Listener {
      */
     @EventHandler(priority = EventPriority.MONITOR)
     public void onChestClick(@NonNull InventoryClickEvent event) {
+        if (event.isCancelled()) {
+            return;
+        }
         markDirtyIfDeathChest(event.getInventory().getHolder());
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onChestDrag(@NonNull InventoryDragEvent event) {
+        if (event.isCancelled()) {
+            return;
+        }
         markDirtyIfDeathChest(event.getInventory().getHolder());
     }
 
@@ -1030,10 +1039,16 @@ public class DeathChestManager implements Listener {
             yaml.set(base + ".z", data.location().getBlockZ());
             yaml.set(base + ".created", data.createdAt());
 
+            // Cloned on the main thread, right here, before ever handing anything to
+            // ioExecutor — see the class-level doc on why this matters: without it,
+            // the async write thread would read these ItemStack objects while the
+            // main thread could still be mutating the same live inventory
+            // (withdrawing/adding items), an unsynchronized concurrent read/write on
+            // objects that aren't thread-safe.
             List<ItemStack> items = new ArrayList<>();
             for (ItemStack item : data.inventory().getContents()) {
                 if (item != null) {
-                    items.add(item);
+                    items.add(item.clone());
                 }
             }
             yaml.set(base + ".items", items);
@@ -1066,7 +1081,7 @@ public class DeathChestManager implements Listener {
             List<ItemStack> items = new ArrayList<>();
             for (ItemStack item : data.inventory().getContents()) {
                 if (item != null) {
-                    items.add(item);
+                    items.add(item.clone());
                 }
             }
             yaml.set(base + ".items", items);
@@ -1120,8 +1135,19 @@ public class DeathChestManager implements Listener {
      * a chest whose virtual inventory was open at shutdown time (a player
      * mid-withdrawal, or a {@code /reload}) would have any changes since the
      * last flush never guaranteed written to disk before the JVM exits.
+     *
+     * <p>{@link #flushTask} is cancelled first, before {@link #ioExecutor} is
+     * shut down by {@link #persistAllSync()} — Bukkit's own scheduler stopping
+     * at plugin disable isn't guaranteed to race ahead of this method, so
+     * without an explicit cancel, a stray {@link #flushIfDirty} tick could
+     * still fire after {@code ioExecutor} is closed and hit a (harmless but
+     * noisy) {@link RejectedExecutionException}.
      */
     public void shutdown() {
+        if (flushTask != null) {
+            flushTask.cancel();
+        }
+
         for (ChestData data : chests.values()) {
             new ArrayList<>(data.inventory().getViewers()).forEach(HumanEntity::closeInventory);
         }

@@ -567,28 +567,35 @@ public class DeathChestManager implements Listener {
     }
 
     private void scanAlreadyLoadedChunks() {
-        if (config.deathChestExpiryMillis() <= 0) {
-            return;
-        }
         for (ChestData data : new ArrayList<>(chests.values())) {
-            checkExpiryIfChunkLoaded(data);
+            ensureBlockPresent(data);
+
+            if (config.deathChestExpiryMillis() > 0) {
+                checkExpiryIfChunkLoaded(data);
+            }
         }
     }
 
     @EventHandler
     public void onChunkLoad(@NonNull ChunkLoadEvent event) {
-        if (!config.deathChestEnabled() || config.deathChestExpiryMillis() <= 0) {
+        if (!config.deathChestEnabled()) {
             return;
         }
         try {
             Chunk chunk = event.getChunk();
             for (ChestData data : new ArrayList<>(chests.values())) {
-                if (locationInChunk(data.location, chunk)) {
+                if (!locationInChunk(data.location(), chunk)) {
+                    continue;
+                }
+
+                ensureBlockPresent(data);
+
+                if (config.deathChestExpiryMillis() > 0) {
                     checkExpiry(data);
                 }
             }
         } catch (Exception e) {
-            plugin.getLogger().log(Level.SEVERE, "Error scanning chunk for expired death chests", e);
+            plugin.getLogger().log(Level.SEVERE, "Error scanning chunk for death chests", e);
         }
     }
 
@@ -714,6 +721,39 @@ public class DeathChestManager implements Listener {
         if (expectedId.equals(chestIdOf(block))) {
             block.setType(Material.AIR);
         }
+    }
+
+    /**
+     * Verifies the cosmetic chest block still exists at a chest's recorded
+     * location, and re-places it if not — only when the chunk is actually
+     * loaded, to avoid forcing a synchronous chunk load just to check a
+     * block. Without this, a block removed while the server was off (map
+     * edits, WorldEdit, chunk regeneration, another plugin) would leave the
+     * chest's items permanently stored but unreachable: {@link #chests} and
+     * {@code deathchests.yml} still know about them, but there's nothing
+     * left to right-click. The old block-is-the-source-of-truth design
+     * didn't have this problem; the virtual-inventory rewrite trades that
+     * away in exchange for the anti-duplication guarantees, so this repair
+     * step closes the gap it opens. Called from both {@link #loadAll} (for
+     * chunks already loaded at startup) and {@link #onChunkLoad} (for
+     * everything else, as chunks load later).
+     */
+    private void ensureBlockPresent(ChestData data) {
+        Location location = data.location();
+        World world = location.getWorld();
+        if (world == null) {
+            return;
+        }
+        if (!world.isChunkLoaded(location.getBlockX() >> 4, location.getBlockZ() >> 4)) {
+            return;
+        }
+        if (chestIdOf(location.getBlock()) != null) {
+            return;
+        }
+
+        placeChestBlock(location, data.id());
+        plugin.getLogger().info("Re-created a missing death chest block at "
+                + world.getName() + ": " + location.getBlockX() + ", " + location.getBlockY() + ", " + location.getBlockZ());
     }
 
     private ChestData createChestData(UUID id, UUID owner, Location location, long createdAt, List<ItemStack> initialItems) {
@@ -898,6 +938,8 @@ public class DeathChestManager implements Listener {
 
                 ChestData data = createChestData(id, owner, location, createdAt, items);
                 chests.put(id, data);
+
+                ensureBlockPresent(data);
 
                 long expiryMillis = config.deathChestExpiryMillis();
                 if (expiryMillis > 0) {

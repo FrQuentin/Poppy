@@ -33,7 +33,9 @@ import org.bukkit.event.block.BlockPistonRetractEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.inventory.EquipmentSlot;
@@ -175,6 +177,7 @@ public class DeathChestManager implements Listener {
 
     private final Map<UUID, ChestData> chests = new HashMap<>();
     private final Set<UUID> chestsBeingRemoved = new HashSet<>();
+    private volatile boolean dirty = false;
 
     public DeathChestManager(JavaPlugin plugin, Messages messages, PoppyConfig config, PoppyLogger logger) {
         this.plugin = plugin;
@@ -187,6 +190,7 @@ public class DeathChestManager implements Listener {
 
         loadAll();
         scanAlreadyLoadedChunks();
+        Bukkit.getScheduler().runTaskTimer(plugin, this::flushIfDirty, 20L, 20L);
     }
 
     @EventHandler
@@ -359,6 +363,54 @@ public class DeathChestManager implements Listener {
             }
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Error in DeathChestManager#onClose", e);
+        }
+    }
+
+    /**
+     * Marks the death chest storage dirty on any click inside a death
+     * chest's virtual inventory — {@link #flushIfDirty} then persists at
+     * most once per second regardless of how many clicks happen in that
+     * window. This bounds the window in which a hard crash (not a clean
+     * shutdown, where {@link #shutdown()} persists unconditionally) could
+     * lose items withdrawn but not yet written to {@code deathchests.yml} —
+     * without this, that window was "however long the inventory stayed open",
+     * since only {@link #onClose} used to persist. A withdrawn item already
+     * reflected in the player's own (server-autosaved) playerdata but still
+     * listed in a stale death chest file would duplicate on reload after a
+     * crash; debounced persistence keeps that window to roughly a second
+     * instead.
+     */
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onChestClick(@NonNull InventoryClickEvent event) {
+        markDirtyIfDeathChest(event.getInventory().getHolder());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onChestDrag(@NonNull InventoryDragEvent event) {
+        markDirtyIfDeathChest(event.getInventory().getHolder());
+    }
+
+    private void markDirtyIfDeathChest(InventoryHolder holder) {
+        if (holder instanceof DeathChestHolder) {
+            dirty = true;
+        }
+    }
+
+    /**
+     * Runs every second; only actually touches disk if something changed
+     * since the last flush. A single flag rather than per-chest tracking is
+     * enough here since {@link #persistAll} already rewrites the entire
+     * storage file in one pass regardless of which chest changed.
+     */
+    private void flushIfDirty() {
+        if (!dirty) {
+            return;
+        }
+        dirty = false;
+        try {
+            persistAll();
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE, "Error flushing death chests", e);
         }
     }
 

@@ -59,6 +59,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.*;
 import java.util.logging.Level;
 
 /**
@@ -178,6 +179,12 @@ public class DeathChestManager implements Listener {
     private final Map<UUID, ChestData> chests = new HashMap<>();
     private final Set<UUID> chestsBeingRemoved = new HashSet<>();
     private volatile boolean dirty = false;
+
+    private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor(runnable -> {
+        Thread thread = new Thread(runnable, "Poppy-DeathChest-IO");
+        thread.setDaemon(true);
+        return thread;
+    });
 
     public DeathChestManager(JavaPlugin plugin, Messages messages, PoppyConfig config, PoppyLogger logger) {
         this.plugin = plugin;
@@ -905,20 +912,31 @@ public class DeathChestManager implements Listener {
         }
     }
 
+    /**
+     * Builds the {@link YamlConfiguration} snapshot synchronously (cheap —
+     * no disk I/O, just object serialization) and hands the actual disk write
+     * off to {@link #ioExecutor}. Called on every mutation ({@link #onDeath},
+     * {@link #onClose}, {@link #removeChest}, and the debounced
+     * {@link #flushIfDirty}) — without offloading the write, each of those
+     * would synchronously serialize and rewrite every active chest's full
+     * item list on the main thread, a cost that grows with both the number
+     * of active chests and their contents. Same reasoning and pattern as
+     * {@link HomeManager#save}.
+     */
     private void persistAll() {
         YamlConfiguration yaml = new YamlConfiguration();
 
         for (ChestData data : chests.values()) {
-            String base = "chests." + data.id;
-            yaml.set(base + ".owner", data.owner.toString());
-            yaml.set(base + ".world", data.location.getWorld().getName());
-            yaml.set(base + ".x", data.location.getBlockX());
-            yaml.set(base + ".y", data.location.getBlockY());
-            yaml.set(base + ".z", data.location.getBlockZ());
-            yaml.set(base + ".created", data.createdAt);
+            String base = "chests." + data.id();
+            yaml.set(base + ".owner", data.owner().toString());
+            yaml.set(base + ".world", data.location().getWorld().getName());
+            yaml.set(base + ".x", data.location().getBlockX());
+            yaml.set(base + ".y", data.location().getBlockY());
+            yaml.set(base + ".z", data.location().getBlockZ());
+            yaml.set(base + ".created", data.createdAt());
 
             List<ItemStack> items = new ArrayList<>();
-            for (ItemStack item : data.inventory.getContents()) {
+            for (ItemStack item : data.inventory().getContents()) {
                 if (item != null) {
                     items.add(item);
                 }
@@ -926,7 +944,59 @@ public class DeathChestManager implements Listener {
             yaml.set(base + ".items", items);
         }
 
-        writeAtomically(yaml, storageFile());
+        try {
+            ioExecutor.submit(() -> writeAtomically(yaml, storageFile()));
+        } catch (RejectedExecutionException e) {
+            plugin.getLogger().log(Level.WARNING, "Could not queue death chests save (I/O executor already shut down)", e);
+        }
+    }
+
+    /**
+     * Same as {@link #persistAll()}, but blocks until the write has actually
+     * completed — used only by {@link #shutdown()}, which needs a guarantee
+     * everything is on disk before the plugin (and likely the JVM) exits.
+     */
+    private void persistAllSync() {
+        YamlConfiguration yaml = new YamlConfiguration();
+
+        for (ChestData data : chests.values()) {
+            String base = "chests." + data.id();
+            yaml.set(base + ".owner", data.owner().toString());
+            yaml.set(base + ".world", data.location().getWorld().getName());
+            yaml.set(base + ".x", data.location().getBlockX());
+            yaml.set(base + ".y", data.location().getBlockY());
+            yaml.set(base + ".z", data.location().getBlockZ());
+            yaml.set(base + ".created", data.createdAt());
+
+            List<ItemStack> items = new ArrayList<>();
+            for (ItemStack item : data.inventory().getContents()) {
+                if (item != null) {
+                    items.add(item);
+                }
+            }
+            yaml.set(base + ".items", items);
+        }
+
+        try {
+            Future<?> future = ioExecutor.submit(() -> writeAtomically(yaml, storageFile()));
+            future.get();
+        } catch (RejectedExecutionException e) {
+            plugin.getLogger().log(Level.WARNING, "Could not queue final death chests save (I/O executor already shut down)", e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            plugin.getLogger().log(Level.SEVERE, "Interrupted while flushing death chests", e);
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE, "Error flushing death chests", e);
+        }
+
+        ioExecutor.shutdown();
+        try {
+            if (!ioExecutor.awaitTermination(10, TimeUnit.SECONDS)) {
+                plugin.getLogger().warning("Timed out flushing death chests to disk");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private void writeAtomically(YamlConfiguration yaml, File file) {
@@ -950,18 +1020,16 @@ public class DeathChestManager implements Listener {
 
     /**
      * Force-closes every currently open death chest viewer and does a final
-     * {@link #persistAll()} — must be called from {@code Poppy#onDisable}
-     * before the plugin fully unloads. Without this, a chest whose virtual
-     * inventory was open at shutdown time (a player mid-withdrawal, or a
-     * {@code /reload}) would have any changes since the last
-     * {@link #onClose}/{@link #onDeath} never written to disk — the file and
-     * the in-memory state would silently desync, and those changes would be
-     * lost on the next load.
+     * blocking {@link #persistAllSync()} — must be called from
+     * {@code Poppy#onDisable} before the plugin fully unloads. Without this,
+     * a chest whose virtual inventory was open at shutdown time (a player
+     * mid-withdrawal, or a {@code /reload}) would have any changes since the
+     * last flush never guaranteed written to disk before the JVM exits.
      */
     public void shutdown() {
         for (ChestData data : chests.values()) {
             new ArrayList<>(data.inventory().getViewers()).forEach(HumanEntity::closeInventory);
         }
-        persistAll();
+        persistAllSync();
     }
 }

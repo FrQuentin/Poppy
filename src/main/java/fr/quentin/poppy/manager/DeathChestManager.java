@@ -633,7 +633,9 @@ public class DeathChestManager implements Listener {
     }
 
     private boolean locationInChunk(Location location, Chunk chunk) {
-        return location.getWorld().equals(chunk.getWorld())
+        World locationWorld = location.getWorld();
+        return locationWorld != null
+                && locationWorld.equals(chunk.getWorld())
                 && (location.getBlockX() >> 4) == chunk.getX()
                 && (location.getBlockZ() >> 4) == chunk.getZ();
     }
@@ -790,8 +792,18 @@ public class DeathChestManager implements Listener {
                 messages.get("death.chest-gui-title", "player", ownerName));
         holder.setInventory(inventory);
 
+        List<ItemStack> overflow = new ArrayList<>();
         for (ItemStack item : initialItems) {
-            inventory.addItem(item);
+            overflow.addAll(inventory.addItem(item).values());
+        }
+
+        for (ItemStack item : overflow) {
+            // Only realistically hit when loadAll restores a corrupted/hand-edited
+            // deathchests.yml with more than 54 unique, non-stackable entries — onDeath
+            // itself never overfills VIRTUAL_INVENTORY_SIZE since it drops its own
+            // overflow before ever calling this method. Dropped at the chest's own
+            // location rather than silently discarded, so nothing just vanishes.
+            location.getWorld().dropItemNaturally(location, item);
         }
 
         return new ChestData(id, owner, ownerName, location, createdAt, inventory);

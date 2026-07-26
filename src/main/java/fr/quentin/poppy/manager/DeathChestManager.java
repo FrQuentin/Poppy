@@ -161,11 +161,15 @@ public class DeathChestManager implements Listener {
     }
 
     /**
-         * One active death chest: its owner, the single block location that
-         * serves as its cosmetic access point, and the live virtual
-         * {@link Inventory} that actually holds the loot.
-         */
-        private record ChestData(UUID id, UUID owner, Location location, long createdAt, Inventory inventory) {
+     * One active death chest: its owner, the owner's name cached at creation
+     * time (avoiding a repeated {@link Bukkit#getOfflinePlayer(UUID)} lookup
+     * on every log line or GUI title build — that call can hit disk/the
+     * Mojang cache on some setups, and would otherwise repeat for every
+     * active chest on every {@link #loadAll} too), the single block location
+     * that serves as its cosmetic access point, and the live virtual
+     * {@link Inventory} that actually holds the loot.
+     */
+    private record ChestData(UUID id, UUID owner, String ownerName, Location location, long createdAt, Inventory inventory) {
     }
 
     private final JavaPlugin plugin;
@@ -244,7 +248,7 @@ public class DeathChestManager implements Listener {
             UUID id = UUID.randomUUID();
             placeChestBlock(spot, id);
 
-            ChestData data = createChestData(id, player.getUniqueId(), spot, System.currentTimeMillis(), List.of());
+            ChestData data = createChestData(id, player.getUniqueId(), player.getName(), spot, System.currentTimeMillis(), List.of());
             chests.put(id, data);
 
             List<ItemStack> overflow = new ArrayList<>();
@@ -701,29 +705,42 @@ public class DeathChestManager implements Listener {
 
     /**
      * Guarded against reentrancy — see the class-level doc.
+     *
+     * <p>Ordering within the guarded block matters and is not arbitrary:
+     * {@link Map#remove} on {@link #chests} happens <b>before</b>
+     * {@link #persistAll()}. Force-closing viewers above can trigger a
+     * re-entrant {@link #onClose} call for the same chest id (blocked from
+     * re-entering this method by {@link #chestsBeingRemoved}, but it still
+     * runs up to that point) — because the chest is already gone from
+     * {@link #chests} by the time any such re-entrant call reads it, it sees
+     * {@code null} and exits immediately rather than trying its own
+     * {@code persistAll()} on a chest mid-removal. Persisting before removing
+     * from the map would risk a race between "this chest still exists
+     * concurrently" reads and the write in progress. Do not reorder these
+     * two lines without re-verifying that invariant.
      */
     private void removeChest(ChestData data, boolean dropRemaining) {
-        if (!chestsBeingRemoved.add(data.id)) {
+        if (!chestsBeingRemoved.add(data.id())) {
             return;
         }
 
         try {
-            new ArrayList<>(data.inventory.getViewers()).forEach(HumanEntity::closeInventory);
+            new ArrayList<>(data.inventory().getViewers()).forEach(HumanEntity::closeInventory);
 
             if (dropRemaining) {
-                for (ItemStack item : data.inventory.getContents()) {
+                for (ItemStack item : data.inventory().getContents()) {
                     if (item != null) {
-                        data.location.getWorld().dropItemNaturally(data.location, item);
+                        data.location().getWorld().dropItemNaturally(data.location(), item);
                     }
                 }
             }
 
-            removeBlockIfMatching(data.location, data.id);
+            removeBlockIfMatching(data.location(), data.id());
 
-            chests.remove(data.id);
+            chests.remove(data.id());
             persistAll();
         } finally {
-            chestsBeingRemoved.remove(data.id);
+            chestsBeingRemoved.remove(data.id());
         }
     }
 
@@ -767,17 +784,17 @@ public class DeathChestManager implements Listener {
                 + world.getName() + ": " + location.getBlockX() + ", " + location.getBlockY() + ", " + location.getBlockZ());
     }
 
-    private ChestData createChestData(UUID id, UUID owner, Location location, long createdAt, List<ItemStack> initialItems) {
+    private ChestData createChestData(UUID id, UUID owner, String ownerName, Location location, long createdAt, List<ItemStack> initialItems) {
         DeathChestHolder holder = new DeathChestHolder(id);
         Inventory inventory = Bukkit.createInventory(holder, VIRTUAL_INVENTORY_SIZE,
-                messages.get("death.chest-gui-title", "player", ownerNameOf(owner)));
+                messages.get("death.chest-gui-title", "player", ownerName));
         holder.setInventory(inventory);
 
         for (ItemStack item : initialItems) {
             inventory.addItem(item);
         }
 
-        return new ChestData(id, owner, location, createdAt, inventory);
+        return new ChestData(id, owner, ownerName, location, createdAt, inventory);
     }
 
     /**
@@ -895,6 +912,13 @@ public class DeathChestManager implements Listener {
         return new Location(location.getWorld(), location.getBlockX(), location.getBlockY(), location.getBlockZ());
     }
 
+    /**
+     * Resolves a name for a player once — used only at chest creation time
+     * (see {@link #onDeath}) and when logging about a chest with no cached
+     * {@link ChestData}, e.g. {@link #onBreak}'s "not a tracked chest" path.
+     * Everywhere else, prefer {@link ChestData#ownerName()} over calling this
+     * again.
+     */
     private String ownerNameOf(UUID uuid) {
         OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(uuid);
         String name = offlinePlayer.getName();
@@ -926,6 +950,12 @@ public class DeathChestManager implements Listener {
 
                 UUID id = UUID.fromString(idString);
                 UUID owner = UUID.fromString(cs.getString("owner", ""));
+                String ownerName = cs.getString("owner-name");
+                if (ownerName == null) {
+                    // Backward compatibility: a deathchests.yml written before this field
+                    // existed. Resolved once here, then cached going forward.
+                    ownerName = ownerNameOf(owner);
+                }
 
                 String worldName = cs.getString("world", "");
                 World world = Bukkit.getWorld(worldName);
@@ -947,7 +977,7 @@ public class DeathChestManager implements Listener {
                     }
                 }
 
-                ChestData data = createChestData(id, owner, location, createdAt, items);
+                ChestData data = createChestData(id, owner, ownerName, location, createdAt, items);
                 chests.put(id, data);
 
                 ensureBlockPresent(data);

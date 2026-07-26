@@ -29,6 +29,7 @@ public final class Poppy extends JavaPlugin {
     private SpawnManager spawnManager;
     private PoppyStats stats;
     private PoppyLogger poppyLogger;
+    private DeathChestManager deathChestManager;
 
     @Override
     public void onEnable() {
@@ -55,7 +56,7 @@ public final class Poppy extends JavaPlugin {
         TrashGUI trashGUI = new TrashGUI(messages, config);
         AfkManager afkManager = new AfkManager();
         DeathLocationManager deathLocationManager = new DeathLocationManager();
-        DeathChestManager deathChestManager = new DeathChestManager(this, messages, config, poppyLogger);
+        deathChestManager = new DeathChestManager(this, messages, config, poppyLogger);
         FlyManager flyManager = new FlyManager(this, messages, config, combatManager);
 
         // Both created here (not inline at registerEvents time) since PoppyCommand
@@ -162,6 +163,9 @@ public final class Poppy extends JavaPlugin {
         }
         if (spawnManager != null) {
             spawnManager.saveSync();
+        }
+        if (deathChestManager != null) {
+            deathChestManager.shutdown();
         }
 
         logShutdownSummary();

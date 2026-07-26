@@ -895,4 +895,21 @@ public class DeathChestManager implements Listener {
             }
         }
     }
+
+    /**
+     * Force-closes every currently open death chest viewer and does a final
+     * {@link #persistAll()} — must be called from {@code Poppy#onDisable}
+     * before the plugin fully unloads. Without this, a chest whose virtual
+     * inventory was open at shutdown time (a player mid-withdrawal, or a
+     * {@code /reload}) would have any changes since the last
+     * {@link #onClose}/{@link #onDeath} never written to disk — the file and
+     * the in-memory state would silently desync, and those changes would be
+     * lost on the next load.
+     */
+    public void shutdown() {
+        for (ChestData data : chests.values()) {
+            new ArrayList<>(data.inventory().getViewers()).forEach(HumanEntity::closeInventory);
+        }
+        persistAll();
+    }
 }

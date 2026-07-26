@@ -15,11 +15,13 @@ import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.BlockState;
 import org.bukkit.block.Chest;
-import org.bukkit.block.DoubleChest;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.block.data.type.Chest.Type;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.HumanEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -32,8 +34,6 @@ import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
-import org.bukkit.event.inventory.InventoryMoveItemEvent;
-import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.inventory.EquipmentSlot;
@@ -45,125 +45,147 @@ import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jspecify.annotations.NonNull;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Level;
 
 /**
- * On death, places the player's dropped items — and, if enabled, a bottle
- * holding their lost XP — into a protected chest (a double chest if there
- * are more than 27 items) at or near the death location, instead of
- * scattering them on the ground. Toggleable via {@code death-chest-enabled}
- * in config.yml. If either the {@code keepInventory} or {@code keepLevel}
- * gamerule is on, {@link #onDeath} bails out immediately — the player
- * already keeps everything vanilla-side, so there's nothing to compensate
- * for. This check is explicit rather than relying on
- * {@link PlayerDeathEvent#getDrops()} being empty: {@code keepLevel} has
- * no effect on that list at all, so without the explicit check, an XP
- * refund bottle would still get created (and the death chest with it)
- * even though the player never actually lost any XP.
+ * On death, stores the player's dropped items — and, if enabled, a bottle
+ * holding their lost XP — into a protected virtual chest, and places a
+ * single chest block near the death location as a purely cosmetic access
+ * point for it. Toggleable via {@code death-chest-enabled} in config.yml.
  *
- * <p>Ownership and creation time are stored directly on the chest block's
- * {@link org.bukkit.persistence.PersistentDataContainer} (chests are tile
- * entities, so this survives a server restart without any extra file).
- * The scheduled expiry task from {@link #onDeath} does <b>not</b> survive a
- * restart, though — the constructor and {@link #onChunkLoad} cover that
- * gap: every already-loaded chunk is scanned at startup, and every chunk
- * is scanned again as it loads, so an expired chest is caught (and its
- * remaining contents dropped) even if the server was off past its expiry
- * time.
+ * <p><b>Storage model:</b> the loot never lives in the placed block's own
+ * native inventory ({@link org.bukkit.block.Chest#getBlockInventory()}).
+ * It lives in a standalone {@link Inventory} created via
+ * {@link Bukkit#createInventory(InventoryHolder, int, net.kyori.adventure.text.Component)}
+ * with a custom {@link DeathChestHolder}, tracked in {@link #chests} and
+ * persisted to {@code deathchests.yml}. The block's real inventory is
+ * never written to; right-clicking it (see {@link #onInteract}) is denied
+ * at the vanilla level and Poppy opens the virtual inventory itself
+ * instead. This makes explosions, pistons, and hoppers structurally
+ * unable to extract or duplicate anything: there's nothing in the real
+ * container to act on.
+ *
+ * <p><b>Always a single block, never a double chest:</b> the virtual
+ * inventory is a fixed {@link #VIRTUAL_INVENTORY_SIZE}-slot container
+ * ({@value #VIRTUAL_INVENTORY_SIZE} slots) regardless of item count — a
+ * double chest was only ever needed in the old design to get past a real
+ * single chest's 27-slot cap. Since the placed block is now just a
+ * clickable marker and the actual storage is fully virtual, one block is
+ * enough to open the whole 54-slot inventory no matter how many items are
+ * in it. This also halves the chance of {@link #findPlacementSpot}
+ * failing to find room (no second, adjacent spot ever needs finding), and
+ * removes an entire class of double-chest-specific edge cases (piston
+ * pushing one half, protection plugins treating the two halves
+ * differently, etc.).
+ *
+ * <p>If either the {@code keepInventory} or {@code keepLevel} gamerule is
+ * on, {@link #onDeath} bails out immediately.
+ *
+ * <p>Persistence is a single file written synchronously via
+ * {@link #writeAtomically} — a temp-file-then-atomic-rename, same
+ * technique as {@link HomeManager#writeToDisk}. Loaded once at startup in
+ * the constructor; a chest whose world isn't currently loaded is skipped
+ * with a warning. An already-expired chest at startup is not force-loaded
+ * — {@link #scanAlreadyLoadedChunks} and {@link #onChunkLoad} catch it
+ * once its chunk actually loads.
+ *
+ * <p>{@link #removeChest} is guarded against reentrancy via
+ * {@link #chestsBeingRemoved}: force-closing every viewer (including the
+ * player who triggered {@link #onClose} in the first place) fires a new
+ * {@link InventoryCloseEvent} synchronously for that same player, which
+ * without this guard would re-enter {@link #onClose} → {@link #removeChest}
+ * → close viewers → ... infinitely, overflowing the stack and crashing the
+ * server. The guard makes the re-entrant call a no-op.
  *
  * <p>XP refund is a percentage of the player's total XP —
- * {@code death-chest-xp-refund-percent} in config.yml, 50 by default (a
- * deliberate middle ground: 100 would fully negate the death XP penalty,
- * which combined with items also surviving death makes dying nearly
- * consequence-free on a survival server; 0 would mean losing the bottle
- * doesn't even buy back any of it). XP totals are computed and stored as
- * {@code long}, not {@code int} — a player at a very high level (the
- * quadratic XP-per-level formula grows fast) could otherwise silently
- * overflow {@link Integer#MAX_VALUE}. {@link Player#giveExp(int)} only
- * accepts an {@code int}, so the stored {@code long} is clamped to that
- * range only at the point of actually giving it back (see
- * {@link #onXpBottleUse}), not anywhere the value is computed or stored.
- *
- * <p>Each XP bottle is bound to the player it was created for via
- * {@code xpBottleOwnerKey} — redeemable only by them, even if the item is
- * traded, dropped, or otherwise ends up in someone else's inventory,
- * closing off using it as a way to transfer XP between accounts.
+ * {@code death-chest-xp-refund-percent} in config.yml, 50 by default.
+ * Each XP bottle is bound to the player it was created for, closing off
+ * using it to transfer XP between accounts.
  *
  * <p>Placement is guarded by a simulated {@link BlockPlaceEvent} (see
- * {@link #isProtected}) before any world mutation happens — without this,
- * {@code block.setType(...)} bypasses protection plugins (WorldGuard,
- * GriefPrevention, Lands...) entirely, since it mutates the world at the
- * engine level with no event involved, letting a death chest appear
- * inside someone else's claim.
+ * {@link #isProtected}) so protection plugins get a chance to refuse the
+ * block appearing inside a claim.
  *
- * <p>Explosions ({@link EntityExplodeEvent}, {@link BlockExplodeEvent})
- * and pistons ({@link BlockPistonExtendEvent}, {@link BlockPistonRetractEvent})
- * are also blocked from affecting a death chest — both destroy or move
- * the block without ever firing {@link BlockBreakEvent}. This event-by-event
- * protection model is inherently fragile — any future world-mutation
- * vector not explicitly handled here bypasses protection by construction.
- *
- * <p>{@link #onBreak} runs at {@link EventPriority#HIGHEST} with
- * {@code ignoreCancelled = true}: without this, a protection plugin
- * (WorldGuard, GriefPrevention...) cancelling the break at a later
- * priority than a naive {@code NORMAL} handler would still have already
- * let items drop or the chest get flagged unbreakable-bypassed before the
- * cancellation was visible — running last and ignoring already-cancelled
- * events means this only ever acts once the break is genuinely going to
- * happen.
- *
- * <p>Once emptied, a death chest despawns immediately (see {@link #onClose})
- * rather than lingering as a real, minable {@code Material.CHEST} block.
- * Any current viewer is force-closed before contents are dropped by
- * {@link #dropRemainingAndClear} (expiry, or a bypass-permission removal)
- * — without this, a player mid-transfer (an item on their cursor from
- * that exact inventory) when this fires could end up with that item both
- * dropped on the ground AND still on their cursor, a partial duplication.
- * {@link #onClose} itself re-checks the live block type before removing
- * it, since the chest may have already been removed by another code path
- * between the close event being queued and handled.
- *
- * <p>Hoppers are blocked from draining or filling a death chest too (see
- * {@link #onItemMove}), since they bypass {@link #onOpen}'s protection
- * entirely by never firing an inventory-open event.
+ * <p>Explosions and pistons are still prevented from destroying/moving a
+ * death chest block — not for anti-duplication (structurally moot now),
+ * but to avoid orphaning the owner's access to their still-safe stored
+ * loot. {@link #onBreak} still blocks mining it (anti-farm), running at
+ * {@link EventPriority#HIGHEST} with {@code ignoreCancelled = true} so a
+ * protection plugin's later cancellation is always visible first.
  */
 public class DeathChestManager implements Listener {
 
     private static final int SEARCH_RADIUS = 5;
-
-    // Fixed facing for every death chest. With this facing, a double chest
-    // only visually/functionally merges when the second half sits directly
-    // WEST (making the first chest LEFT) or EAST (making it RIGHT) of the
-    // first — this is a vanilla rule tied to the chosen facing direction,
-    // not an arbitrary choice, so the search for a second half is
-    // restricted to exactly those two directions.
+    private static final int VIRTUAL_INVENTORY_SIZE = 54;
     private static final BlockFace CHEST_FACING = BlockFace.SOUTH;
-    private static final BlockFace LEFT_DIRECTION = BlockFace.WEST;
-    private static final BlockFace RIGHT_DIRECTION = BlockFace.EAST;
-    private static final BlockFace[] EXTEND_FACES = {RIGHT_DIRECTION, LEFT_DIRECTION};
+
+    /**
+     * Marker holder identifying a death chest's virtual inventory, purely
+     * to recover the chest's ID in {@link #onClose}.
+     */
+    private static final class DeathChestHolder implements InventoryHolder {
+        private final UUID chestId;
+        private Inventory inventory;
+
+        DeathChestHolder(UUID chestId) {
+            this.chestId = chestId;
+        }
+
+        void setInventory(Inventory inventory) {
+            this.inventory = inventory;
+        }
+
+        @Override
+        public @NonNull Inventory getInventory() {
+            return inventory;
+        }
+
+        UUID getChestId() {
+            return chestId;
+        }
+    }
+
+    /**
+         * One active death chest: its owner, the single block location that
+         * serves as its cosmetic access point, and the live virtual
+         * {@link Inventory} that actually holds the loot.
+         */
+        private record ChestData(UUID id, UUID owner, Location location, long createdAt, Inventory inventory) {
+    }
 
     private final JavaPlugin plugin;
     private final Messages messages;
     private final PoppyConfig config;
     private final PoppyLogger logger;
-    private final NamespacedKey ownerKey;
-    private final NamespacedKey createdAtKey;
+    private final NamespacedKey chestIdKey;
     private final NamespacedKey xpAmountKey;
     private final NamespacedKey xpBottleOwnerKey;
+
+    private final Map<UUID, ChestData> chests = new HashMap<>();
+    private final Set<UUID> chestsBeingRemoved = new HashSet<>();
 
     public DeathChestManager(JavaPlugin plugin, Messages messages, PoppyConfig config, PoppyLogger logger) {
         this.plugin = plugin;
         this.messages = messages;
         this.config = config;
         this.logger = logger;
-        this.ownerKey = new NamespacedKey(plugin, "death_chest_owner");
-        this.createdAtKey = new NamespacedKey(plugin, "death_chest_created");
+        this.chestIdKey = new NamespacedKey(plugin, "death_chest_id");
         this.xpAmountKey = new NamespacedKey(plugin, "death_chest_xp_amount");
         this.xpBottleOwnerKey = new NamespacedKey(plugin, "death_chest_xp_bottle_owner");
 
+        loadAll();
         scanAlreadyLoadedChunks();
     }
 
@@ -196,94 +218,115 @@ public class DeathChestManager implements Listener {
                 return;
             }
 
-            Location primary = findPlacementSpot(player.getLocation(), player);
-            if (primary == null) {
+            Location spot = findPlacementSpot(player.getLocation(), player);
+            if (spot == null) {
+                // No safe/unprotected spot found nearby: leave everything on the vanilla
+                // path untouched.
                 return;
             }
-
-            Location secondary = plannedDrops.size() > 27 ? findAdjacentSpot(primary, player) : null;
 
             event.getDrops().clear();
             if (refundXp > 0) {
                 event.setDroppedExp(0);
             }
 
-            if (secondary != null) {
-                BlockFace direction = directionBetween(primary, secondary);
-                Type primaryType = direction == LEFT_DIRECTION ? Type.LEFT : Type.RIGHT;
-                Type secondaryType = primaryType == Type.LEFT ? Type.RIGHT : Type.LEFT;
-                placeChest(primary, player, primaryType);
-                placeChest(secondary, player, secondaryType);
-            } else {
-                placeChest(primary, player, Type.SINGLE);
-            }
+            UUID id = UUID.randomUUID();
+            placeChestBlock(spot, id);
 
-            Inventory inventory = ((Chest) primary.getBlock().getState()).getInventory();
+            ChestData data = createChestData(id, player.getUniqueId(), spot, System.currentTimeMillis(), List.of());
+            chests.put(id, data);
+
             List<ItemStack> overflow = new ArrayList<>();
             for (ItemStack item : plannedDrops) {
-                overflow.addAll(inventory.addItem(item).values());
+                overflow.addAll(data.inventory.addItem(item).values());
+            }
+            for (ItemStack item : overflow) {
+                player.getWorld().dropItemNaturally(spot, item);
             }
 
-            for (ItemStack item : overflow) {
-                player.getWorld().dropItemNaturally(primary, item);
-            }
+            persistAll();
 
             logger.log(PoppyLogger.Category.DEATH_CHEST, player, "death chest created at "
-                    + primary.getWorld().getName() + ": " + primary.getBlockX() + ", " + primary.getBlockY() + ", " + primary.getBlockZ()
-                    + " (" + plannedDrops.size() + " items" + (secondary != null ? ", double chest" : "") + ")");
+                    + spot.getWorld().getName() + ": " + spot.getBlockX() + ", " + spot.getBlockY() + ", " + spot.getBlockZ()
+                    + " (" + plannedDrops.size() + " items)");
 
             player.sendMessage(messages.get("death.chest-created",
-                    "x", String.valueOf(primary.getBlockX()),
-                    "y", String.valueOf(primary.getBlockY()),
-                    "z", String.valueOf(primary.getBlockZ())));
+                    "x", String.valueOf(spot.getBlockX()),
+                    "y", String.valueOf(spot.getBlockY()),
+                    "z", String.valueOf(spot.getBlockZ())));
 
             long expiryMillis = config.deathChestExpiryMillis();
             if (expiryMillis > 0) {
-                UUID ownerUuid = player.getUniqueId();
-                Bukkit.getScheduler().runTaskLater(plugin,
-                        () -> expireChest(primary, secondary, ownerUuid),
-                        expiryMillis / 50L);
+                Bukkit.getScheduler().runTaskLater(plugin, () -> expireIfPresent(id), expiryMillis / 50L);
             }
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Error creating death chest for " + event.getEntity().getName(), e);
         }
     }
 
+    /**
+     * Intercepts right-clicking a death chest block entirely — vanilla's
+     * own chest-open behavior is denied so its (always-empty) real
+     * inventory is never shown even briefly; ownership is checked here,
+     * then the actual virtual inventory is opened directly.
+     */
     @EventHandler
-    public void onOpen(@NonNull InventoryOpenEvent event) {
-        if (!config.deathChestEnabled() || !config.deathChestProtect()) {
+    public void onInteract(@NonNull PlayerInteractEvent event) {
+        if (!config.deathChestEnabled()) {
             return;
         }
 
         try {
-            Chest chest = resolveChest(event.getInventory().getHolder());
-            if (chest == null) {
+            if (event.getAction() != Action.RIGHT_CLICK_BLOCK) {
+                return;
+            }
+            if (event.getHand() != EquipmentSlot.HAND) {
                 return;
             }
 
-            String ownerString = chest.getPersistentDataContainer().get(ownerKey, PersistentDataType.STRING);
-            if (ownerString == null) {
+            Block block = event.getClickedBlock();
+            if (block == null) {
                 return;
             }
 
-            if (!(event.getPlayer() instanceof Player opener)) {
+            UUID id = chestIdOf(block);
+            if (id == null) {
                 return;
             }
 
-            boolean isOwner = ownerString.equals(opener.getUniqueId().toString());
-            boolean bypass = opener.hasPermission("poppy.deathchest.bypass");
+            event.setUseInteractedBlock(Event.Result.DENY);
+            event.setCancelled(true);
 
-            if (!isOwner && !bypass) {
-                event.setCancelled(true);
-                logger.log(PoppyLogger.Category.DEATH_CHEST, opener,
-                        "attempted to open a death chest owned by " + ownerName(ownerString) + " (denied)");
-                opener.sendMessage(messages.get("death.chest-not-yours"));
-            } else if (!isOwner) {
-                logger.log(PoppyLogger.Category.ADMIN, opener,
-                        "opened a death chest owned by " + ownerName(ownerString) + " using bypass permission");
+            Player player = event.getPlayer();
+            ChestData data = chests.get(id);
+            if (data == null) {
+                player.sendMessage(messages.get("death.chest-not-yours"));
+                return;
             }
+
+            boolean isOwner = data.owner.equals(player.getUniqueId());
+            boolean bypass = player.hasPermission("poppy.deathchest.bypass");
+
+            if (config.deathChestProtect() && !isOwner && !bypass) {
+                logger.log(PoppyLogger.Category.DEATH_CHEST, player,
+                        "attempted to open a death chest owned by " + ownerNameOf(data.owner) + " (denied)");
+                player.sendMessage(messages.get("death.chest-not-yours"));
+                return;
+            }
+
+            if (!isOwner) {
+                logger.log(PoppyLogger.Category.ADMIN, player,
+                        "opened a death chest owned by " + ownerNameOf(data.owner) + " using bypass permission");
+            }
+
+            player.openInventory(data.inventory);
+            // Right-click is intercepted (setUseInteractedBlock DENY above), so vanilla's
+            // own chest-open sound never fires — this replaces it manually. Played via
+            // the world (not just to the opener), matching how a real chest's sound is
+            // audible to nearby players too.
+            data.location.getWorld().playSound(data.location, Sound.BLOCK_CHEST_OPEN, 0.5f, 1.0f);
         } catch (Exception e) {
-            plugin.getLogger().log(Level.SEVERE, "Error in DeathChestManager#onOpen", e);
+            plugin.getLogger().log(Level.SEVERE, "Error in DeathChestManager#onInteract for " + event.getPlayer().getName(), e);
         }
     }
 
@@ -294,23 +337,25 @@ public class DeathChestManager implements Listener {
         }
 
         try {
-            InventoryHolder holder = event.getInventory().getHolder();
-            Chest chest = resolveChest(holder);
-            if (chest == null) {
+            if (!(event.getInventory().getHolder() instanceof DeathChestHolder holder)) {
                 return;
             }
 
-            String ownerString = chest.getPersistentDataContainer().get(ownerKey, PersistentDataType.STRING);
-            if (ownerString == null) {
+            ChestData data = chests.get(holder.getChestId());
+            if (data == null) {
                 return;
             }
 
-            if (chest.getBlock().getType() != Material.CHEST) {
-                return;
-            }
+            // Same reasoning as the open sound in onInteract: this inventory was never
+            // vanilla-opened, so there's no automatic close sound either — played here
+            // regardless of whether the chest is about to despawn or just closed with
+            // items still inside.
+            data.location.getWorld().playSound(data.location, Sound.BLOCK_CHEST_CLOSE, 0.5f, 1.0f);
 
-            if (isEmpty(event.getInventory())) {
-                removeChestBlocks(holder);
+            if (isEmpty(data.inventory)) {
+                removeChest(data, false);
+            } else {
+                persistAll();
             }
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Error in DeathChestManager#onClose", e);
@@ -324,23 +369,27 @@ public class DeathChestManager implements Listener {
         }
 
         try {
-            Block block = event.getBlock();
-            if (block.getType() != Material.CHEST) {
-                return;
-            }
-            if (!(block.getState() instanceof Chest chestState)) {
-                return;
-            }
-
-            String ownerString = chestState.getPersistentDataContainer().get(ownerKey, PersistentDataType.STRING);
-            if (ownerString == null) {
+            UUID id = chestIdOf(event.getBlock());
+            if (id == null) {
                 return;
             }
 
             Player breaker = event.getPlayer();
+            ChestData data = chests.get(id);
+
+            if (data == null) {
+                if (!breaker.hasPermission("poppy.deathchest.bypass")) {
+                    event.setCancelled(true);
+                    breaker.sendMessage(messages.get("death.chest-unbreakable"));
+                }
+                return;
+            }
+
             if (breaker.hasPermission("poppy.deathchest.bypass")) {
                 logger.log(PoppyLogger.Category.ADMIN, breaker,
-                        "broke a death chest owned by " + ownerName(ownerString) + " using bypass permission");
+                        "broke a death chest owned by " + ownerNameOf(data.owner) + " using bypass permission");
+                event.setCancelled(true);
+                removeChest(data, true);
                 return;
             }
 
@@ -357,7 +406,7 @@ public class DeathChestManager implements Listener {
             return;
         }
         try {
-            event.blockList().removeIf(this::isDeathChestBlock);
+            event.blockList().removeIf(block -> chestIdOf(block) != null);
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Error in DeathChestManager#onEntityExplode", e);
         }
@@ -369,7 +418,7 @@ public class DeathChestManager implements Listener {
             return;
         }
         try {
-            event.blockList().removeIf(this::isDeathChestBlock);
+            event.blockList().removeIf(block -> chestIdOf(block) != null);
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Error in DeathChestManager#onBlockExplode", e);
         }
@@ -381,7 +430,7 @@ public class DeathChestManager implements Listener {
             return;
         }
         try {
-            if (event.getBlocks().stream().anyMatch(this::isDeathChestBlock)) {
+            if (event.getBlocks().stream().anyMatch(block -> chestIdOf(block) != null)) {
                 event.setCancelled(true);
             }
         } catch (Exception e) {
@@ -395,7 +444,7 @@ public class DeathChestManager implements Listener {
             return;
         }
         try {
-            if (event.getBlocks().stream().anyMatch(this::isDeathChestBlock)) {
+            if (event.getBlocks().stream().anyMatch(block -> chestIdOf(block) != null)) {
                 event.setCancelled(true);
             }
         } catch (Exception e) {
@@ -403,44 +452,6 @@ public class DeathChestManager implements Listener {
         }
     }
 
-    private boolean isDeathChestBlock(Block block) {
-        return block.getType() == Material.CHEST
-                && block.getState() instanceof Chest chestState
-                && chestState.getPersistentDataContainer().has(ownerKey, PersistentDataType.STRING);
-    }
-
-    @EventHandler
-    public void onItemMove(@NonNull InventoryMoveItemEvent event) {
-        if (!config.deathChestEnabled()) {
-            return;
-        }
-
-        try {
-            if (isDeathChest(event.getSource()) || isDeathChest(event.getDestination())) {
-                event.setCancelled(true);
-            }
-        } catch (Exception e) {
-            plugin.getLogger().log(Level.SEVERE, "Error in DeathChestManager#onItemMove", e);
-        }
-    }
-
-    private boolean isDeathChest(Inventory inventory) {
-        Chest chest = resolveChest(inventory.getHolder());
-        if (chest == null) {
-            return false;
-        }
-        return chest.getPersistentDataContainer().get(ownerKey, PersistentDataType.STRING) != null;
-    }
-
-    /**
-     * Consumes a death-chest XP bottle on right-click, restoring the exact
-     * XP it was created with — but only for the player it was bound to at
-     * creation time (see {@link #xpBottleOwnerKey}); anyone else trying to
-     * use one gets denied and keeps the bottle. Triggers on both
-     * {@link Action#RIGHT_CLICK_AIR} and {@link Action#RIGHT_CLICK_BLOCK}
-     * — a regular experience bottle throws on either, so this must
-     * intercept both to reliably prevent the vanilla throw behavior.
-     */
     @EventHandler
     public void onXpBottleUse(@NonNull PlayerInteractEvent event) {
         if (!config.deathChestEnabled() || !config.deathChestStoreXp()) {
@@ -467,7 +478,7 @@ public class DeathChestManager implements Listener {
 
             long storedXp = meta.getPersistentDataContainer().getOrDefault(xpAmountKey, PersistentDataType.LONG, 0L);
             if (storedXp <= 0) {
-                return; // a regular experience bottle, not one of ours
+                return;
             }
 
             Player player = event.getPlayer();
@@ -487,9 +498,6 @@ public class DeathChestManager implements Listener {
                 player.getInventory().setItemInMainHand(null);
             }
 
-            // Player#giveExp only takes an int — clamp the stored long at the point of
-            // actually giving it back, not anywhere it's computed or stored, so the
-            // stored value itself is never silently truncated.
             int xpToGive = (int) Math.min(storedXp, Integer.MAX_VALUE);
             player.giveExp(xpToGive);
             player.getWorld().playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f);
@@ -503,11 +511,8 @@ public class DeathChestManager implements Listener {
         if (config.deathChestExpiryMillis() <= 0) {
             return;
         }
-
-        for (World world : Bukkit.getWorlds()) {
-            for (Chunk chunk : world.getLoadedChunks()) {
-                scanChunkForExpiredChests(chunk);
-            }
+        for (ChestData data : new ArrayList<>(chests.values())) {
+            checkExpiryIfChunkLoaded(data);
         }
     }
 
@@ -516,42 +521,58 @@ public class DeathChestManager implements Listener {
         if (!config.deathChestEnabled() || config.deathChestExpiryMillis() <= 0) {
             return;
         }
-
         try {
-            scanChunkForExpiredChests(event.getChunk());
+            Chunk chunk = event.getChunk();
+            for (ChestData data : new ArrayList<>(chests.values())) {
+                if (locationInChunk(data.location, chunk)) {
+                    checkExpiry(data);
+                }
+            }
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Error scanning chunk for expired death chests", e);
         }
     }
 
-    private void scanChunkForExpiredChests(Chunk chunk) {
-        long expiryMillis = config.deathChestExpiryMillis();
+    private void checkExpiryIfChunkLoaded(ChestData data) {
+        World world = data.location.getWorld();
+        if (world == null) {
+            return;
+        }
+        if (!world.isChunkLoaded(data.location.getBlockX() >> 4, data.location.getBlockZ() >> 4)) {
+            return;
+        }
+        checkExpiry(data);
+    }
 
-        for (BlockState state : chunk.getTileEntities()) {
-            if (!(state instanceof Chest chestState)) {
-                continue;
+    private void checkExpiry(ChestData data) {
+        if (System.currentTimeMillis() - data.createdAt < config.deathChestExpiryMillis()) {
+            return;
+        }
+        expireIfPresent(data.id);
+    }
+
+    private boolean locationInChunk(Location location, Chunk chunk) {
+        return location.getWorld().equals(chunk.getWorld())
+                && (location.getBlockX() >> 4) == chunk.getX()
+                && (location.getBlockZ() >> 4) == chunk.getZ();
+    }
+
+    private void expireIfPresent(UUID id) {
+        try {
+            ChestData data = chests.get(id);
+            if (data == null) {
+                return;
             }
 
-            String ownerString = chestState.getPersistentDataContainer().get(ownerKey, PersistentDataType.STRING);
-            if (ownerString == null) {
-                continue;
-            }
+            boolean hadItems = !isEmpty(data.inventory);
+            removeChest(data, true);
 
-            long createdAt = chestState.getPersistentDataContainer().getOrDefault(createdAtKey, PersistentDataType.LONG, 0L);
-            if (System.currentTimeMillis() - createdAt < expiryMillis) {
-                continue;
+            if (hadItems) {
+                logger.log(PoppyLogger.Category.DEATH_CHEST, ownerNameOf(data.owner),
+                        "death chest expired, remaining items dropped on the ground");
             }
-
-            try {
-                UUID owner = UUID.fromString(ownerString);
-                boolean droppedAnything = dropRemainingAndClear(chestState.getLocation(), owner);
-                if (droppedAnything) {
-                    logger.log(PoppyLogger.Category.DEATH_CHEST, ownerName(ownerString),
-                            "death chest expired (recovered after a restart), remaining items dropped on the ground");
-                }
-            } catch (IllegalArgumentException e) {
-                plugin.getLogger().log(Level.WARNING, "Death chest at " + chestState.getLocation() + " had an invalid owner UUID: " + ownerString);
-            }
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE, "Error expiring a death chest", e);
         }
     }
 
@@ -568,12 +589,6 @@ public class DeathChestManager implements Listener {
         return bottle;
     }
 
-    /**
-     * Computed as {@code long} throughout, not {@code int} — the quadratic
-     * per-level XP cost grows fast enough that a very high-level player
-     * could otherwise silently overflow {@link Integer#MAX_VALUE} both
-     * here and in the stored bottle amount.
-     */
     private long getTotalExperience(Player player, int level) {
         return getExpAtLevel(level) + Math.round(player.getExp() * getExpToNextLevel(level));
     }
@@ -607,84 +622,90 @@ public class DeathChestManager implements Listener {
         return true;
     }
 
-    private void removeChestBlocks(InventoryHolder holder) {
-        if (holder instanceof Chest chest) {
-            chest.getBlock().setType(Material.AIR);
-        } else if (holder instanceof DoubleChest doubleChest) {
-            if (doubleChest.getLeftSide() instanceof Chest left) {
-                left.getBlock().setType(Material.AIR);
+    /**
+     * Guarded against reentrancy — see the class-level doc.
+     */
+    private void removeChest(ChestData data, boolean dropRemaining) {
+        if (!chestsBeingRemoved.add(data.id)) {
+            return;
+        }
+
+        try {
+            new ArrayList<>(data.inventory.getViewers()).forEach(HumanEntity::closeInventory);
+
+            if (dropRemaining) {
+                for (ItemStack item : data.inventory.getContents()) {
+                    if (item != null) {
+                        data.location.getWorld().dropItemNaturally(data.location, item);
+                    }
+                }
             }
-            if (doubleChest.getRightSide() instanceof Chest right) {
-                right.getBlock().setType(Material.AIR);
-            }
+
+            removeBlockIfMatching(data.location, data.id);
+
+            chests.remove(data.id);
+            persistAll();
+        } finally {
+            chestsBeingRemoved.remove(data.id);
         }
     }
 
-    private Chest resolveChest(InventoryHolder holder) {
-        if (holder instanceof Chest chest) {
-            return chest;
+    private void removeBlockIfMatching(Location location, UUID expectedId) {
+        Block block = location.getBlock();
+        if (expectedId.equals(chestIdOf(block))) {
+            block.setType(Material.AIR);
         }
-        if (holder instanceof DoubleChest doubleChest && doubleChest.getLeftSide() instanceof Chest chest) {
-            return chest;
-        }
-        return null;
     }
 
-    private void placeChest(Location location, Player owner, Type chestType) {
+    private ChestData createChestData(UUID id, UUID owner, Location location, long createdAt, List<ItemStack> initialItems) {
+        DeathChestHolder holder = new DeathChestHolder(id);
+        Inventory inventory = Bukkit.createInventory(holder, VIRTUAL_INVENTORY_SIZE,
+                messages.get("death.chest-gui-title", "player", ownerNameOf(owner)));
+        holder.setInventory(inventory);
+
+        for (ItemStack item : initialItems) {
+            inventory.addItem(item);
+        }
+
+        return new ChestData(id, owner, location, createdAt, inventory);
+    }
+
+    /**
+     * Always places a single chest — see the class-level doc for why a
+     * double chest is never needed anymore.
+     */
+    private void placeChestBlock(Location location, UUID id) {
         Block block = location.getBlock();
         block.setType(Material.CHEST);
 
         BlockData rawData = block.getBlockData();
         if (rawData instanceof org.bukkit.block.data.type.Chest chestData) {
             chestData.setFacing(CHEST_FACING);
-            chestData.setType(chestType);
+            chestData.setType(Type.SINGLE);
             block.setBlockData(chestData);
         }
 
         Chest chestState = (Chest) block.getState();
-        chestState.getPersistentDataContainer().set(ownerKey, PersistentDataType.STRING, owner.getUniqueId().toString());
-        chestState.getPersistentDataContainer().set(createdAtKey, PersistentDataType.LONG, System.currentTimeMillis());
+        chestState.getPersistentDataContainer().set(chestIdKey, PersistentDataType.STRING, id.toString());
         chestState.update(true, false);
     }
 
-    private void expireChest(Location primary, Location secondary, UUID owner) {
-        try {
-            boolean droppedAnything = dropRemainingAndClear(primary, owner);
-            droppedAnything |= secondary != null && dropRemainingAndClear(secondary, owner);
-
-            if (droppedAnything) {
-                logger.log(PoppyLogger.Category.DEATH_CHEST, ownerName(owner.toString()),
-                        "death chest expired, remaining items dropped on the ground");
-            }
-        } catch (Exception e) {
-            plugin.getLogger().log(Level.SEVERE, "Error expiring a death chest for " + owner, e);
-        }
-    }
-
-    private boolean dropRemainingAndClear(Location location, UUID owner) {
-        Block block = location.getBlock();
+    private UUID chestIdOf(Block block) {
         if (block.getType() != Material.CHEST) {
-            return false;
+            return null;
         }
-
-        Chest chestState = (Chest) block.getState();
-        String ownerString = chestState.getPersistentDataContainer().get(ownerKey, PersistentDataType.STRING);
-        if (ownerString == null || !ownerString.equals(owner.toString())) {
-            return false;
+        if (!(block.getState() instanceof Chest chestState)) {
+            return null;
         }
-
-        new ArrayList<>(chestState.getInventory().getViewers()).forEach(HumanEntity::closeInventory);
-
-        boolean droppedAnything = false;
-        for (ItemStack item : chestState.getBlockInventory().getContents()) {
-            if (item != null) {
-                location.getWorld().dropItemNaturally(location, item);
-                droppedAnything = true;
-            }
+        String idString = chestState.getPersistentDataContainer().get(chestIdKey, PersistentDataType.STRING);
+        if (idString == null) {
+            return null;
         }
-
-        block.setType(Material.AIR);
-        return droppedAnything;
+        try {
+            return UUID.fromString(idString);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     private Location findPlacementSpot(Location deathLocation, Player owner) {
@@ -717,26 +738,6 @@ public class DeathChestManager implements Listener {
         return best == null ? null : centered(best);
     }
 
-    private Location findAdjacentSpot(Location primary, Player owner) {
-        for (BlockFace face : EXTEND_FACES) {
-            Location candidate = primary.clone().add(face.getDirection());
-            if (isPlaceable(candidate, owner)) {
-                return centered(candidate);
-            }
-        }
-        return null;
-    }
-
-    private BlockFace directionBetween(Location from, Location to) {
-        if (to.getBlockX() > from.getBlockX()) {
-            return BlockFace.EAST;
-        }
-        if (to.getBlockX() < from.getBlockX()) {
-            return BlockFace.WEST;
-        }
-        return BlockFace.SOUTH;
-    }
-
     private boolean isPlaceable(Location location, Player owner) {
         World world = location.getWorld();
         if (location.getY() < world.getMinHeight() || location.getY() > world.getMaxHeight()) {
@@ -756,6 +757,18 @@ public class DeathChestManager implements Listener {
         return !isProtected(location, owner);
     }
 
+    /**
+     * Fires a simulated {@link BlockPlaceEvent} before any world mutation
+     * happens, so protection plugins get a chance to refuse it. The
+     * constructor used here is marked {@code @ApiStatus.Internal} by
+     * Paper — there's no stable public alternative for simulating a place
+     * event from plugin code, and this is the same technique many
+     * protection-adjacent plugins rely on. The risk is a future Paper
+     * version changing this signature without a compatibility guarantee;
+     * accepted here since verifying claims/protection before a cosmetic
+     * block placement matters more than that risk.
+     */
+    @SuppressWarnings("UnstableApiUsage")
     private boolean isProtected(Location location, Player owner) {
         Block block = location.getBlock();
         BlockState replacedState = block.getState();
@@ -772,13 +785,114 @@ public class DeathChestManager implements Listener {
         return new Location(location.getWorld(), location.getBlockX(), location.getBlockY(), location.getBlockZ());
     }
 
-    private String ownerName(String ownerUuidString) {
+    private String ownerNameOf(UUID uuid) {
+        OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(uuid);
+        String name = offlinePlayer.getName();
+        return name != null ? name : uuid.toString();
+    }
+
+    private File storageFile() {
+        return new File(plugin.getDataFolder(), "deathchests.yml");
+    }
+
+    private void loadAll() {
+        File file = storageFile();
+        if (!file.exists()) {
+            return;
+        }
+
+        YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
+        ConfigurationSection section = yaml.getConfigurationSection("chests");
+        if (section == null) {
+            return;
+        }
+
+        for (String idString : section.getKeys(false)) {
+            try {
+                ConfigurationSection cs = section.getConfigurationSection(idString);
+                if (cs == null) {
+                    continue;
+                }
+
+                UUID id = UUID.fromString(idString);
+                UUID owner = UUID.fromString(cs.getString("owner", ""));
+
+                String worldName = cs.getString("world", "");
+                World world = Bukkit.getWorld(worldName);
+                if (world == null) {
+                    plugin.getLogger().warning("Skipping death chest " + idString + ": world '" + worldName + "' not found");
+                    continue;
+                }
+
+                Location location = new Location(world, cs.getInt("x"), cs.getInt("y"), cs.getInt("z"));
+                long createdAt = cs.getLong("created");
+
+                List<ItemStack> items = new ArrayList<>();
+                List<?> rawItems = cs.getList("items");
+                if (rawItems != null) {
+                    for (Object o : rawItems) {
+                        if (o instanceof ItemStack stack) {
+                            items.add(stack);
+                        }
+                    }
+                }
+
+                ChestData data = createChestData(id, owner, location, createdAt, items);
+                chests.put(id, data);
+
+                long expiryMillis = config.deathChestExpiryMillis();
+                if (expiryMillis > 0) {
+                    long remaining = expiryMillis - (System.currentTimeMillis() - createdAt);
+                    if (remaining > 0) {
+                        Bukkit.getScheduler().runTaskLater(plugin, () -> expireIfPresent(id), remaining / 50L);
+                    }
+                }
+            } catch (Exception e) {
+                plugin.getLogger().log(Level.WARNING, "Skipping a corrupt death chest entry (" + idString + ")", e);
+            }
+        }
+    }
+
+    private void persistAll() {
+        YamlConfiguration yaml = new YamlConfiguration();
+
+        for (ChestData data : chests.values()) {
+            String base = "chests." + data.id;
+            yaml.set(base + ".owner", data.owner.toString());
+            yaml.set(base + ".world", data.location.getWorld().getName());
+            yaml.set(base + ".x", data.location.getBlockX());
+            yaml.set(base + ".y", data.location.getBlockY());
+            yaml.set(base + ".z", data.location.getBlockZ());
+            yaml.set(base + ".created", data.createdAt);
+
+            List<ItemStack> items = new ArrayList<>();
+            for (ItemStack item : data.inventory.getContents()) {
+                if (item != null) {
+                    items.add(item);
+                }
+            }
+            yaml.set(base + ".items", items);
+        }
+
+        writeAtomically(yaml, storageFile());
+    }
+
+    private void writeAtomically(YamlConfiguration yaml, File file) {
+        File tempFile = new File(file.getParentFile(), file.getName() + ".tmp");
+
         try {
-            OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(UUID.fromString(ownerUuidString));
-            String name = offlinePlayer.getName();
-            return name != null ? name : ownerUuidString;
-        } catch (IllegalArgumentException e) {
-            return ownerUuidString;
+            yaml.save(tempFile);
+            try {
+                Files.move(tempFile.toPath(), file.toPath(),
+                        StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException e) {
+                Files.move(tempFile.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            }
+        } catch (IOException e) {
+            plugin.getLogger().log(Level.SEVERE, "Could not save death chests", e);
+            if (!tempFile.delete()) {
+                plugin.getLogger().log(Level.WARNING, "Could not delete leftover temp file: " + tempFile);
+            }
         }
     }
 }

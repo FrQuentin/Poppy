@@ -2,6 +2,7 @@ package fr.quentin.poppy.commands;
 
 import fr.quentin.poppy.manager.TeleportManager;
 import fr.quentin.poppy.model.Home;
+import fr.quentin.poppy.util.CooldownStore;
 import fr.quentin.poppy.util.DurationFormat;
 import fr.quentin.poppy.util.Messages;
 import fr.quentin.poppy.util.PoppyConfig;
@@ -21,9 +22,7 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jspecify.annotations.NonNull;
 
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
@@ -35,47 +34,32 @@ import java.util.logging.Level;
  *
  * <p>Chunk lookups go through {@link World#getChunkAtAsync(int, int)} rather
  * than the synchronous {@code getChunkAt}, so an unexplored area doesn't
- * force chunk generation on the main thread and stall the server — this
- * matters a lot here since the default 5000-block max radius routinely
- * lands outside already-generated terrain.
+ * force chunk generation on the main thread and stall the server.
  *
  * <p><b>A failed search consumes the cooldown, a combat-tag rejection does
- * not:</b> {@link #attemptFindSafeLocation} running out of attempts still
- * calls {@link Bukkit}'s equivalent of {@link World#getChunkAtAsync} up to
- * {@code rtp-max-attempts} times — chunk generation is one of the most
- * expensive operations a Minecraft server can do, in both I/O and CPU.
- * Without applying the cooldown on failure, a player in an area where
- * {@link #isSafe} rarely succeeds (heavy ocean biome, etc.) could spam
- * {@code /rtp} with zero cost between attempts, generating chunks
- * essentially without limit — a permission-less DoS vector that also
- * silently bloats the world files on disk. A combat-tag rejection, by
- * contrast, is rejected by {@link TeleportManager} before any chunk work
- * ever happens, so it stays free of charge — see where
- * {@code lastUse.put(...)} is (and isn't) called below.
+ * not:</b> a search running out of attempts still costs up to
+ * {@code rtp-max-attempts} chunk generations — expensive — so it must not
+ * be free to retry instantly; a combat-tag rejection is rejected by
+ * {@link TeleportManager} before any chunk work happens at all, so it
+ * stays free.
  *
  * <p>{@link #MAX_CONCURRENT_SEARCHES} caps how many /rtp searches can be
  * in flight across the whole server at once, on top of {@link #inProgress}
- * (which only serializes one player's own repeated presses). Without a
- * server-wide cap, enough different players pressing /rtp at the same
- * moment could still queue an unbounded number of concurrent
- * chunk-generation chains even with per-player cooldowns in place.
+ * (which only serializes one player's own repeated presses).
  *
- * <p>{@link #inProgress} guards against a player spamming /rtp before their
- * first search resolves; removed on every exit path: success, running out
- * of attempts, the player going offline mid-search, an exception, and on
- * quit as a final safety net.
- *
- * <p>Unlike {@link #inProgress} (cleared on quit as a genuine safety net),
- * {@link #lastUse} is deliberately <b>not</b> cleared on quit: doing so
- * would let a player reset their own cooldown for free by disconnecting
- * and reconnecting. The cooldown is meant to survive a
- * disconnect/reconnect, and only resets on a full server restart.
+ * <p>The cooldown itself lives in a shared {@link CooldownStore} — see its
+ * class-level doc for why that's preferable to a raw
+ * {@code Map<UUID, Long>} that's never purged. {@link #inProgress} is a
+ * separate {@link Set}, not a cooldown: it tracks an in-flight search, not
+ * an expiry, and is cleared on quit as a genuine safety net (a lingering
+ * flag would otherwise permanently lock an offline player out after
+ * reconnecting) — unlike the cooldown, which is deliberately never reset
+ * by disconnecting.
  *
  * <p>The Nether needs different vertical placement logic than the
  * Overworld/End: {@link World#getHighestBlockYAt(int, int)} finds the
  * highest block exposed to open sky, which doesn't exist in the Nether —
- * it would just return the underside of the solid bedrock roof, landing
- * the player on top of the world. See {@link #findNetherCandidate}.
+ * see {@link #findNetherCandidate}.
  */
 public class RtpCommand extends SafeCommand implements Listener {
 
@@ -84,8 +68,8 @@ public class RtpCommand extends SafeCommand implements Listener {
     private final TeleportManager teleportManager;
     private final PoppyConfig config;
     private final PoppyStats stats;
+    private final CooldownStore cooldown;
 
-    private final Map<UUID, Long> lastUse = new HashMap<>();
     private final Set<UUID> inProgress = new HashSet<>();
 
     public RtpCommand(JavaPlugin plugin, TeleportManager teleportManager, Messages messages, PoppyConfig config, PoppyStats stats) {
@@ -93,6 +77,7 @@ public class RtpCommand extends SafeCommand implements Listener {
         this.teleportManager = teleportManager;
         this.config = config;
         this.stats = stats;
+        this.cooldown = new CooldownStore(plugin);
     }
 
     @Override
@@ -102,7 +87,7 @@ public class RtpCommand extends SafeCommand implements Listener {
             return true;
         }
 
-        long remaining = cooldownRemaining(player.getUniqueId());
+        long remaining = cooldown.remainingSeconds(player.getUniqueId());
         if (remaining > 0) {
             player.sendMessage(messages.get("rtp.cooldown", "time", DurationFormat.format(remaining)));
             return true;
@@ -122,19 +107,10 @@ public class RtpCommand extends SafeCommand implements Listener {
         return true;
     }
 
-    /**
-     * Tries one random candidate at a time, loading its chunk asynchronously so we never
-     * force-generate terrain on the main thread. Recurses (still off the hot path) until
-     * a safe spot is found or attempts run out.
-     */
     private void attemptFindSafeLocation(Player player, Location center, int attemptsLeft) {
         if (attemptsLeft <= 0) {
             inProgress.remove(player.getUniqueId());
-            // A failed search still cost up to rtp-max-attempts chunk generations —
-            // that's a real server expense, so it consumes the cooldown just like a
-            // successful teleport, unlike a combat-tag rejection which never reaches
-            // this point at all.
-            lastUse.put(player.getUniqueId(), System.currentTimeMillis());
+            cooldown.start(player.getUniqueId(), config.rtpCooldownMillis());
             player.sendMessage(messages.get("rtp.failed"));
             return;
         }
@@ -148,13 +124,6 @@ public class RtpCommand extends SafeCommand implements Listener {
         world.getChunkAtAsync(x >> 4, z >> 4)
                 .thenRun(() -> handleChunkLoaded(player, world, x, z, center, attemptsLeft))
                 .exceptionally(throwable -> {
-                    // Unlike thenRun (whose target handleChunkLoaded explicitly re-checks
-                    // Bukkit.isPrimaryThread() before touching anything), this callback can
-                    // run off the main thread if the chunk future itself completes
-                    // exceptionally there — touching inProgress (a plain HashSet) or reading
-                    // player state from off-thread would be a silent, hard-to-diagnose
-                    // corruption risk rather than a crash. Deferred onto the main thread
-                    // unconditionally, same safety margin as handleChunkLoaded.
                     Bukkit.getScheduler().runTask(plugin, () -> {
                         inProgress.remove(player.getUniqueId());
                         plugin.getLogger().log(Level.SEVERE, "Error resolving a /rtp location for " + player.getName(), throwable);
@@ -166,13 +135,6 @@ public class RtpCommand extends SafeCommand implements Listener {
                 });
     }
 
-    /**
-     * Everything that reads/writes world blocks or this class's own
-     * collections lives here, guarded by an explicit main-thread check —
-     * Paper's chunk-load future does complete on the main thread in
-     * practice, but that's an implementation detail this code shouldn't
-     * silently depend on without a fallback.
-     */
     private void handleChunkLoaded(Player player, World world, int x, int z, Location center, int attemptsLeft) {
         if (!Bukkit.isPrimaryThread()) {
             Bukkit.getScheduler().runTask(plugin, () -> handleChunkLoaded(player, world, x, z, center, attemptsLeft));
@@ -194,10 +156,8 @@ public class RtpCommand extends SafeCommand implements Listener {
 
             inProgress.remove(player.getUniqueId());
 
-            // Only consume the cooldown/stat if the teleport was actually accepted —
-            // a combat-tag rejection shouldn't cost the player their /rtp attempt.
             if (accepted) {
-                lastUse.put(player.getUniqueId(), System.currentTimeMillis());
+                cooldown.start(player.getUniqueId(), config.rtpCooldownMillis());
                 stats.incrementRtpUsed();
             }
         } else {
@@ -210,11 +170,6 @@ public class RtpCommand extends SafeCommand implements Listener {
         return new Location(world, x + 0.5, y + 1, z + 0.5);
     }
 
-    /**
-     * Scans downward from just below the Nether's solid bedrock roof,
-     * returning the first vertical position that passes {@link #isSafe},
-     * or null if the whole column is solid all the way down.
-     */
     private Location findNetherCandidate(World world, int x, int z) {
         int scanStart = Math.min(120, world.getMaxHeight() - 8);
 
@@ -231,19 +186,6 @@ public class RtpCommand extends SafeCommand implements Listener {
     @EventHandler
     public void onQuit(@NonNull PlayerQuitEvent event) {
         inProgress.remove(event.getPlayer().getUniqueId());
-    }
-
-    private long cooldownRemaining(UUID uuid) {
-        long cooldownMillis = config.rtpCooldownMillis();
-        if (cooldownMillis <= 0) {
-            return 0;
-        }
-        Long last = lastUse.get(uuid);
-        if (last == null) {
-            return 0;
-        }
-        long remainingMillis = cooldownMillis - (System.currentTimeMillis() - last);
-        return remainingMillis <= 0 ? 0 : (remainingMillis / 1000) + 1;
     }
 
     private boolean isSafe(Location location) {

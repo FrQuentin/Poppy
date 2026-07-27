@@ -1,6 +1,7 @@
 package fr.quentin.poppy.listeners;
 
 import fr.quentin.poppy.manager.AfkManager;
+import fr.quentin.poppy.manager.SleepPercentageListener;
 import fr.quentin.poppy.util.PoppyConfig;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;

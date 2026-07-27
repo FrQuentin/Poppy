@@ -1,5 +1,6 @@
 package fr.quentin.poppy.listeners;
 
+import fr.quentin.poppy.util.CooldownStore;
 import fr.quentin.poppy.util.Messages;
 import fr.quentin.poppy.util.PoppyConfig;
 import fr.quentin.poppy.util.PoppyLogger;
@@ -10,6 +11,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerBedEnterEvent;
+import org.bukkit.event.world.WorldUnloadEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jspecify.annotations.NonNull;
 
@@ -18,6 +20,30 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.logging.Level;
 
+/**
+ * Broadcasts a "X/Y players sleeping" message to everyone in the same world
+ * whenever a player successfully enters a bed — a visible companion to
+ * {@link fr.quentin.poppy.manager.SleepPercentageListener}. Rate-limited
+ * per player via a shared {@link CooldownStore} ({@code sleep-status-cooldown-seconds}
+ * in config.yml), so repeatedly entering/leaving a bed can't be used to
+ * spam the broadcast.
+ *
+ * <p>Also detects when the night actually skips, for {@link PoppyLogger}'s
+ * SLEEP category. Bukkit has no dedicated event for this, so it's inferred:
+ * a lightweight repeating check compares each world's game time against
+ * what natural progression would predict — this is a heuristic, not a
+ * reliable detection (a manual {@code /time set} or another plugin
+ * adjusting time could produce a false positive/negative), accepted since
+ * the result is purely cosmetic (a log line), never gates game logic.
+ * Worlds with {@code advanceTime} off, or with no players online, are
+ * skipped entirely.
+ *
+ * <p>{@link #lastKnownTime}/{@link #wasSleeping} are keyed by world UID,
+ * not player UUID, so {@link CooldownStore}'s per-player purge doesn't
+ * apply to them — {@link #onWorldUnload} removes a world's entry when it
+ * unloads, since nothing else would otherwise ever clean it up (relevant
+ * for multiworld/minigame plugins that create and destroy worlds).
+ */
 public class SleepStatusListener implements Listener {
 
     private static final long CHECK_INTERVAL_TICKS = 20L;
@@ -27,16 +53,17 @@ public class SleepStatusListener implements Listener {
     private final Messages messages;
     private final PoppyConfig config;
     private final PoppyLogger logger;
+    private final CooldownStore broadcastCooldown;
 
     private final Map<UUID, Long> lastKnownTime = new HashMap<>();
     private final Map<UUID, Boolean> wasSleeping = new HashMap<>();
-    private final Map<UUID, Long> lastBroadcast = new HashMap<>();
 
     public SleepStatusListener(JavaPlugin plugin, Messages messages, PoppyConfig config, PoppyLogger logger) {
         this.plugin = plugin;
         this.messages = messages;
         this.config = config;
         this.logger = logger;
+        this.broadcastCooldown = new CooldownStore(plugin);
 
         Bukkit.getScheduler().runTaskTimer(plugin, this::checkForNightSkip, CHECK_INTERVAL_TICKS, CHECK_INTERVAL_TICKS);
     }
@@ -53,13 +80,13 @@ public class SleepStatusListener implements Listener {
 
         Player player = event.getPlayer();
 
-        if (broadcastCooldownRemaining(player.getUniqueId()) > 0) {
+        if (broadcastCooldown.remainingSeconds(player.getUniqueId()) > 0) {
             // Silent throttle: entering/leaving a bed in a loop to spam the
             // "X/Y sleeping" message doesn't need its own error message, that
             // would just be a different flavor of the same spam.
             return;
         }
-        lastBroadcast.put(player.getUniqueId(), System.currentTimeMillis());
+        broadcastCooldown.start(player.getUniqueId(), config.sleepStatusCooldownMillis());
 
         World world = player.getWorld();
 
@@ -72,17 +99,11 @@ public class SleepStatusListener implements Listener {
         });
     }
 
-    private long broadcastCooldownRemaining(UUID uuid) {
-        long cooldownMillis = config.sleepStatusCooldownMillis();
-        if (cooldownMillis <= 0) {
-            return 0;
-        }
-        Long last = lastBroadcast.get(uuid);
-        if (last == null) {
-            return 0;
-        }
-        long remainingMillis = cooldownMillis - (System.currentTimeMillis() - last);
-        return remainingMillis <= 0 ? 0 : (remainingMillis / 1000) + 1;
+    @EventHandler
+    public void onWorldUnload(@NonNull WorldUnloadEvent event) {
+        UUID worldId = event.getWorld().getUID();
+        lastKnownTime.remove(worldId);
+        wasSleeping.remove(worldId);
     }
 
     private void broadcastStatus(World world, Player player) {
@@ -106,30 +127,6 @@ public class SleepStatusListener implements Listener {
         }
     }
 
-    /**
-     * Runs every second for every loaded world, comparing the world's
-     * current time against what one second of natural progression would
-     * predict. A jump larger than {@link #JUMP_THRESHOLD_TICKS}, combined
-     * with someone having been sleeping last check, is logged as a night
-     * skip.
-     *
-     * <p>This is a heuristic, not a reliable detection: Bukkit has no
-     * dedicated "sleep skipped the night" event to listen to instead. A
-     * manual {@code /time set}, another plugin adjusting time, or anything
-     * else that moves the clock by a large jump while a player happens to be
-     * sleeping can produce a false positive; a partial/gradual skip (rare,
-     * but the vanilla algorithm doesn't strictly guarantee a single instant
-     * jump every time) could produce a false negative. This is accepted
-     * rather than engineered around further: the result is purely cosmetic
-     * (a {@link PoppyLogger} line), never gates any actual game logic, so
-     * perfect accuracy isn't worth the added complexity. Worlds with
-     * {@code doDaylightCycle} off are skipped entirely, since on those
-     * servers a time change is almost always a manual {@code /time set}
-     * rather than an actual sleep-driven skip — the single most common
-     * source of false positives this check would otherwise produce. Worlds
-     * with no players online are also skipped, since there's nothing
-     * meaningful to detect there.
-     */
     private void checkForNightSkip() {
         if (!config.sleepStatusMessageEnabled()) {
             return;
@@ -141,7 +138,8 @@ public class SleepStatusListener implements Listener {
                     continue;
                 }
 
-                if (!world.getGameRuleValue(GameRules.ADVANCE_TIME)) {
+                Boolean advanceTime = world.getGameRuleValue(GameRules.ADVANCE_TIME);
+                if (advanceTime == null || !advanceTime) {
                     continue;
                 }
 

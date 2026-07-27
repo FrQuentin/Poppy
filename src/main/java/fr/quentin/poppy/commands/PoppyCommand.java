@@ -1,6 +1,6 @@
 package fr.quentin.poppy.commands;
 
-import fr.quentin.poppy.listeners.SleepPercentageListener;
+import fr.quentin.poppy.manager.SleepPercentageListener;
 import fr.quentin.poppy.listeners.TabHealthListener;
 import fr.quentin.poppy.util.Messages;
 import fr.quentin.poppy.util.PoppyConfig;

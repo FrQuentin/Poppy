@@ -1,4 +1,4 @@
-package fr.quentin.poppy.listeners;
+package fr.quentin.poppy.manager;
 
 import fr.quentin.poppy.util.PoppyConfig;
 import org.bukkit.GameRules;

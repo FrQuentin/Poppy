@@ -1,7 +1,9 @@
 package fr.quentin.poppy.manager;
 
+import fr.quentin.poppy.util.CooldownStore;
 import fr.quentin.poppy.util.Messages;
 import fr.quentin.poppy.util.PoppyConfig;
+import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
@@ -25,9 +27,7 @@ import org.bukkit.projectiles.ProjectileSource;
 import org.jspecify.annotations.NonNull;
 
 import java.util.HashSet;
-import java.util.HashMap;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Level;
@@ -35,7 +35,8 @@ import java.util.logging.Level;
 /**
  * Backs /fly: disables flight the moment a flying (or fly-enabled) player
  * takes any damage, and blocks /fly for {@code fly-lockout-seconds}
- * afterward via its own {@link #lockoutUntil} timer.
+ * afterward via a shared {@link CooldownStore} (see its class-level doc
+ * for why that's preferable to a raw {@code Map<UUID, Long>}).
  *
  * <p>Integrated with {@link CombatManager}: {@link #isLocked} also treats
  * an active PvP combat tag as a lockout. {@link #onPvpDamage} grounds the
@@ -64,24 +65,20 @@ import java.util.logging.Level;
  * of a player's persisted data, not something Bukkit resets on its own —
  * so a naive quit handler that only forgot {@link #activeFly} without
  * also clearing the actual flight flags would leave a player able to fly
- * for free forever after reconnecting: untracked by this class, immune to
- * the damage lockout and the combat-tag check, invisible to the particle
- * ring. {@link #onQuit} force-clears both {@code allowFlight} and
- * {@code isFlying} for anyone still in {@link #activeFly} before removing
- * them. {@link #onJoin} additionally re-syncs on every login regardless of
- * prior state: a Survival/Adventure player who isn't tracked in
- * {@link #activeFly} always gets {@code allowFlight} forced off, closing
- * the gap even for stale playerdata from before this fix existed, or from
- * any other source. {@link #onGameModeChange} keeps things in sync the
- * other way too: switching to Creative/Spectator drops the player from
- * {@link #activeFly} (their flight becomes gamemode-native, no longer
- * ours to manage), and switching *back* to Survival/Adventure forces
- * {@code allowFlight} off unless they're still tracked as active.
+ * for free forever after reconnecting. {@link #onQuit} force-clears both
+ * {@code allowFlight} and {@code isFlying} for anyone still in
+ * {@link #activeFly} before removing them. {@link #onJoin} additionally
+ * re-syncs on every login regardless of prior state: a Survival/Adventure
+ * player who isn't tracked in {@link #activeFly} always gets
+ * {@code allowFlight} forced off. {@link #onGameModeChange} keeps things
+ * in sync the other way too: switching to Creative/Spectator drops the
+ * player from {@link #activeFly} (their flight becomes gamemode-native,
+ * no longer ours to manage), and switching *back* to Survival/Adventure
+ * forces {@code allowFlight} off unless they're still tracked as active.
  *
- * <p>The post-damage lockout timer is deliberately <b>not</b> cleared on
- * quit — same reasoning as {@code FeedCommand}/{@code HealCommand}:
- * clearing it would let a player dodge the wait by disconnecting and
- * reconnecting.
+ * <p>The post-damage lockout is deliberately <b>not</b> cleared on quit —
+ * same reasoning as {@code FeedCommand}/{@code HealCommand}: clearing it
+ * would let a player dodge the wait by disconnecting and reconnecting.
  */
 public class FlyManager implements Listener {
 
@@ -95,8 +92,8 @@ public class FlyManager implements Listener {
     private final Messages messages;
     private final PoppyConfig config;
     private final CombatManager combatManager;
+    private final CooldownStore lockoutStore;
 
-    private final Map<UUID, Long> lockoutUntil = new HashMap<>();
     private final Set<UUID> activeFly = new HashSet<>();
 
     public FlyManager(JavaPlugin plugin, Messages messages, PoppyConfig config, CombatManager combatManager) {
@@ -104,6 +101,7 @@ public class FlyManager implements Listener {
         this.messages = messages;
         this.config = config;
         this.combatManager = combatManager;
+        this.lockoutStore = new CooldownStore(plugin);
 
         Bukkit.getScheduler().runTaskTimer(plugin, this::tickParticles, PARTICLE_INTERVAL_TICKS, PARTICLE_INTERVAL_TICKS);
     }
@@ -136,34 +134,19 @@ public class FlyManager implements Listener {
 
     /**
      * Whether /fly is currently blocked for this player — either their own
-     * post-damage lockout timer, or an active PvP combat tag.
+     * post-damage lockout, or an active PvP combat tag.
      */
     public boolean isLocked(UUID uuid) {
-        return lockoutRemainingSeconds(uuid) > 0 || combatManager.isInCombat(uuid);
+        return lockoutStore.isActive(uuid) || combatManager.isInCombat(uuid);
     }
 
     /**
-     * The longer of the player's own lockout timer and their remaining
-     * PvP combat-tag time — used for the /fly denial message so it always
+     * The longer of the player's own lockout and their remaining PvP
+     * combat-tag time — used for the /fly denial message so it always
      * shows the actual wait, whichever system is currently the binding one.
      */
     public long displayRemainingSeconds(UUID uuid) {
-        return Math.max(lockoutRemainingSeconds(uuid), combatManager.remainingSeconds(uuid));
-    }
-
-    private long lockoutRemainingSeconds(UUID uuid) {
-        Long until = lockoutUntil.get(uuid);
-        if (until == null) {
-            return 0;
-        }
-
-        long remainingMillis = until - System.currentTimeMillis();
-        if (remainingMillis <= 0) {
-            lockoutUntil.remove(uuid);
-            return 0;
-        }
-
-        return (remainingMillis / 1000) + 1;
+        return Math.max(lockoutStore.remainingSeconds(uuid), combatManager.remainingSeconds(uuid));
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -205,12 +188,6 @@ public class FlyManager implements Listener {
         }
     }
 
-    /**
-     * Force-disables flight if an active /fly user ends up in the End by
-     * any means other than the /fly command itself (portal, ender pearl
-     * while flying, etc.) — {@link #toggle} alone only stops them from
-     * turning it on there, not from arriving there already flying.
-     */
     @EventHandler
     public void onWorldChange(@NonNull PlayerChangedWorldEvent event) {
         try {
@@ -234,14 +211,6 @@ public class FlyManager implements Listener {
         }
     }
 
-    /**
-     * Re-syncs flight state on every login, regardless of what this class
-     * remembers (it remembers nothing about an offline player) — a
-     * Survival/Adventure player always gets {@code allowFlight} forced
-     * off unless {@link #onQuit} is somehow bypassed (e.g. a server crash
-     * instead of a clean quit) or some other source set it. Creative and
-     * Spectator are left untouched, since their flight is gamemode-native.
-     */
     @EventHandler
     public void onJoin(@NonNull PlayerJoinEvent event) {
         try {
@@ -261,10 +230,6 @@ public class FlyManager implements Listener {
         }
     }
 
-    /**
-     * Keeps {@link #activeFly} and the real flight flags in sync across a
-     * gamemode switch in either direction — see the class-level doc.
-     */
     @EventHandler
     public void onGameModeChange(@NonNull PlayerGameModeChangeEvent event) {
         try {
@@ -273,14 +238,10 @@ public class FlyManager implements Listener {
             GameMode newMode = event.getNewGameMode();
 
             if (newMode == GameMode.CREATIVE || newMode == GameMode.SPECTATOR) {
-                // Their flight becomes gamemode-native from here on — no longer ours to
-                // manage or show particles for.
                 activeFly.remove(uuid);
                 return;
             }
 
-            // Switching into Survival/Adventure: if they're not actively tracked as a
-            // /fly user, make sure allowFlight isn't left over from Creative/Spectator.
             if (!activeFly.contains(uuid) && player.getAllowFlight()) {
                 player.setAllowFlight(false);
                 player.setFlying(false);
@@ -290,12 +251,6 @@ public class FlyManager implements Listener {
         }
     }
 
-    /**
-     * Force-clears the actual flight flags for anyone still tracked as an
-     * active /fly user before removing them — see the class-level doc for
-     * why leaving {@code allowFlight} as-is here would grant permanent
-     * free flight on the next login.
-     */
     @EventHandler
     public void onQuit(@NonNull PlayerQuitEvent event) {
         Player player = event.getPlayer();
@@ -310,8 +265,7 @@ public class FlyManager implements Listener {
     /**
      * @param target the entity the player just attacked, for the
      *               notification message — null when called from the
-     *               generic {@link #onDamage} path, where the player is
-     *               the one who got hit rather than the one attacking.
+     *               generic {@link #onDamage} path.
      */
     private void disableFlightAndLock(Player player, Entity target) {
         GameMode mode = player.getGameMode();
@@ -328,10 +282,7 @@ public class FlyManager implements Listener {
         player.setAllowFlight(false);
         activeFly.remove(player.getUniqueId());
 
-        long lockoutMillis = config.flyLockoutMillis();
-        if (lockoutMillis > 0) {
-            lockoutUntil.put(player.getUniqueId(), System.currentTimeMillis() + lockoutMillis);
-        }
+        lockoutStore.start(player.getUniqueId(), config.flyLockoutMillis());
 
         if (target != null) {
             player.sendMessage(messages.get("fly.disabled-attack", "target", targetName(target)));
@@ -340,12 +291,6 @@ public class FlyManager implements Listener {
         }
     }
 
-    /**
-     * Draws a small ring of particles at each active /fly user's feet,
-     * only while they're actually airborne ({@link Player#isFlying()}) —
-     * grounded-but-toggled-on doesn't need the visual. Skipped entirely
-     * if {@code fly-particles-enabled} is off.
-     */
     private void tickParticles() {
         if (!config.flyParticlesEnabled() || activeFly.isEmpty()) {
             return;

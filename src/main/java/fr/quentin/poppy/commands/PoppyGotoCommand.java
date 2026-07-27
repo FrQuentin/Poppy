@@ -4,6 +4,7 @@ import fr.quentin.poppy.manager.HomeManager;
 import fr.quentin.poppy.manager.ShareManager;
 import fr.quentin.poppy.manager.TeleportManager;
 import fr.quentin.poppy.model.Home;
+import fr.quentin.poppy.util.CooldownStore;
 import fr.quentin.poppy.util.Messages;
 import fr.quentin.poppy.util.PoppyConfig;
 import fr.quentin.poppy.util.PoppyLogger;
@@ -26,22 +27,22 @@ import java.util.UUID;
  * use it.
  *
  * <p>The token resolves to the sharer's UUID and home name, re-fetched
- * live from {@link HomeManager} at teleport time via a
- * {@link java.util.function.Supplier} rather than a frozen snapshot — see
- * {@link ShareManager} for why. If the home no longer exists by the time
- * someone clicks the link (deleted after sharing), this fails the same
- * way an expired token would.
+ * live via {@link HomeManager#getHomeUncached} at teleport time — that
+ * variant, not the cache-populating {@link HomeManager#getHome}, since
+ * the owner may not be online this session (or ever again); populating
+ * the cache here would leak an entry {@code HomeCacheListener} will never
+ * see a quit event to clean up.
  *
  * <p>The token is a full UUID (128 bits of randomness), making brute-force
  * guessing already computationally infeasible within the token's short
- * expiry window on its own. {@link #failedAttempts}/{@link #lockedUntil}
+ * expiry window on its own. {@link #failedAttempts}/{@link #lockoutStore}
  * add defense-in-depth on top of that: after
  * {@code sharehome-max-failed-attempts} wrong tokens in a row from the
  * same player, they're locked out of trying again for
  * {@code sharehome-lockout-seconds}.
  *
- * <p>Deliberately not cleared on quit — same reasoning as
- * {@code PoppyLoreListener}'s cooldown map: clearing it would let a
+ * <p>The lockout is deliberately not cleared on quit — same reasoning as
+ * {@code PoppyLoreListener}'s cooldown: clearing it would let a
  * brute-forcing player reset their own lockout for free by disconnecting
  * and reconnecting with the same account.
  */
@@ -52,9 +53,9 @@ public class PoppyGotoCommand extends SafeCommand {
     private final TeleportManager teleportManager;
     private final PoppyConfig config;
     private final PoppyLogger logger;
+    private final CooldownStore lockoutStore;
 
     private final Map<UUID, Integer> failedAttempts = new HashMap<>();
-    private final Map<UUID, Long> lockedUntil = new HashMap<>();
 
     public PoppyGotoCommand(JavaPlugin plugin, ShareManager shareManager, HomeManager homeManager, TeleportManager teleportManager,
                             Messages messages, PoppyConfig config, PoppyLogger logger) {
@@ -64,6 +65,7 @@ public class PoppyGotoCommand extends SafeCommand {
         this.teleportManager = teleportManager;
         this.config = config;
         this.logger = logger;
+        this.lockoutStore = new CooldownStore(plugin);
     }
 
     @Override
@@ -72,7 +74,7 @@ public class PoppyGotoCommand extends SafeCommand {
             return true;
         }
 
-        long lockoutRemaining = lockoutRemainingSeconds(player.getUniqueId());
+        long lockoutRemaining = lockoutStore.remainingSeconds(player.getUniqueId());
         if (lockoutRemaining > 0) {
             player.sendMessage(messages.get("sharehome.locked-out", "seconds", String.valueOf(lockoutRemaining)));
             return true;
@@ -112,23 +114,8 @@ public class PoppyGotoCommand extends SafeCommand {
 
         if (attempts >= config.sharehomeMaxFailedAttempts()) {
             failedAttempts.remove(uuid);
-            lockedUntil.put(uuid, System.currentTimeMillis() + config.sharehomeLockoutMillis());
+            lockoutStore.start(uuid, config.sharehomeLockoutMillis());
             logger.log(PoppyLogger.Category.SHARE, player, "locked out of /poppygoto after too many invalid tokens in a row");
         }
-    }
-
-    private long lockoutRemainingSeconds(UUID uuid) {
-        Long until = lockedUntil.get(uuid);
-        if (until == null) {
-            return 0;
-        }
-
-        long remainingMillis = until - System.currentTimeMillis();
-        if (remainingMillis <= 0) {
-            lockedUntil.remove(uuid);
-            return 0;
-        }
-
-        return (remainingMillis / 1000) + 1;
     }
 }

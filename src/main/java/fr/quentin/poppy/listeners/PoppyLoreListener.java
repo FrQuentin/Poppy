@@ -1,5 +1,6 @@
 package fr.quentin.poppy.listeners;
 
+import fr.quentin.poppy.util.CooldownStore;
 import fr.quentin.poppy.util.DurationFormat;
 import fr.quentin.poppy.util.Messages;
 import fr.quentin.poppy.util.PoppyConfig;
@@ -16,25 +17,28 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jspecify.annotations.NonNull;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
 import java.util.logging.Level;
 
+/**
+ * Easter egg: right-clicking an Iron Golem while holding a poppy tells the
+ * player a short made-up story about how the flower ended up in the game.
+ * Rate-limited via {@code poppy-lore-cooldown-minutes} in config.yml,
+ * tracked in a shared {@link CooldownStore} (see its class-level doc).
+ */
 public class PoppyLoreListener implements Listener {
 
     private final JavaPlugin plugin;
     private final Messages messages;
     private final PoppyConfig config;
     private final PoppyLogger logger;
-
-    private final Map<UUID, Long> lastUse = new HashMap<>();
+    private final CooldownStore cooldown;
 
     public PoppyLoreListener(JavaPlugin plugin, Messages messages, PoppyConfig config, PoppyLogger logger) {
         this.plugin = plugin;
         this.messages = messages;
         this.config = config;
         this.logger = logger;
+        this.cooldown = new CooldownStore(plugin);
     }
 
     @EventHandler
@@ -54,31 +58,18 @@ public class PoppyLoreListener implements Listener {
                 return;
             }
 
-            long remainingSeconds = cooldownRemainingSeconds(player.getUniqueId());
-            if (remainingSeconds > 0) {
-                player.sendMessage(messages.get("poppy.lore-cooldown", "time", DurationFormat.format(remainingSeconds)));
+            long remaining = cooldown.remainingSeconds(player.getUniqueId());
+            if (remaining > 0) {
+                player.sendMessage(messages.get("poppy.lore-cooldown", "time", DurationFormat.format(remaining)));
                 return;
             }
 
-            lastUse.put(player.getUniqueId(), System.currentTimeMillis());
+            cooldown.start(player.getUniqueId(), config.poppyLoreCooldownMillis());
             logger.log(PoppyLogger.Category.EASTER_EGG, player, "triggered the iron golem poppy story");
             tellStory(player);
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Error in PoppyLoreListener#onInteract for " + event.getPlayer().getName(), e);
         }
-    }
-
-    private long cooldownRemainingSeconds(UUID uuid) {
-        long cooldownMillis = config.poppyLoreCooldownMillis();
-        if (cooldownMillis <= 0) {
-            return 0;
-        }
-        Long last = lastUse.get(uuid);
-        if (last == null) {
-            return 0;
-        }
-        long remainingMillis = cooldownMillis - (System.currentTimeMillis() - last);
-        return remainingMillis <= 0 ? 0 : (remainingMillis / 1000) + 1;
     }
 
     private void tellStory(Player player) {

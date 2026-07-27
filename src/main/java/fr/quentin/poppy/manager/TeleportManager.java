@@ -5,6 +5,7 @@ import fr.quentin.poppy.util.Messages;
 import fr.quentin.poppy.util.PoppyConfig;
 import fr.quentin.poppy.util.PoppyLogger;
 import fr.quentin.poppy.util.PoppyStats;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -43,6 +44,21 @@ import java.util.logging.Level;
  * <p>The destination is a {@link Supplier<Home>}, re-resolved right before
  * the actual teleport — so a home/spawn deleted mid-warmup cancels instead
  * of using stale coordinates.
+ *
+ * <p><b>{@link #onTeleportComplete}/{@link #onTeleportFailed} only ever run
+ * on the main thread</b> — both {@code teleportAsync(...)}'s
+ * {@code thenAccept}/{@code exceptionally} callbacks in {@link #teleportNow}
+ * explicitly re-check {@link Bukkit#isPrimaryThread()} and defer via
+ * {@link Bukkit#getScheduler()} if not, rather than assuming Paper's
+ * teleport future always completes on the main thread. It does today, but
+ * that's an implementation detail — the exact same class of assumption
+ * {@code RtpCommand}'s {@code handleChunkLoaded} explicitly guards against.
+ * An inconsistency between the two classes on this point was a sign one of
+ * them was wrong, not that the assumption was safe; both now share the
+ * same guard. This matters because these callbacks touch Bukkit API
+ * (messaging, {@link PoppyStats}, {@link PoppyLogger}) and the caller's
+ * {@code onSuccess} callback, which can itself mutate plain (unsynchronized)
+ * collections — e.g. {@code DeathLocationManager#remove}.
  */
 public class TeleportManager implements Listener {
 
@@ -226,28 +242,52 @@ public class TeleportManager implements Listener {
 
         player.teleportAsync(location)
                 .thenAccept(success -> {
-                    if (!success) {
-                        plugin.getLogger().warning("Teleport of " + player.getName() + " to '" + home.name() + "' did not complete successfully");
+                    if (!Bukkit.isPrimaryThread()) {
+                        Bukkit.getScheduler().runTask(plugin, () -> onTeleportComplete(player, home, success, successMessagePath, onSuccess));
                         return;
                     }
-
-                    stats.incrementTeleports();
-
-                    logger.log(PoppyLogger.Category.TELEPORT, player, "teleported to '" + home.name() + "' at "
-                            + home.worldName() + ": " + (int) home.x() + ", " + (int) home.y() + ", " + (int) home.z());
-
-                    player.sendMessage(messages.get(successMessagePath, "home", home.name()));
-
-                    if (onSuccess != null) {
-                        onSuccess.run();
-                    }
+                    onTeleportComplete(player, home, success, successMessagePath, onSuccess);
                 })
                 .exceptionally(throwable -> {
-                    plugin.getLogger().log(Level.SEVERE, "Error teleporting " + player.getName() + " to '" + home.name() + "'", throwable);
-                    if (player.isOnline()) {
-                        player.sendMessage(messages.get("general.error"));
+                    if (!Bukkit.isPrimaryThread()) {
+                        Bukkit.getScheduler().runTask(plugin, () -> onTeleportFailed(player, home, throwable));
+                        return null;
                     }
+                    onTeleportFailed(player, home, throwable);
                     return null;
                 });
+    }
+
+    /**
+     * Only ever runs on the main thread — guaranteed by both callers in
+     * {@link #teleportNow}. Safe to touch Bukkit API and mutable state here.
+     */
+    private void onTeleportComplete(Player player, Home home, boolean success, String successMessagePath, Runnable onSuccess) {
+        if (!success) {
+            plugin.getLogger().warning("Teleport of " + player.getName() + " to '" + home.name() + "' did not complete successfully");
+            return;
+        }
+
+        stats.incrementTeleports();
+
+        logger.log(PoppyLogger.Category.TELEPORT, player, "teleported to '" + home.name() + "' at "
+                + home.worldName() + ": " + (int) home.x() + ", " + (int) home.y() + ", " + (int) home.z());
+
+        player.sendMessage(messages.get(successMessagePath, "home", home.name()));
+
+        if (onSuccess != null) {
+            onSuccess.run();
+        }
+    }
+
+    /**
+     * Only ever runs on the main thread — same guarantee as
+     * {@link #onTeleportComplete}.
+     */
+    private void onTeleportFailed(Player player, Home home, Throwable throwable) {
+        plugin.getLogger().log(Level.SEVERE, "Error teleporting " + player.getName() + " to '" + home.name() + "'", throwable);
+        if (player.isOnline()) {
+            player.sendMessage(messages.get("general.error"));
+        }
     }
 }

@@ -1,6 +1,7 @@
 package fr.quentin.poppy.commands;
 
 import fr.quentin.poppy.manager.TpaManager;
+import fr.quentin.poppy.util.DurationFormat;
 import fr.quentin.poppy.util.Messages;
 import fr.quentin.poppy.util.PlayerNameSuggestions;
 import fr.quentin.poppy.util.PoppyLogger;
@@ -21,6 +22,13 @@ import java.util.List;
  * Handles /tpahere <player>: asks another player to teleport to the
  * sender. If they accept (via /tpaccept), the recipient is teleported to
  * the sender — see {@link TpaAcceptCommand}.
+ *
+ * <p>Rate-limited via {@link TpaManager#requestCooldownRemainingSeconds}
+ * and blocked entirely if the target has opted out via {@code /tpatoggle}
+ * — see {@link TpaManager#isAcceptingRequests}.
+ *
+ * <p>Target resolution checks {@link Player#canSee(Player)} — see
+ * {@link TpaCommand}'s class-level doc for why that matters for vanish.
  */
 public class TpaHereCommand extends SafeCommand implements TabCompleter {
 
@@ -46,7 +54,7 @@ public class TpaHereCommand extends SafeCommand implements TabCompleter {
         }
 
         Player target = Bukkit.getPlayerExact(args[0]);
-        if (target == null) {
+        if (target == null || !player.canSee(target)) {
             player.sendMessage(messages.get("tpa.player-not-found", "player", args[0]));
             return true;
         }
@@ -56,7 +64,19 @@ public class TpaHereCommand extends SafeCommand implements TabCompleter {
             return true;
         }
 
+        long remaining = tpaManager.requestCooldownRemainingSeconds(player.getUniqueId());
+        if (remaining > 0) {
+            player.sendMessage(messages.get("tpa.request-cooldown", "time", DurationFormat.format(remaining)));
+            return true;
+        }
+
+        if (!tpaManager.isAcceptingRequests(target.getUniqueId())) {
+            player.sendMessage(messages.get("tpa.target-not-accepting", "player", target.getName()));
+            return true;
+        }
+
         tpaManager.createRequest(target.getUniqueId(), player.getUniqueId(), TpaManager.Type.HERE);
+        tpaManager.recordRequestSent(player.getUniqueId());
         logger.log(PoppyLogger.Category.TPA, player, "sent /tpahere request to " + target.getName());
         player.sendMessage(messages.get("tpa.here-sent", "player", target.getName()));
 

@@ -26,9 +26,14 @@ import java.util.List;
  * <p>Rate-limited via {@link TpaManager#requestCooldownRemainingSeconds}
  * ({@code tpa-request-cooldown-seconds} in config.yml) and blocked
  * entirely if the target has opted out via {@code /tpatoggle} — see
- * {@link TpaManager#isAcceptingRequests}. Without both of these, sending
- * repeated teleport requests (each one a clickable chat message shown to
- * the target) is a free, permission-less way to harass another player.
+ * {@link TpaManager#isAcceptingRequests}.
+ *
+ * <p>Target resolution checks {@link Player#canSee(Player)}, not just
+ * {@link Bukkit#getPlayerExact(String)} returning non-null — a vanished
+ * player is technically online, and without this check the sender would
+ * be told "player not found" for a genuinely offline player and get a
+ * successful "request sent" for a vanished one, leaking exactly the
+ * presence information vanish exists to hide.
  */
 public class TpaCommand extends SafeCommand implements TabCompleter {
 
@@ -54,7 +59,10 @@ public class TpaCommand extends SafeCommand implements TabCompleter {
         }
 
         Player target = Bukkit.getPlayerExact(args[0]);
-        if (target == null) {
+        if (target == null || !player.canSee(target)) {
+            // Deliberately identical message whether the player is truly offline or
+            // just vanished from this sender — distinguishing the two would leak
+            // exactly the presence information vanish is meant to hide.
             player.sendMessage(messages.get("tpa.player-not-found", "player", args[0]));
             return true;
         }

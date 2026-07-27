@@ -2,6 +2,7 @@ package fr.quentin.poppy.manager;
 
 import fr.quentin.poppy.model.Home;
 import fr.quentin.poppy.util.PoppyConfig;
+import org.bukkit.Bukkit;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
@@ -13,30 +14,53 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 
 /**
  * Loads, caches, and persists every player's homes as one YAML file per
  * player under {@code plugins/Poppy/homes/<uuid>.yml}.
  *
- * <p>{@code cache} and {@link #pendingWrites} are only ever touched from
- * the main thread, so neither needs synchronization. All disk I/O goes
- * through {@link #ioExecutor}, a single-thread executor, so writes for a
- * given player are strictly ordered by submission time.
+ * <p>{@code cache}, {@link #inFlight}, and {@link #inFlightTokens} are only
+ * ever touched from the main thread, so none of them need synchronization.
+ * All disk I/O goes through {@link #ioExecutor}, a single-thread executor,
+ * so writes for a given player are strictly ordered by submission time.
  *
- * <p>{@link #pendingWrites} closes a real race between {@link #unload}
- * (queues a write asynchronously on quit) and {@link #load} (reads the
- * file synchronously on the main thread, e.g. on a fast reconnect, or via
- * {@code /poppygoto} teleporting into someone else's shared home which
- * calls {@link #getHomes}): without it, a reconnect quick enough could
- * read the file before the queued write from the previous session landed,
- * see stale homes, and then have the old write overwrite the freshly
- * reloaded cache moments later — a real, if narrow, data-loss window.
- * {@link #load} now waits on the most recently queued write for that UUID
- * (if any) before touching the file; because {@link #ioExecutor} is
- * single-threaded and FIFO, the most recent write having completed
- * implies every earlier one for that UUID has too.
+ * <p><b>No blocking reads, ever, on the main thread:</b> {@link #load} used
+ * to block (with a bounded timeout) on any write still in flight for that
+ * UUID before reading the file — meant to avoid returning stale data, but
+ * even a bounded 2-second block on the main thread is already a serious
+ * server-wide freeze (40 missed ticks, a watchdog trigger risk on some
+ * hosts), and this was reachable by an unprivileged player: e.g. clicking
+ * a {@code /sharehome} link ({@link fr.quentin.poppy.commands.PoppyGotoCommand})
+ * calls {@link #getHome} for a possibly-offline player whose write was
+ * just queued moments earlier. {@link #inFlight} solves the same
+ * staleness problem without any disk I/O: {@link #queueWrite} keeps an
+ * in-memory snapshot of exactly what's being written, and {@link #load}
+ * serves that snapshot directly (no file read, no wait) whenever one
+ * exists, only falling back to reading the file once nothing is in
+ * flight. {@link #inFlightTokens} guards against a narrower race within
+ * this fix: if two writes for the same player queue in quick succession,
+ * the *first* write's completion callback must not clear
+ * {@link #inFlight} out from under the *second*, still-in-flight, more
+ * recent snapshot — each queued write gets its own identity token, and a
+ * completion callback only clears the map if its own token is still the
+ * current one.
+ *
+ * <p>{@link #preloadAsync} additionally warms a player's cache entry
+ * asynchronously on join (see {@code HomeCacheListener#onJoin}), before
+ * any command has a chance to trigger the (much cheaper, but still
+ * synchronous) file read otherwise done by {@link #load} on first access.
+ * This doesn't eliminate every synchronous read — cross-player access via
+ * {@code /poppygoto} to a target whose homes were never cached or
+ * recently written this session still reads their small YAML file
+ * synchronously — but that residual cost is a quick local read, not a
+ * wait on someone else's in-flight I/O, which is what made the old
+ * bounded wait a real problem.
  *
  * <p>{@link #MAX_HOMES} (54, one double chest) is the hard ceiling tied to
  * the /homes GUI's inventory size — it never changes. The actual per-player
@@ -55,13 +79,13 @@ import java.util.logging.Level;
 public class HomeManager {
 
     public static final int MAX_HOMES = 54;
-    private static final long PENDING_WRITE_TIMEOUT_MILLIS = 2000L;
 
     private final JavaPlugin plugin;
     private final PoppyConfig config;
     private final File homesFolder;
     private final Map<UUID, LinkedHashMap<String, Home>> cache = new LinkedHashMap<>();
-    private final Map<UUID, Future<?>> pendingWrites = new HashMap<>();
+    private final Map<UUID, LinkedHashMap<String, Home>> inFlight = new HashMap<>();
+    private final Map<UUID, Object> inFlightTokens = new HashMap<>();
     private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor(runnable -> {
         Thread thread = new Thread(runnable, "Poppy-HomeManager-IO");
         thread.setDaemon(true);
@@ -142,12 +166,26 @@ public class HomeManager {
     }
 
     /**
-     * Waits for the most recently queued write for this UUID (if any) to
-     * finish before reading the file — see the class-level doc for why.
+     * Serves the in-flight snapshot with no disk access at all if one
+     * exists for this UUID — see the class-level doc. Only reads the file
+     * when nothing is currently being written.
      */
     private LinkedHashMap<String, Home> load(UUID uuid) {
-        awaitPendingWrite(uuid);
+        LinkedHashMap<String, Home> pending = inFlight.get(uuid);
+        if (pending != null) {
+            return new LinkedHashMap<>(pending);
+        }
 
+        return readFromDisk(uuid);
+    }
+
+    /**
+     * The actual file-reading logic, factored out so both {@link #load}
+     * (main thread) and {@link #preloadAsync} (off-thread) share it — safe
+     * to call from either, since it only touches the filesystem and plain
+     * Java objects, never any Bukkit API.
+     */
+    private LinkedHashMap<String, Home> readFromDisk(UUID uuid) {
         LinkedHashMap<String, Home> homes = new LinkedHashMap<>();
         File file = fileFor(uuid);
         if (!file.exists()) {
@@ -181,48 +219,27 @@ public class HomeManager {
     }
 
     /**
-     * Waits for the most recently queued write for this UUID (if any) to
-     * finish before reading the file — see the class-level doc for why.
-     *
-     * <p>Bounded by {@link #PENDING_WRITE_TIMEOUT_MILLIS}: {@code load} runs
-     * on the main thread (called from {@link #getHomes} via
-     * {@code computeIfAbsent}, including for an offline player — e.g. when
-     * {@code /poppygoto} resolves a shared home), so waiting unboundedly on
-     * disk I/O here would freeze the whole server on a slow disk or a large
-     * file. On timeout, this gives up waiting and proceeds to read whatever
-     * is currently on disk rather than blocking further — in the rare case
-     * the write genuinely hasn't landed yet, the read could be a few
-     * milliseconds stale, which is an acceptable tradeoff against blocking
-     * the entire server. The pending write itself isn't cancelled; it keeps
-     * running on {@link #ioExecutor} and will still land eventually.
+     * Warms {@link #cache} for a player asynchronously — meant to be
+     * called on join, before any command has a chance to trigger
+     * {@link #load}'s synchronous file read on the main thread. A no-op if
+     * the cache is already populated by the time this runs (e.g. some
+     * other code path already called {@link #getHomes} for this player).
      */
-    private void awaitPendingWrite(UUID uuid) {
-        Future<?> future = pendingWrites.remove(uuid);
-        if (future == null) {
+    public void preloadAsync(UUID uuid) {
+        if (cache.containsKey(uuid)) {
             return;
         }
 
-        try {
-            future.get(PENDING_WRITE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
-        } catch (CancellationException ignored) {
-            // Nothing left to wait for.
-        } catch (TimeoutException e) {
-            plugin.getLogger().log(Level.WARNING,
-                    "Timed out waiting for a pending homes write for " + uuid + " — reading the file anyway, it may be briefly stale");
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            plugin.getLogger().log(Level.SEVERE, "Interrupted while waiting for a pending homes write for " + uuid, e);
-        } catch (ExecutionException e) {
-            plugin.getLogger().log(Level.SEVERE, "Error waiting for a pending homes write for " + uuid, e);
-        }
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            LinkedHashMap<String, Home> homes = readFromDisk(uuid);
+            Bukkit.getScheduler().runTask(plugin, () -> cache.putIfAbsent(uuid, homes));
+        });
     }
 
     /**
      * Queues an async write (or a deletion, if the player now has zero
      * homes) and returns immediately — the normal path, called after every
-     * mutation ({@link #addHome}/{@link #removeHome}). The resulting
-     * {@link Future} is tracked in {@link #pendingWrites} so a later
-     * {@link #load} for the same player can wait on it.
+     * mutation ({@link #addHome}/{@link #removeHome}).
      *
      * <p>Guarded against {@link RejectedExecutionException}: after
      * {@link #saveAllSync()} shuts {@link #ioExecutor} down, any late call
@@ -240,9 +257,7 @@ public class HomeManager {
 
     /**
      * Called when a player leaves: evicts them from the in-memory cache and
-     * queues their homes to be flushed to disk — without blocking the
-     * calling thread on the actual write (see {@link #pendingWrites} for
-     * how a later reload waits on it instead).
+     * queues their homes to be flushed to disk.
      */
     public void unload(UUID uuid) {
         LinkedHashMap<String, Home> homes = cache.remove(uuid);
@@ -253,29 +268,54 @@ public class HomeManager {
         queueWrite(uuid, homes);
     }
 
+    /**
+     * Snapshots {@code homes} into {@link #inFlight} under a fresh identity
+     * token, submits the async write, and clears the snapshot once done —
+     * but only if this write's token is still the current one for this
+     * UUID (see the class-level doc for why that check matters).
+     */
     private void queueWrite(UUID uuid, LinkedHashMap<String, Home> homes) {
         File file = fileFor(uuid);
+        LinkedHashMap<String, Home> snapshot = new LinkedHashMap<>(homes);
+        Object token = new Object();
+
+        inFlight.put(uuid, snapshot);
+        inFlightTokens.put(uuid, token);
 
         try {
-            Future<?> future;
-            if (homes.isEmpty()) {
-                future = ioExecutor.submit(() -> deleteFromDisk(file, uuid));
+            if (snapshot.isEmpty()) {
+                ioExecutor.submit(() -> {
+                    deleteFromDisk(file, uuid);
+                    clearInFlightIfCurrent(uuid, token);
+                });
             } else {
-                YamlConfiguration config = buildConfig(homes);
-                future = ioExecutor.submit(() -> writeToDisk(config, file, uuid));
+                YamlConfiguration yaml = buildConfig(snapshot);
+                ioExecutor.submit(() -> {
+                    writeToDisk(yaml, file, uuid);
+                    clearInFlightIfCurrent(uuid, token);
+                });
             }
-            pendingWrites.put(uuid, future);
         } catch (RejectedExecutionException e) {
             plugin.getLogger().log(Level.WARNING, "Could not queue homes save for " + uuid + " (I/O executor already shut down)", e);
+            clearInFlightIfCurrent(uuid, token);
         }
+    }
+
+    private void clearInFlightIfCurrent(UUID uuid, Object token) {
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (inFlightTokens.get(uuid) == token) {
+                inFlight.remove(uuid);
+                inFlightTokens.remove(uuid);
+            }
+        });
     }
 
     /**
      * Called at plugin shutdown for any player still left in {@code cache}
      * (normally none, since {@link #unload} already queued a flush for
-     * everyone on quit). Blocks on each write in turn, then shuts
-     * {@link #ioExecutor} down and waits for it to fully drain — see the
-     * class-level doc on why blocking matters here specifically.
+     * everyone on quit). Blocks on each write in turn — safe to block here
+     * specifically because this only runs once, at shutdown, never on a
+     * request from an online player.
      */
     public void saveAllSync() {
         for (Map.Entry<UUID, LinkedHashMap<String, Home>> entry : cache.entrySet()) {
@@ -299,7 +339,7 @@ public class HomeManager {
     }
 
     public int countPlayersWithHomes() {
-        File[] files = homesFolder.listFiles((_, name) -> name.endsWith(".yml"));
+        File[] files = homesFolder.listFiles((dir, name) -> name.endsWith(".yml"));
         if (files == null) {
             return 0;
         }
@@ -314,7 +354,7 @@ public class HomeManager {
     }
 
     public int countTotalHomes() {
-        File[] files = homesFolder.listFiles((_, name) -> name.endsWith(".yml"));
+        File[] files = homesFolder.listFiles((dir, name) -> name.endsWith(".yml"));
         if (files == null) {
             return 0;
         }
@@ -357,11 +397,10 @@ public class HomeManager {
      * prevents concurrent writes.
      *
      * <p>Writes to a temporary file first, then atomically renames it over
-     * the real file. If the filesystem doesn't support atomic moves (some
-     * Docker overlay filesystems, some network mounts),
+     * the real file. If the filesystem doesn't support atomic moves,
      * {@link AtomicMoveNotSupportedException} falls back to a plain move.
      */
-    protected void writeToDisk(YamlConfiguration config, File file, UUID uuid) {
+    private void writeToDisk(YamlConfiguration config, File file, UUID uuid) {
         File tempFile = new File(file.getParentFile(), file.getName() + ".tmp");
 
         try {

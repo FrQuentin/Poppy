@@ -528,25 +528,31 @@ public class DeathChestManager implements Listener {
         }
 
         try {
-            UUID id = chestIdOf(event.getBlock());
+            Block block = event.getBlock();
+            UUID id = chestIdOf(block);
             if (id == null) {
-                return;
+                return; // not a death chest block at all
             }
 
             Player breaker = event.getPlayer();
             ChestData data = chests.get(id);
 
             if (data == null) {
-                if (!breaker.hasPermission("poppy.deathchest.bypass")) {
-                    event.setCancelled(true);
-                    breaker.sendMessage(messages.get("death.chest-unbreakable"));
-                }
+                // Orphaned marker: a PDC-tagged chest block with no backing entry in
+                // chests — deathchests.yml was corrupted/wiped, or this specific
+                // entry was skipped at load (missing world, malformed data). There's
+                // no loot left to protect here, so treating this as an ordinary
+                // chest (letting the break go through) is the least surprising
+                // behavior — the alternative is an unbreakable,
+                // explosion/piston-immune, unopenable block sitting on the map
+                // forever with no cleanup path.
+                plugin.getLogger().info("Removed an orphaned death chest marker at " + block.getLocation());
                 return;
             }
 
             if (breaker.hasPermission("poppy.deathchest.bypass")) {
                 logger.log(PoppyLogger.Category.ADMIN, breaker,
-                        "broke a death chest owned by " + ownerNameOf(data.owner) + " using bypass permission");
+                        "broke a death chest owned by " + data.ownerName() + " using bypass permission");
                 event.setCancelled(true);
                 removeChest(data, true);
                 return;
@@ -565,7 +571,7 @@ public class DeathChestManager implements Listener {
             return;
         }
         try {
-            event.blockList().removeIf(block -> chestIdOf(block) != null);
+            event.blockList().removeIf(this::isTrackedDeathChestBlock);
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Error in DeathChestManager#onEntityExplode", e);
         }
@@ -577,7 +583,7 @@ public class DeathChestManager implements Listener {
             return;
         }
         try {
-            event.blockList().removeIf(block -> chestIdOf(block) != null);
+            event.blockList().removeIf(this::isTrackedDeathChestBlock);
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Error in DeathChestManager#onBlockExplode", e);
         }
@@ -589,7 +595,7 @@ public class DeathChestManager implements Listener {
             return;
         }
         try {
-            if (event.getBlocks().stream().anyMatch(block -> chestIdOf(block) != null)) {
+            if (event.getBlocks().stream().anyMatch(this::isTrackedDeathChestBlock)) {
                 event.setCancelled(true);
             }
         } catch (Exception e) {
@@ -603,12 +609,24 @@ public class DeathChestManager implements Listener {
             return;
         }
         try {
-            if (event.getBlocks().stream().anyMatch(block -> chestIdOf(block) != null)) {
+            if (event.getBlocks().stream().anyMatch(this::isTrackedDeathChestBlock)) {
                 event.setCancelled(true);
             }
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Error in DeathChestManager#onPistonRetract", e);
         }
+    }
+
+    /**
+     * True only for a chest block that's both PDC-tagged AND backed by a real
+     * {@link ChestData} entry — see {@link #onBreak} for why an orphaned
+     * marker (tagged, but no tracked data) must NOT be treated as protected:
+     * it would otherwise stay immune to explosions/pistons forever with no
+     * cleanup path, on top of already being unbreakable and unopenable.
+     */
+    private boolean isTrackedDeathChestBlock(Block block) {
+        UUID id = chestIdOf(block);
+        return id != null && chests.containsKey(id);
     }
 
     @EventHandler

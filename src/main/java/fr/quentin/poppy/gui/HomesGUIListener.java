@@ -11,8 +11,13 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -102,6 +107,92 @@ public class HomesGUIListener implements Listener {
                 closeLater(player);
             }
         }
+    }
+
+    /**
+     * {@link InventoryClickEvent#setCancelled(boolean)} in {@link #onClick}
+     * only blocks single-slot clicks — dragging (holding a click and
+     * sweeping across multiple slots) is a completely separate event that
+     * cancellation there never touches. Without this, a player could deposit
+     * a stack of filler-matching items (or anything, into any slot the
+     * filler doesn't fully occupy) into any of the three Poppy GUIs — items
+     * that are never persisted or rendered anywhere and are silently
+     * destroyed the moment the inventory closes.
+     */
+    @EventHandler
+    public void onDrag(InventoryDragEvent event) {
+        InventoryHolder holder = event.getInventory().getHolder();
+        if (holder instanceof PoppyHomesHolder
+                || holder instanceof PoppyConfirmDeleteHolder
+                || holder instanceof PoppyConfirmOverwriteHolder) {
+            event.setCancelled(true);
+        }
+    }
+
+    /**
+     * Safety net on top of {@link #onClick}/{@link #onDrag}: refunds any
+     * non-filler item somehow still present in a Poppy GUI when it closes,
+     * rather than letting it vanish. Covers any future/edge-case vector this
+     * class doesn't explicitly cancel — filler panes themselves are
+     * identified by displaying no PDC tag this class recognizes (no home
+     * name, no confirm-action key) and are left alone.
+     */
+    @EventHandler
+    public void onClose(InventoryCloseEvent event) {
+        InventoryHolder holder = event.getInventory().getHolder();
+        boolean isPoppyGui = holder instanceof PoppyHomesHolder
+                || holder instanceof PoppyConfirmDeleteHolder
+                || holder instanceof PoppyConfirmOverwriteHolder;
+
+        if (!isPoppyGui) {
+            return;
+        }
+
+        if (!(event.getPlayer() instanceof Player player)) {
+            return;
+        }
+
+        try {
+            Inventory inventory = event.getInventory();
+            for (ItemStack item : inventory.getContents()) {
+                if (item == null || item.getType().isAir()) {
+                    continue;
+                }
+                if (isRecognizedGuiItem(item)) {
+                    continue;
+                }
+
+                player.getInventory().addItem(item).values()
+                        .forEach(leftover -> player.getWorld().dropItemNaturally(player.getLocation(), leftover));
+                logger.log(PoppyLogger.Category.HOME, player, "an unexpected item was found in a Poppy GUI on close and refunded: " + item.getType());
+            }
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE, "Error in HomesGUIListener#onClose safety net for " + event.getPlayer().getName(), e);
+        }
+    }
+
+    /**
+     * True for anything this class itself placed in a GUI — the filler panes
+     * (no PDC tag at all) and the real content items (a home-name tag or a
+     * confirm-action tag). Anything else reaching this point is either a
+     * player-deposited item that {@link #onClick}/{@link #onDrag} somehow
+     * missed, or filler that got merged with a player's own matching stack —
+     * either way, {@link #onClose} refunds it rather than letting it vanish.
+     */
+    private boolean isRecognizedGuiItem(ItemStack item) {
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) {
+            return item.getType() == org.bukkit.Material.LIGHT_GRAY_STAINED_GLASS_PANE;
+        }
+
+        PersistentDataContainer pdc = meta.getPersistentDataContainer();
+        boolean hasHomeName = pdc.has(homesGUI.getHomeNameKey(), PersistentDataType.STRING);
+        boolean hasDeleteAction = pdc.has(confirmDeleteGUI.getActionKey(), PersistentDataType.STRING);
+        boolean hasOverwriteAction = pdc.has(confirmOverwriteGUI.getActionKey(), PersistentDataType.STRING);
+        boolean isPlainFiller = item.getType() == org.bukkit.Material.LIGHT_GRAY_STAINED_GLASS_PANE
+                && !hasHomeName && !hasDeleteAction && !hasOverwriteAction;
+
+        return hasHomeName || hasDeleteAction || hasOverwriteAction || isPlainFiller;
     }
 
     private void handleHomesClick(InventoryClickEvent event) {

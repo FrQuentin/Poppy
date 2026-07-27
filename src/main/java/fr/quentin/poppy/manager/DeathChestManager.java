@@ -4,7 +4,6 @@ import fr.quentin.poppy.util.Messages;
 import fr.quentin.poppy.util.PoppyConfig;
 import fr.quentin.poppy.util.PoppyLogger;
 import org.bukkit.Bukkit;
-import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -184,6 +183,14 @@ public class DeathChestManager implements Listener {
     private record ChestData(UUID id, UUID owner, String ownerName, Location location, long createdAt, Inventory inventory) {
     }
 
+    /**
+     * Composite key for {@link #chestsByChunk}: a world isn't uniquely
+     * identified by chunk coordinates alone (two different worlds can have a
+     * chunk at the same x/z), so the world's UID is part of the key.
+     */
+    private record ChunkKey(UUID world, int chunkX, int chunkZ) {
+    }
+
     private final JavaPlugin plugin;
     private final Messages messages;
     private final PoppyConfig config;
@@ -193,6 +200,7 @@ public class DeathChestManager implements Listener {
     private final NamespacedKey xpBottleOwnerKey;
 
     private final Map<UUID, ChestData> chests = new HashMap<>();
+    private final Map<ChunkKey, Set<UUID>> chestsByChunk = new HashMap<>();
     private final Set<UUID> chestsBeingRemoved = new HashSet<>();
 
     // Not volatile: onChestClick/onChestDrag (event handlers) and flushIfDirty
@@ -284,7 +292,7 @@ public class DeathChestManager implements Listener {
                 event.setDroppedExp(0);
             }
 
-            chests.put(id, data);
+            registerChest(data);
 
             for (ItemStack item : overflow) {
                 player.getWorld().dropItemNaturally(spot, item);
@@ -623,21 +631,34 @@ public class DeathChestManager implements Listener {
         }
     }
 
+    /**
+     * O(1) lookup via {@link #chestsByChunk} instead of scanning every active
+     * chest — see the class-level doc. {@link ChunkLoadEvent} fires very
+     * frequently on a busy server (player movement, async chunk loading,
+     * ticket managers), so this must stay cheap regardless of how many death
+     * chests exist across the whole server.
+     */
     @EventHandler
     public void onChunkLoad(@NonNull ChunkLoadEvent event) {
         if (!config.deathChestEnabled()) {
             return;
         }
+
         try {
-            Chunk chunk = event.getChunk();
-            for (ChestData data : new ArrayList<>(chests.values())) {
-                if (!locationInChunk(data.location(), chunk)) {
+            ChunkKey key = new ChunkKey(event.getWorld().getUID(), event.getChunk().getX(), event.getChunk().getZ());
+            Set<UUID> ids = chestsByChunk.get(key);
+            if (ids == null || ids.isEmpty()) {
+                return;
+            }
+
+            long expiryMillis = config.deathChestExpiryMillis();
+            for (UUID id : new ArrayList<>(ids)) {
+                ChestData data = chests.get(id);
+                if (data == null) {
                     continue;
                 }
-
                 ensureBlockPresent(data);
-
-                if (config.deathChestExpiryMillis() > 0) {
+                if (expiryMillis > 0) {
                     checkExpiry(data);
                 }
             }
@@ -667,14 +688,6 @@ public class DeathChestManager implements Listener {
     private boolean isExpired(ChestData data) {
         long expiryMillis = config.deathChestExpiryMillis();
         return expiryMillis > 0 && System.currentTimeMillis() - data.createdAt() >= expiryMillis;
-    }
-
-    private boolean locationInChunk(Location location, Chunk chunk) {
-        World locationWorld = location.getWorld();
-        return locationWorld != null
-                && locationWorld.equals(chunk.getWorld())
-                && (location.getBlockX() >> 4) == chunk.getX()
-                && (location.getBlockZ() >> 4) == chunk.getZ();
     }
 
     private void expireIfPresent(UUID id) {
@@ -776,7 +789,7 @@ public class DeathChestManager implements Listener {
 
             removeBlockIfMatching(data.location(), data.id());
 
-            chests.remove(data.id());
+            unregisterChest(data.id());
             persistAll();
         } finally {
             chestsBeingRemoved.remove(data.id());
@@ -882,6 +895,43 @@ public class DeathChestManager implements Listener {
             return UUID.fromString(idString);
         } catch (IllegalArgumentException e) {
             return null;
+        }
+    }
+
+    private ChunkKey chunkKeyOf(Location location) {
+        World world = location.getWorld();
+        UUID worldId = world != null ? world.getUID() : null;
+        return new ChunkKey(worldId, location.getBlockX() >> 4, location.getBlockZ() >> 4);
+    }
+
+    /**
+     * The only place {@link #chests} and {@link #chestsByChunk} are added to
+     * — keeps the two collections in sync so {@link #onChunkLoad} can look up
+     * "which chests are in this chunk" in O(1) instead of scanning every
+     * active chest on every chunk load (see the class-level doc).
+     */
+    private void registerChest(ChestData data) {
+        chests.put(data.id(), data);
+        chestsByChunk.computeIfAbsent(chunkKeyOf(data.location()), _ -> new HashSet<>()).add(data.id());
+    }
+
+    /**
+     * The only place a chest is removed from {@link #chests} — mirrors
+     * {@link #registerChest}, keeping {@link #chestsByChunk} in sync.
+     */
+    private void unregisterChest(UUID id) {
+        ChestData data = chests.remove(id);
+        if (data == null) {
+            return;
+        }
+
+        ChunkKey key = chunkKeyOf(data.location());
+        Set<UUID> ids = chestsByChunk.get(key);
+        if (ids != null) {
+            ids.remove(id);
+            if (ids.isEmpty()) {
+                chestsByChunk.remove(key);
+            }
         }
     }
 
@@ -1100,7 +1150,7 @@ public class DeathChestManager implements Listener {
                 }
 
                 ChestData data = createChestData(id, owner, ownerName, location, createdAt);
-                chests.put(id, data);
+                registerChest(data);
 
                 List<ItemStack> overflow = fillInventory(data.inventory(), items);
                 if (!overflow.isEmpty()) {

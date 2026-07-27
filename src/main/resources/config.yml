@@ -174,3 +174,15 @@ tpa-allow-cross-world: true
 # immediately and a message is broadcast to the whole server — closes the
 # classic "Alt+F4 to escape a losing fight" exploit.
 combat-log-punish: true
+
+# Cooldown (in seconds) between two /afk toggles. Prevents a macro spamming
+# the AFK broadcast to every online player.
+afk-toggle-cooldown-seconds: 5
+# Cooldown (in seconds) between two /poppy easter egg uses.
+poppy-easteregg-cooldown-seconds: 3
+# Cooldown (in seconds) between two "X/Y players sleeping" broadcasts
+# triggered by the same player repeatedly entering a bed.
+sleep-status-cooldown-seconds: 5
+# Cooldown (in seconds) between two /tpa or /tpahere requests sent by the
+# same player — prevents using teleport requests as a harassment/spam vector.
+tpa-request-cooldown-seconds: 5

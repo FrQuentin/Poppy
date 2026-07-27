@@ -30,6 +30,7 @@ public class SleepStatusListener implements Listener {
 
     private final Map<UUID, Long> lastKnownTime = new HashMap<>();
     private final Map<UUID, Boolean> wasSleeping = new HashMap<>();
+    private final Map<UUID, Long> lastBroadcast = new HashMap<>();
 
     public SleepStatusListener(JavaPlugin plugin, Messages messages, PoppyConfig config, PoppyLogger logger) {
         this.plugin = plugin;
@@ -51,6 +52,15 @@ public class SleepStatusListener implements Listener {
         }
 
         Player player = event.getPlayer();
+
+        if (broadcastCooldownRemaining(player.getUniqueId()) > 0) {
+            // Silent throttle: entering/leaving a bed in a loop to spam the
+            // "X/Y sleeping" message doesn't need its own error message, that
+            // would just be a different flavor of the same spam.
+            return;
+        }
+        lastBroadcast.put(player.getUniqueId(), System.currentTimeMillis());
+
         World world = player.getWorld();
 
         Bukkit.getScheduler().runTask(plugin, () -> {
@@ -60,6 +70,19 @@ public class SleepStatusListener implements Listener {
                 plugin.getLogger().log(Level.SEVERE, "Error broadcasting sleep status for " + player.getName(), e);
             }
         });
+    }
+
+    private long broadcastCooldownRemaining(UUID uuid) {
+        long cooldownMillis = config.sleepStatusCooldownMillis();
+        if (cooldownMillis <= 0) {
+            return 0;
+        }
+        Long last = lastBroadcast.get(uuid);
+        if (last == null) {
+            return 0;
+        }
+        long remainingMillis = cooldownMillis - (System.currentTimeMillis() - last);
+        return remainingMillis <= 0 ? 0 : (remainingMillis / 1000) + 1;
     }
 
     private void broadcastStatus(World world, Player player) {

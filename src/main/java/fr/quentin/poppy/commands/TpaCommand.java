@@ -1,6 +1,7 @@
 package fr.quentin.poppy.commands;
 
 import fr.quentin.poppy.manager.TpaManager;
+import fr.quentin.poppy.util.DurationFormat;
 import fr.quentin.poppy.util.Messages;
 import fr.quentin.poppy.util.PlayerNameSuggestions;
 import fr.quentin.poppy.util.PoppyLogger;
@@ -21,6 +22,13 @@ import java.util.List;
  * Handles /tpa <player>: asks another player for permission to teleport to
  * them. If they accept (via /tpaccept), the sender is teleported to the
  * target — see {@link TpaAcceptCommand}.
+ *
+ * <p>Rate-limited via {@link TpaManager#requestCooldownRemainingSeconds}
+ * ({@code tpa-request-cooldown-seconds} in config.yml) and blocked
+ * entirely if the target has opted out via {@code /tpatoggle} — see
+ * {@link TpaManager#isAcceptingRequests}. Without both of these, sending
+ * repeated teleport requests (each one a clickable chat message shown to
+ * the target) is a free, permission-less way to harass another player.
  */
 public class TpaCommand extends SafeCommand implements TabCompleter {
 
@@ -56,7 +64,19 @@ public class TpaCommand extends SafeCommand implements TabCompleter {
             return true;
         }
 
+        long remaining = tpaManager.requestCooldownRemainingSeconds(player.getUniqueId());
+        if (remaining > 0) {
+            player.sendMessage(messages.get("tpa.request-cooldown", "time", DurationFormat.format(remaining)));
+            return true;
+        }
+
+        if (!tpaManager.isAcceptingRequests(target.getUniqueId())) {
+            player.sendMessage(messages.get("tpa.target-not-accepting", "player", target.getName()));
+            return true;
+        }
+
         tpaManager.createRequest(target.getUniqueId(), player.getUniqueId(), TpaManager.Type.NORMAL);
+        tpaManager.recordRequestSent(player.getUniqueId());
         logger.log(PoppyLogger.Category.TPA, player, "sent /tpa request to " + target.getName());
         player.sendMessage(messages.get("tpa.sent", "player", target.getName()));
 

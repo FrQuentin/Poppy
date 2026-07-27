@@ -96,7 +96,7 @@ public final class Poppy extends JavaPlugin {
 
         Objects.requireNonNull(getCommand("trash")).setExecutor(new TrashCommand(this, trashGUI, messages));
 
-        Objects.requireNonNull(getCommand("afk")).setExecutor(new AfkCommand(this, afkManager, messages, poppyLogger));
+        Objects.requireNonNull(getCommand("afk")).setExecutor(new AfkCommand(this, afkManager, messages, config, poppyLogger));
 
         TpaCommand tpaCommand = new TpaCommand(this, tpaManager, messages, poppyLogger);
         Objects.requireNonNull(getCommand("tpa")).setExecutor(tpaCommand);
@@ -117,6 +117,9 @@ public final class Poppy extends JavaPlugin {
         TpaCancelCommand tpaCancelCommand = new TpaCancelCommand(this, tpaManager, messages, poppyLogger);
         Objects.requireNonNull(getCommand("tpacancel")).setExecutor(tpaCancelCommand);
         Objects.requireNonNull(getCommand("tpacancel")).setTabCompleter(tpaCancelCommand);
+
+        TpaToggleCommand tpaToggleCommand = new TpaToggleCommand(this, tpaManager, messages);
+        Objects.requireNonNull(getCommand("tpatoggle")).setExecutor(tpaToggleCommand);
 
         PoppyCommand poppyCommand = new PoppyCommand(this, messages, config, poppyLogger, sleepPercentageListener, tabHealthListener);
         Objects.requireNonNull(getCommand("poppy")).setExecutor(poppyCommand);

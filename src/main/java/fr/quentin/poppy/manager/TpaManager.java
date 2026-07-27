@@ -8,11 +8,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 public class TpaManager {
 
@@ -28,6 +24,8 @@ public class TpaManager {
 
     private final Map<UUID, Map<UUID, Request>> requestsByTarget = new HashMap<>();
     private final Map<UUID, Map<UUID, BukkitTask>> expiryTasks = new HashMap<>();
+    private final Set<UUID> requestsDisabled = new HashSet<>();
+    private final Map<UUID, Long> lastRequestSent = new HashMap<>();
 
     public TpaManager(JavaPlugin plugin, Messages messages, PoppyConfig config, PoppyLogger logger) {
         this.plugin = plugin;
@@ -168,5 +166,49 @@ public class TpaManager {
         for (UUID target : otherTargets) {
             removeRequest(target, uuid);
         }
+    }
+
+    /**
+     * Toggles whether this player accepts incoming /tpa or /tpahere requests
+     * at all. A blocked requester is told the target isn't accepting
+     * requests (see {@code TpaCommand.execute}), not that they were
+     * specifically blocked — a basic harassment deterrent that needs no
+     * per-player blocklist.
+     *
+     * @return true if requests are now accepted, false if now blocked
+     */
+    public boolean toggleRequests(UUID uuid) {
+        if (requestsDisabled.remove(uuid)) {
+            return true;
+        }
+        requestsDisabled.add(uuid);
+        return false;
+    }
+
+    public boolean isAcceptingRequests(UUID uuid) {
+        return !requestsDisabled.contains(uuid);
+    }
+
+    /**
+     * Rate-limits how often a player can send a new /tpa or /tpahere
+     * request — without this, sending repeated requests to the same or
+     * different targets is a free, permission-less way to spam a clickable
+     * chat message at people.
+     */
+    public long requestCooldownRemainingSeconds(UUID uuid) {
+        long cooldownMillis = config.tpaRequestCooldownMillis();
+        if (cooldownMillis <= 0) {
+            return 0;
+        }
+        Long last = lastRequestSent.get(uuid);
+        if (last == null) {
+            return 0;
+        }
+        long remainingMillis = cooldownMillis - (System.currentTimeMillis() - last);
+        return remainingMillis <= 0 ? 0 : (remainingMillis / 1000) + 1;
+    }
+
+    public void recordRequestSent(UUID uuid) {
+        lastRequestSent.put(uuid, System.currentTimeMillis());
     }
 }

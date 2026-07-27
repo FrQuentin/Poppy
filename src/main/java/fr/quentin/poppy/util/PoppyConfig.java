@@ -225,4 +225,20 @@ public final class PoppyConfig {
     public boolean combatLogPunishEnabled() {
         return plugin.getConfig().getBoolean("combat-log-punish", true);
     }
+
+    public long afkToggleCooldownMillis() {
+        return Math.max(0, plugin.getConfig().getInt("afk-toggle-cooldown-seconds", 5)) * 1000L;
+    }
+
+    public long poppyEasterEggCooldownMillis() {
+        return Math.max(0, plugin.getConfig().getInt("poppy-easteregg-cooldown-seconds", 3)) * 1000L;
+    }
+
+    public long sleepStatusCooldownMillis() {
+        return Math.max(0, plugin.getConfig().getInt("sleep-status-cooldown-seconds", 5)) * 1000L;
+    }
+
+    public long tpaRequestCooldownMillis() {
+        return Math.max(0, plugin.getConfig().getInt("tpa-request-cooldown-seconds", 5)) * 1000L;
+    }
 }

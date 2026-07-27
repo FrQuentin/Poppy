@@ -24,7 +24,10 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jspecify.annotations.NonNull;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 /**
  * Handles /poppy: with no argument, a small easter egg (places or drops a
@@ -49,6 +52,7 @@ public class PoppyCommand extends SafeCommand implements TabCompleter {
     private final PoppyLogger logger;
     private final SleepPercentageListener sleepPercentageListener;
     private final TabHealthListener tabHealthListener;
+    private final Map<UUID, Long> lastEasterEgg = new HashMap<>();
 
     public PoppyCommand(JavaPlugin plugin, Messages messages, PoppyConfig config, PoppyLogger logger,
                         SleepPercentageListener sleepPercentageListener, TabHealthListener tabHealthListener) {
@@ -107,6 +111,12 @@ public class PoppyCommand extends SafeCommand implements TabCompleter {
             return;
         }
 
+        long remaining = cooldownRemaining(player.getUniqueId());
+        if (remaining > 0) {
+            player.sendMessage(messages.get("poppy.cooldown"));
+            return;
+        }
+
         GameMode gameMode = player.getGameMode();
         if (gameMode != GameMode.SURVIVAL && gameMode != GameMode.CREATIVE) {
             player.sendMessage(messages.get("poppy.wrong-gamemode"));
@@ -120,6 +130,8 @@ public class PoppyCommand extends SafeCommand implements TabCompleter {
             player.sendMessage(messages.get("poppy.no-poppy"));
             return;
         }
+
+        lastEasterEgg.put(player.getUniqueId(), System.currentTimeMillis());
 
         Block feetBlock = player.getLocation().getBlock();
         BlockData poppyData = Material.POPPY.createBlockData();
@@ -140,6 +152,19 @@ public class PoppyCommand extends SafeCommand implements TabCompleter {
         logger.log(PoppyLogger.Category.EASTER_EGG, player, "used /poppy (" + (canPlaceHere ? "placed as block" : "dropped as item") + ")");
 
         player.sendMessage(messages.get("poppy.success"));
+    }
+
+    private long cooldownRemaining(UUID uuid) {
+        long cooldownMillis = config.poppyEasterEggCooldownMillis();
+        if (cooldownMillis <= 0) {
+            return 0;
+        }
+        Long last = lastEasterEgg.get(uuid);
+        if (last == null) {
+            return 0;
+        }
+        long remainingMillis = cooldownMillis - (System.currentTimeMillis() - last);
+        return remainingMillis <= 0 ? 0 : (remainingMillis / 1000) + 1;
     }
 
     /**

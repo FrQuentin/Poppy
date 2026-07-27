@@ -121,6 +121,11 @@ commands:
     usage: /combat
     permission: poppy.combat
     permission-message: "&4[!] You don't have permission to do this."
+  tpatoggle:
+    description: Toggle whether you accept incoming teleport requests.
+    usage: /tpatoggle
+    permission: poppy.tpa
+    permission-message: "&4[!] You don't have permission to do this."
 
 permissions:
   poppy.*:

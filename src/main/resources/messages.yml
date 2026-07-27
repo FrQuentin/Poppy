@@ -89,6 +89,7 @@ join-quit:
 afk:
   now-afk: "&6[!] The player {player} is now AFK!"
   no-longer-afk: "&6[!] The player {player} is no longer AFK!"
+  too-fast: "&4[!] Please wait {time} before toggling AFK again!"
 
 combat:
   in-combat: "&4[!] You can't teleport while in combat! ({seconds}s left)"
@@ -122,6 +123,10 @@ tpa:
   cancel-notify: "&4[!] {player} has cancelled their teleport request."
   no-outgoing-request: "&4[!] You have no pending teleport request to {player}!"
   too-far: "&4[!] You're too far apart (or in different worlds) for this teleport request!"
+  request-cooldown: "&4[!] Please wait {time} before sending another teleport request!"
+  target-not-accepting: "&4[!] {player} is not currently accepting teleport requests!"
+  toggle-on: "&a[!] You are now accepting teleport requests."
+  toggle-off: "&c[!] You are no longer accepting teleport requests."
 
 poppy:
   wrong-gamemode: "&4[!] You need to be in Survival or Creative mode to do this!"
@@ -133,6 +138,7 @@ poppy:
   lore-line-2: "&7Legend says the very first poppy in this world grew from a"
   lore-line-3: "&7single seed a wandering trader dropped by accident, right"
   lore-line-4: "&7at the edge of an old, forgotten spawn point."
+  cooldown: "&4[!] Please wait a moment before doing that again!"
 
 death:
   coords: "&6[!] You died at {world}: {x}, {y}, {z} "

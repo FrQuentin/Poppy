@@ -21,6 +21,7 @@ import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.util.UUID;
 import java.util.logging.Level;
 
 /**
@@ -206,6 +207,10 @@ public class HomesGUIListener implements Listener {
         }
 
         if (event.isLeftClick()) {
+            if (!player.hasPermission("poppy.home")) {
+                player.sendMessage(messages.get("general.no-permission"));
+                return;
+            }
             teleport(player, home);
         } else if (event.isRightClick()) {
             if (!player.hasPermission("poppy.delhome")) {
@@ -291,9 +296,20 @@ public class HomesGUIListener implements Listener {
         return homeManager.getHome(player.getUniqueId(), homeName);
     }
 
+    /**
+     * Passes the destination as a {@link java.util.function.Supplier} that
+     * re-fetches the home by name at teleport time — same reasoning as
+     * {@code HomeCommand}: without it, a home deleted (e.g. via a second
+     * client, or /delhome typed in another window) during the teleport
+     * warmup would still resolve to the stale, frozen {@link Home} object
+     * captured at click time.
+     */
     private void teleport(Player player, Home home) {
+        UUID uuid = player.getUniqueId();
+        String name = home.name();
+
         closeLater(player);
-        teleportManager.requestTeleport(player, home);
+        teleportManager.requestTeleport(player, () -> homeManager.getHome(uuid, name), "home.success");
     }
 
     /**

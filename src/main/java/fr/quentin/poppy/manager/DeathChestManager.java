@@ -106,6 +106,24 @@ import java.util.logging.Level;
  * plugin; it's deliberately conservative here even at the cost of a
  * slightly more verbose method body.
  *
+ * <p><b>Runs at {@link EventPriority#HIGHEST}, not the default
+ * {@code NORMAL}:</b> a plugin handling the same {@link PlayerDeathEvent}
+ * at a later priority than this one could otherwise conflict badly —
+ * enabling {@code keepInventory} after Poppy has already confiscated the
+ * drops and built a chest is a full inventory duplication (the player
+ * keeps everything vanilla-side AND the chest exists), and any plugin
+ * copying {@link PlayerDeathEvent#getDrops()} for its own storage before
+ * Poppy clears them duplicates the same way in reverse. {@code HIGHEST}
+ * (rather than {@code MONITOR}, since this handler does mutate the
+ * event) ensures Poppy sees the final, settled state of
+ * {@code getKeepInventory()}/{@code getDrops()} for the overwhelming
+ * majority of other plugins, which register at {@code NORMAL} or lower
+ * by default. A plugin that itself registers at {@code HIGHEST} or
+ * {@code MONITOR} and also touches death drops/keepInventory can still
+ * conflict — this is a mitigation, not a hard guarantee, and worth
+ * documenting for admins alongside any other death-related plugins
+ * installed on the server.
+ *
  * <p>Persistence is a single file written synchronously via
  * {@link #writeAtomically} — a temp-file-then-atomic-rename, same
  * technique as {@link HomeManager#writeToDisk}. Loaded once at startup in
@@ -250,7 +268,7 @@ public class DeathChestManager implements Listener {
         Bukkit.getScheduler().runTaskLater(plugin, () -> combatLogSuppressed.remove(uuid), 20L);
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void onDeath(@NonNull PlayerDeathEvent event) {
         if (!config.deathChestEnabled()) {
             return;

@@ -400,7 +400,7 @@ public class HomeManager {
      * the real file. If the filesystem doesn't support atomic moves,
      * {@link AtomicMoveNotSupportedException} falls back to a plain move.
      */
-    private void writeToDisk(YamlConfiguration config, File file, UUID uuid) {
+    protected void writeToDisk(YamlConfiguration config, File file, UUID uuid) {
         File tempFile = new File(file.getParentFile(), file.getName() + ".tmp");
 
         try {

@@ -53,13 +53,7 @@ import java.io.IOException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.logging.Level;
 
@@ -147,7 +141,8 @@ import java.util.logging.Level;
  */
 public class DeathChestManager implements Listener {
 
-    private static final int SEARCH_RADIUS = 5;
+    private static final int SEARCH_RADIUS = 3;
+    private static final int MAX_PROTECTION_CHECKS = 8;
     private static final int VIRTUAL_INVENTORY_SIZE = 54;
     private static final BlockFace CHEST_FACING = BlockFace.SOUTH;
 
@@ -890,14 +885,32 @@ public class DeathChestManager implements Listener {
         }
     }
 
+    /**
+     * Finds a spot to place the chest: the death location itself if placeable,
+     * otherwise the closest such spot within {@link #SEARCH_RADIUS} blocks.
+     *
+     * <p>Deliberately split into two passes rather than checking full
+     * placeability (including protection) on every candidate in the search
+     * cube: {@link #isPhysicallyPlaceable} (cheap — no event dispatch) filters
+     * the whole cube first, candidates are sorted by distance, and only the
+     * closest {@link #MAX_PROTECTION_CHECKS} of them ever reach
+     * {@link #isProtected} (which fires a real {@link BlockPlaceEvent} through
+     * every registered plugin). The old single-pass version called
+     * {@code isProtected} on every candidate — up to (2 x SEARCH_RADIUS + 1)^3
+     * events per death, previously 1,331 at radius 5. On a server with
+     * WorldGuard/CoreProtect/GriefPrevention-style plugins doing real work per
+     * event (region lookups, log writes, claim resolution), that's a
+     * measurable freeze per death, worse the more players die in the same
+     * window — a repeatable, permission-free DoS vector (e.g. mass suicide in
+     * the void). Limiting to the nearest few candidates keeps the number of
+     * real events bounded regardless of how large the search cube is.
+     */
     private Location findPlacementSpot(Location deathLocation, Player owner) {
-        if (isPlaceable(deathLocation, owner)) {
+        if (isPhysicallyPlaceable(deathLocation) && !isProtected(deathLocation, owner)) {
             return centered(deathLocation);
         }
 
-        Location best = null;
-        double bestDistanceSquared = Double.MAX_VALUE;
-
+        List<Location> candidates = new ArrayList<>();
         for (int dx = -SEARCH_RADIUS; dx <= SEARCH_RADIUS; dx++) {
             for (int dy = -SEARCH_RADIUS; dy <= SEARCH_RADIUS; dy++) {
                 for (int dz = -SEARCH_RADIUS; dz <= SEARCH_RADIUS; dz++) {
@@ -905,22 +918,35 @@ public class DeathChestManager implements Listener {
                         continue;
                     }
                     Location candidate = deathLocation.clone().add(dx, dy, dz);
-                    if (!isPlaceable(candidate, owner)) {
-                        continue;
-                    }
-                    double distanceSquared = (double) dx * dx + (double) dy * dy + (double) dz * dz;
-                    if (distanceSquared < bestDistanceSquared) {
-                        bestDistanceSquared = distanceSquared;
-                        best = candidate;
+                    if (isPhysicallyPlaceable(candidate)) {
+                        candidates.add(candidate);
                     }
                 }
             }
         }
 
-        return best == null ? null : centered(best);
+        candidates.sort(Comparator.comparingDouble(c -> c.distanceSquared(deathLocation)));
+
+        int checked = 0;
+        for (Location candidate : candidates) {
+            if (checked++ >= MAX_PROTECTION_CHECKS) {
+                break;
+            }
+            if (!isProtected(candidate, owner)) {
+                return centered(candidate);
+            }
+        }
+
+        return null;
     }
 
-    private boolean isPlaceable(Location location, Player owner) {
+    /**
+     * Cheap, event-free checks only — height bounds, block replaceability,
+     * and hazard materials. Deliberately does not check protection (see
+     * {@link #findPlacementSpot} for why that's split out): this is meant to
+     * be called on every candidate in a large search cube without cost.
+     */
+    private boolean isPhysicallyPlaceable(Location location) {
         World world = location.getWorld();
         if (location.getY() < world.getMinHeight() || location.getY() > world.getMaxHeight()) {
             return false;
@@ -932,11 +958,7 @@ public class DeathChestManager implements Listener {
         }
 
         Material type = block.getType();
-        if (type == Material.LAVA || type == Material.FIRE || type == Material.SOUL_FIRE) {
-            return false;
-        }
-
-        return !isProtected(location, owner);
+        return type != Material.LAVA && type != Material.FIRE && type != Material.SOUL_FIRE;
     }
 
     /**

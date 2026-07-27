@@ -6,6 +6,7 @@ import fr.quentin.poppy.model.Home;
 import fr.quentin.poppy.util.Messages;
 import fr.quentin.poppy.util.PoppyLogger;
 import fr.quentin.poppy.util.PoppyStats;
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -28,6 +29,25 @@ import java.util.logging.Level;
  * are {@code protected} rather than {@code private} to stay overridable/testable
  * from a subclass; every other handler here has no reason to be exposed and
  * stays {@code private}.
+ *
+ * <p><b>Never open or close an inventory synchronously from inside this
+ * event handler.</b> Bukkit/Paper haven't finished reconciling the
+ * client's view with the server's at the point a click handler runs — the
+ * result packet for the click itself hasn't been sent yet. Opening a new
+ * inventory (or closing the current one) mid-click is the historical
+ * number-one source of GUI item duplication in plugins: the cursor item
+ * ({@link InventoryClickEvent#getCursor()}) can end up dropped
+ * server-side while the client still shows it held, or the reverse.
+ * Cancelling the event (already done here) reduces but does not eliminate
+ * this — the cursor item itself is untouched by cancellation. Every
+ * open/close in this class therefore goes through {@link #openLater} (and
+ * {@link #closeLater} for {@link #teleport}), which defers to the next
+ * tick, by which point the click's own packet exchange has completed; and
+ * {@link #clearCursor} explicitly empties the cursor — via
+ * {@link org.bukkit.entity.HumanEntity#setItemOnCursor(ItemStack)} rather
+ * than the deprecated {@code InventoryClickEvent#setCursor(ItemStack)} —
+ * before any deferred open, so there's nothing left in transit for the
+ * timing window to act on.
  */
 public class HomesGUIListener implements Listener {
 
@@ -79,7 +99,7 @@ public class HomesGUIListener implements Listener {
             plugin.getLogger().log(Level.SEVERE, "Error handling a click in a Poppy GUI for " + event.getWhoClicked().getName(), e);
             if (event.getWhoClicked() instanceof Player player) {
                 player.sendMessage(messages.get("general.error"));
-                player.closeInventory();
+                closeLater(player);
             }
         }
     }
@@ -101,7 +121,8 @@ public class HomesGUIListener implements Listener {
                 player.sendMessage(messages.get("general.no-permission"));
                 return;
             }
-            confirmDeleteGUI.open(player, home);
+            clearCursor(event);
+            openLater(player, () -> confirmDeleteGUI.open(player, home));
         }
     }
 
@@ -121,6 +142,8 @@ public class HomesGUIListener implements Listener {
             return;
         }
 
+        clearCursor(event);
+
         if (action.equals(ConfirmDeleteGUI.ACTION_CONFIRM)) {
             String homeName = holder.getHomeName();
             Home home = homeManager.getHome(player.getUniqueId(), homeName);
@@ -130,9 +153,9 @@ public class HomesGUIListener implements Listener {
                 logger.log(PoppyLogger.Category.HOME, player, "deleted home '" + home.name() + "' (via GUI)");
                 player.sendMessage(messages.get("delhome.success", "home", home.name()));
             }
-            homesGUI.open(player, homeManager);
+            openLater(player, () -> homesGUI.open(player, homeManager));
         } else if (action.equals(ConfirmDeleteGUI.ACTION_CANCEL)) {
-            homesGUI.open(player, homeManager);
+            openLater(player, () -> homesGUI.open(player, homeManager));
         }
     }
 
@@ -152,6 +175,8 @@ public class HomesGUIListener implements Listener {
             return;
         }
 
+        clearCursor(event);
+
         if (action.equals(ConfirmOverwriteGUI.ACTION_CONFIRM)) {
             Home pending = holder.getPendingHome();
             homeManager.addHome(player.getUniqueId(), pending);
@@ -160,7 +185,7 @@ public class HomesGUIListener implements Listener {
             player.sendMessage(messages.get("sethome.success", "home", pending.name()));
         }
 
-        player.closeInventory();
+        closeLater(player);
     }
 
     private Home homeFromItem(Player player, ItemStack item) {
@@ -176,7 +201,45 @@ public class HomesGUIListener implements Listener {
     }
 
     private void teleport(Player player, Home home) {
-        player.closeInventory();
+        closeLater(player);
         teleportManager.requestTeleport(player, home);
+    }
+
+    /**
+     * Empties the cursor before any deferred open/close — see the
+     * class-level doc. {@link InventoryClickEvent#setCancelled(boolean)}
+     * already blocks the click's item movement, but leaves whatever was
+     * already on the cursor (e.g. picked up from the player's own
+     * inventory in a separate, earlier click) untouched; without this,
+     * that item is exactly what's at risk of ending up in an inconsistent
+     * client/server state across the deferred GUI switch.
+     */
+    private void clearCursor(InventoryClickEvent event) {
+        event.getWhoClicked().setItemOnCursor(null);
+    }
+
+    /**
+     * Defers opening a GUI to the next tick — see the class-level doc for
+     * why opening synchronously from inside an InventoryClickEvent handler
+     * is unsafe.
+     */
+    private void openLater(Player player, Runnable opener) {
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (player.isOnline()) {
+                opener.run();
+            }
+        });
+    }
+
+    /**
+     * Defers closing the player's inventory to the next tick — same
+     * reasoning as {@link #openLater}.
+     */
+    private void closeLater(Player player) {
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (player.isOnline()) {
+                player.closeInventory();
+            }
+        });
     }
 }

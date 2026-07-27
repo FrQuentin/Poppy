@@ -194,3 +194,12 @@ tpa-request-cooldown-seconds: 5
 # someone currently combat-tagged — blocks using /tpahere to bring an ally
 # straight into an ongoing fight, or /tpa to teleport into one.
 tpa-block-to-combat: true
+
+# If true, /fly's login/gamemode-switch safety net forces allowFlight off
+# for any Survival/Adventure player not currently tracked as an active
+# /fly user — closes the "disconnect while /fly is on to keep flying
+# forever" exploit, but also overwrites flight granted by any OTHER
+# plugin (a VIP rank, a spawn-area flight perk, a staff mode, an event
+# plugin). Set to false if you run another plugin that grants flight
+# outside of Poppy's own /fly command.
+fly-force-disable-on-join: true

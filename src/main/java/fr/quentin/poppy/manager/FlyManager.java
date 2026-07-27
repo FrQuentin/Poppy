@@ -3,7 +3,6 @@ package fr.quentin.poppy.manager;
 import fr.quentin.poppy.util.CooldownStore;
 import fr.quentin.poppy.util.Messages;
 import fr.quentin.poppy.util.PoppyConfig;
-import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
@@ -35,8 +34,28 @@ import java.util.logging.Level;
 /**
  * Backs /fly: disables flight the moment a flying (or fly-enabled) player
  * takes any damage, and blocks /fly for {@code fly-lockout-seconds}
- * afterward via a shared {@link CooldownStore} (see its class-level doc
- * for why that's preferable to a raw {@code Map<UUID, Long>}).
+ * afterward via a shared {@link CooldownStore}.
+ *
+ * <p><b>Only ever acts on flight this class itself granted.</b> Every
+ * place that would disable a player's flight — {@link #disableFlightAndLock}
+ * on damage, {@link #onWorldChange} entering the End — gates on
+ * {@link #activeFly} first, not on the player's raw
+ * {@link Player#getAllowFlight()}/{@link Player#isFlying()} state. Without
+ * that gate, Poppy would cut the flight of any Survival/Adventure player
+ * regardless of who granted it: a VIP rank's flight perk, a spawn-area
+ * flight zone, a staff mode, an event plugin — a silent, very hard to
+ * diagnose incompatibility for an admin running more than just this
+ * plugin.
+ *
+ * <p>{@link #onJoin} and {@link #onGameModeChange}'s "force allowFlight
+ * off if not tracked as active" safety net is the one place that
+ * necessarily still can't distinguish Poppy-granted flight from
+ * third-party flight — that's the whole point of the check, closing the
+ * "disconnect while /fly is on to keep flying forever" persisted-data
+ * exploit (see the class-level doc further down). Since that's
+ * unavoidably broad, it's gated behind {@code fly-force-disable-on-join}
+ * in config.yml (default {@code true}) so a server running another
+ * flight-granting plugin can opt out.
  *
  * <p>Integrated with {@link CombatManager}: {@link #isLocked} also treats
  * an active PvP combat tag as a lockout. {@link #onPvpDamage} grounds the
@@ -56,10 +75,10 @@ import java.util.logging.Level;
  *
  * <p>{@link #activeFly} tracks who currently has flight active
  * specifically via this system — distinct from {@link Player#isFlying()},
- * which is also true for Creative/Spectator flight. This is what lets
- * {@link #spawnFlightParticles} show a particle ring only for genuine
- * /fly users, visually telling them apart from someone flying because of
- * their gamemode.
+ * which is also true for Creative/Spectator flight, or flight granted by
+ * another plugin. This is what lets {@link #spawnFlightParticles} show a
+ * particle ring only for genuine /fly users, visually telling them apart
+ * from someone flying for any other reason.
  *
  * <p><b>Rejoin/gamemode desync protection:</b> {@code allowFlight} is part
  * of a player's persisted data, not something Bukkit resets on its own —
@@ -67,14 +86,15 @@ import java.util.logging.Level;
  * also clearing the actual flight flags would leave a player able to fly
  * for free forever after reconnecting. {@link #onQuit} force-clears both
  * {@code allowFlight} and {@code isFlying} for anyone still in
- * {@link #activeFly} before removing them. {@link #onJoin} additionally
- * re-syncs on every login regardless of prior state: a Survival/Adventure
- * player who isn't tracked in {@link #activeFly} always gets
- * {@code allowFlight} forced off. {@link #onGameModeChange} keeps things
- * in sync the other way too: switching to Creative/Spectator drops the
- * player from {@link #activeFly} (their flight becomes gamemode-native,
- * no longer ours to manage), and switching *back* to Survival/Adventure
- * forces {@code allowFlight} off unless they're still tracked as active.
+ * {@link #activeFly} before removing them — this part is always safe,
+ * since it only acts on players Poppy itself tracked as flying.
+ * {@link #onJoin} additionally re-syncs on every login (if
+ * {@code fly-force-disable-on-join} is on): a Survival/Adventure player
+ * who isn't tracked in {@link #activeFly} gets {@code allowFlight} forced
+ * off. {@link #onGameModeChange} keeps things in sync the other way too:
+ * switching to Creative/Spectator drops the player from
+ * {@link #activeFly}, and switching back to Survival/Adventure forces
+ * {@code allowFlight} off (same opt-out) unless still tracked as active.
  *
  * <p>The post-damage lockout is deliberately <b>not</b> cleared on quit —
  * same reasoning as {@code FeedCommand}/{@code HealCommand}: clearing it
@@ -211,9 +231,19 @@ public class FlyManager implements Listener {
         }
     }
 
+    /**
+     * Only forces {@code allowFlight} off if {@code fly-force-disable-on-join}
+     * is enabled — see the class-level doc for why this specific safety
+     * net can't distinguish Poppy-granted flight from third-party flight,
+     * and why it's opt-out rather than always-on.
+     */
     @EventHandler
     public void onJoin(@NonNull PlayerJoinEvent event) {
         try {
+            if (!config.flyForceDisableOnJoin()) {
+                return;
+            }
+
             Player player = event.getPlayer();
             GameMode mode = player.getGameMode();
 
@@ -242,7 +272,10 @@ public class FlyManager implements Listener {
                 return;
             }
 
-            if (!activeFly.contains(uuid) && player.getAllowFlight()) {
+            // Switching into Survival/Adventure — same opt-out as onJoin, and the
+            // same reasoning: this can't tell Poppy-granted flight apart from
+            // flight another plugin might legitimately want active here.
+            if (config.flyForceDisableOnJoin() && !activeFly.contains(uuid) && player.getAllowFlight()) {
                 player.setAllowFlight(false);
                 player.setFlying(false);
             }
@@ -273,8 +306,10 @@ public class FlyManager implements Listener {
             return;
         }
 
-        boolean wasFlyEnabled = player.getAllowFlight() || player.isFlying();
-        if (!wasFlyEnabled) {
+        // Only act on flight this class itself granted — see the class-level
+        // doc. A player flying via another plugin's own permission/perk is
+        // left entirely alone here.
+        if (!activeFly.contains(player.getUniqueId())) {
             return;
         }
 

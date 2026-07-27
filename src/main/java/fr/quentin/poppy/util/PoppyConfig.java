@@ -111,6 +111,8 @@ public final class PoppyConfig {
     private volatile long feedCooldownMillis;
     private volatile long healCooldownMillis;
 
+    private volatile boolean flyForceDisableOnJoin;
+
     public PoppyConfig(JavaPlugin plugin) {
         this.plugin = plugin;
         reload();
@@ -119,6 +121,8 @@ public final class PoppyConfig {
     public void reload() {
         plugin.reloadConfig();
         FileConfiguration c = plugin.getConfig();
+
+        flyForceDisableOnJoin = c.getBoolean("fly-force-disable-on-join", true);
 
         teleportWarmupSeconds = Math.max(0, c.getInt("teleport-warmup-seconds", 3));
         cancelOnMove = c.getBoolean("cancel-on-move", true);
@@ -426,5 +430,9 @@ public final class PoppyConfig {
 
     public boolean tpaBlockToCombat() {
         return tpaBlockToCombat;
+    }
+
+    public boolean flyForceDisableOnJoin() {
+        return flyForceDisableOnJoin;
     }
 }

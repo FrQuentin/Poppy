@@ -148,14 +148,20 @@ public class RtpCommand extends SafeCommand implements Listener {
         world.getChunkAtAsync(x >> 4, z >> 4)
                 .thenRun(() -> handleChunkLoaded(player, world, x, z, center, attemptsLeft))
                 .exceptionally(throwable -> {
-                    // thenRun runs after execute(...) has already returned, so this is
-                    // outside SafeCommand's try/catch — without this handler an exception
-                    // here would just vanish silently inside the CompletableFuture.
-                    inProgress.remove(player.getUniqueId());
-                    plugin.getLogger().log(Level.SEVERE, "Error resolving a /rtp location for " + player.getName(), throwable);
-                    if (player.isOnline()) {
-                        Bukkit.getScheduler().runTask(plugin, () -> player.sendMessage(messages.get("general.error")));
-                    }
+                    // Unlike thenRun (whose target handleChunkLoaded explicitly re-checks
+                    // Bukkit.isPrimaryThread() before touching anything), this callback can
+                    // run off the main thread if the chunk future itself completes
+                    // exceptionally there — touching inProgress (a plain HashSet) or reading
+                    // player state from off-thread would be a silent, hard-to-diagnose
+                    // corruption risk rather than a crash. Deferred onto the main thread
+                    // unconditionally, same safety margin as handleChunkLoaded.
+                    Bukkit.getScheduler().runTask(plugin, () -> {
+                        inProgress.remove(player.getUniqueId());
+                        plugin.getLogger().log(Level.SEVERE, "Error resolving a /rtp location for " + player.getName(), throwable);
+                        if (player.isOnline()) {
+                            player.sendMessage(messages.get("general.error"));
+                        }
+                    });
                     return null;
                 });
     }

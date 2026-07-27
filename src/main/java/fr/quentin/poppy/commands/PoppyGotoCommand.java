@@ -90,7 +90,7 @@ public class PoppyGotoCommand extends SafeCommand {
         UUID ownerUuid = shared.ownerUuid();
         String homeName = shared.homeName();
 
-        Home home = homeManager.getHome(ownerUuid, homeName);
+        Home home = homeManager.getHomeUncached(ownerUuid, homeName);
         if (home == null) {
             // The owner deleted or renamed this home since sharing it — the link is
             // no longer meaningful, treat it the same as an expired one.
@@ -98,7 +98,11 @@ public class PoppyGotoCommand extends SafeCommand {
             return true;
         }
 
-        teleportManager.requestTeleport(player, () -> homeManager.getHome(ownerUuid, homeName), "sharehome.teleport-success");
+        // getHomeUncached, not getHome — the owner may not be online this session
+        // (or ever again), so re-resolving via the cache-populating path here would
+        // leak an entry in HomeManager's cache for a player HomeCacheListener will
+        // never see a quit event for.
+        teleportManager.requestTeleport(player, () -> homeManager.getHomeUncached(ownerUuid, homeName), "sharehome.teleport-success");
         return true;
     }
 

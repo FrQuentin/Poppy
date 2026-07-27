@@ -12,9 +12,7 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
-import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
-import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jspecify.annotations.NonNull;
 
@@ -89,11 +87,6 @@ public class ShareHomeCommand extends SafeCommand implements TabCompleter, Liste
             return List.of();
         }
         return homeManager.suggestHomeNames(player.getUniqueId(), args[0]);
-    }
-
-    @EventHandler
-    public void onQuit(@NonNull PlayerQuitEvent event) {
-        lastUse.remove(event.getPlayer().getUniqueId());
     }
 
     private long cooldownRemaining(UUID uuid) {

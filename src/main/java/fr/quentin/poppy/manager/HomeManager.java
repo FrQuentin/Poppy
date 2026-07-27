@@ -118,6 +118,23 @@ public class HomeManager {
     }
 
     /**
+     * One-off read for a possibly-offline player: never populates
+     * {@link #cache}. Used by {@code PoppyGotoCommand} to resolve someone
+     * else's shared home without that player necessarily being online this
+     * session — without this, {@link #getHomes} would cache their homes
+     * forever, since no {@link org.bukkit.event.player.PlayerQuitEvent} will
+     * ever fire for an offline player to trigger eviction via
+     * {@code HomeCacheListener}.
+     */
+    public Home getHomeUncached(UUID uuid, String name) {
+        LinkedHashMap<String, Home> cached = cache.get(uuid);
+        if (cached != null) {
+            return cached.get(name.toLowerCase());
+        }
+        return load(uuid).get(name.toLowerCase());
+    }
+
+    /**
      * The player's effective home limit: the highest
      * {@code poppy.homes.<n>} permission tier they have (see
      * {@code homes-limit-tiers} in config.yml), or

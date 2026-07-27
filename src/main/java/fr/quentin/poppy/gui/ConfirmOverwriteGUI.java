@@ -52,10 +52,13 @@ public final class ConfirmOverwriteGUI {
             inventory.setItem(i, filler);
         }
 
-        ItemStack info = new ItemStack(Material.PAPER);
+        ItemStack info = new ItemStack(org.bukkit.Material.PAPER);
         ItemMeta infoMeta = info.getItemMeta();
         infoMeta.displayName(messages.get("confirm-overwrite.question", "home", pendingHome.name()));
         infoMeta.lore(List.of(messages.get("confirm-overwrite.warning")));
+        // Same reasoning as ConfirmDeleteGUI: tagged so onClose's safety net
+        // recognizes it as ours instead of refunding it to the player.
+        infoMeta.getPersistentDataContainer().set(actionKey, PersistentDataType.STRING, "info");
         info.setItemMeta(infoMeta);
         inventory.setItem(4, info);
 

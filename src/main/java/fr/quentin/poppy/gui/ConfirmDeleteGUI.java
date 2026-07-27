@@ -52,10 +52,16 @@ public final class ConfirmDeleteGUI {
             inventory.setItem(i, filler);
         }
 
-        ItemStack info = new ItemStack(Material.PAPER);
+        ItemStack info = new ItemStack(org.bukkit.Material.PAPER);
         ItemMeta infoMeta = info.getItemMeta();
         infoMeta.displayName(messages.get("confirm.question", "home", home.name()));
         infoMeta.lore(List.of(messages.get("confirm.warning")));
+        // Tagged with the same action key as the Yes/No buttons (value "info", never
+        // matched by ACTION_CONFIRM/ACTION_CANCEL) purely so HomesGUIListener's
+        // onClose safety net recognizes this as a Poppy-placed item and doesn't
+        // refund it to the player as an "unexpected" leftover — without this tag it
+        // had no PDC marker at all and was silently given back on every close.
+        infoMeta.getPersistentDataContainer().set(actionKey, PersistentDataType.STRING, "info");
         info.setItemMeta(infoMeta);
         inventory.setItem(4, info);
 

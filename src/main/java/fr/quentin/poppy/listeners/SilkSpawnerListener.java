@@ -204,6 +204,35 @@ public class SilkSpawnerListener implements Listener {
             }
 
             EntityType entityType = EntityType.valueOf(storedType);
+            Player player = event.getPlayer();
+
+            // Re-checked here, not just at break time — an item obtained before a
+            // type was added to the blacklist, or handed to a player without
+            // poppy.silkspawner, would otherwise stay placeable forever regardless
+            // of current server rules.
+            if (config.silkSpawnerBlacklist().contains(entityType.name())) {
+                event.setCancelled(true);
+                player.sendMessage(messages.get("silkspawner.blacklisted", "mob", formatName(entityType)));
+                return;
+            }
+
+            if (!player.hasPermission("poppy.silkspawner")) {
+                event.setCancelled(true);
+                player.sendMessage(messages.get("general.no-permission"));
+                return;
+            }
+
+            // Sanity check against an item forged with an arbitrary PDC value (a
+            // creative-mode /give with a hand-crafted NBT string, e.g.
+            // ENDER_DRAGON or WITHER) rather than one legitimately created by
+            // onBreak. EntityType.valueOf accepts any valid constant regardless of
+            // whether it makes sense as a spawner target; only a genuinely invalid
+            // string is caught by the IllegalArgumentException below on its own.
+            if (!entityType.isSpawnable() || !entityType.isAlive()) {
+                event.setCancelled(true);
+                player.sendMessage(messages.get("silkspawner.blacklisted", "mob", formatName(entityType)));
+                return;
+            }
 
             if (!(event.getBlock().getState() instanceof CreatureSpawner spawnerState)) {
                 return;
@@ -212,6 +241,7 @@ public class SilkSpawnerListener implements Listener {
             spawnerState.setSpawnedType(entityType);
             spawnerState.update(true, false);
         } catch (IllegalArgumentException e) {
+            event.setCancelled(true);
             plugin.getLogger().log(Level.WARNING, "Silk-touched spawner item had an invalid stored entity type", e);
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Error in SilkSpawnerListener#onPlace for " + event.getPlayer().getName(), e);

@@ -126,7 +126,7 @@ public class DeathBackCommand extends SafeCommand {
      */
     private boolean isSafe(Location location) {
         World world = location.getWorld();
-        if (location.getY() < world.getMinHeight()) {
+        if (location.getY() < world.getMinHeight() || location.getY() >= world.getMaxHeight()) {
             return false;
         }
 
@@ -142,7 +142,19 @@ public class DeathBackCommand extends SafeCommand {
             }
         }
 
-        // Feet/head must not be solid (to avoid suffocation) — water is fine there.
+        // Below must be something the player actually rests on — solid ground OR a
+        // liquid (water is buoyant, no fall) — but not empty air. This is narrower
+        // than a plain "not solid" check (which would accept a fall into open air
+        // above a hazard, the original bug this method was fixed for) while still
+        // deliberately not requiring strictly solid ground like RtpCommand.isSafe
+        // does: a solid-only requirement would reject a water-death location
+        // entirely, sending a drowned player through a search radius instead of
+        // straight back to where they actually died.
+        boolean hasFooting = below.getType().isSolid() || below.isLiquid();
+        if (!hasFooting) {
+            return false;
+        }
+
         return !feet.getType().isSolid() && !head.getType().isSolid();
     }
 }

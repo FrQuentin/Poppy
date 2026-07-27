@@ -201,6 +201,7 @@ public class DeathChestManager implements Listener {
 
     private final Map<UUID, ChestData> chests = new HashMap<>();
     private final Map<ChunkKey, Set<UUID>> chestsByChunk = new HashMap<>();
+    private final Set<UUID> combatLogSuppressed = new HashSet<>();
     private final Set<UUID> chestsBeingRemoved = new HashSet<>();
 
     // Not volatile: onChestClick/onChestDrag (event handlers) and flushIfDirty
@@ -230,6 +231,25 @@ public class DeathChestManager implements Listener {
         flushTask = Bukkit.getScheduler().runTaskTimer(plugin, this::flushIfDirty, 20L, 20L);
     }
 
+    /**
+     * Marks the next {@link PlayerDeathEvent} for this player as one that
+     * should never get a death chest — used by
+     * {@code CombatListener#onQuit}'s combat-log punishment kill, so the
+     * disconnecter's items drop on the ground exactly like a vanilla death
+     * instead of being safely protected in a chest: the whole point of the
+     * punishment is that whoever was fighting them can actually loot the
+     * body, which a protected chest would defeat.
+     *
+     * <p>Auto-expires after 20 ticks as a safety net: if the kill attempt
+     * doesn't actually result in a death (another plugin blocks the damage,
+     * god mode, etc.), this flag must not linger forever and silently strip
+     * the death chest from that player's next, unrelated, genuine death.
+     */
+    public void suppressNextDeathChest(UUID uuid) {
+        combatLogSuppressed.add(uuid);
+        Bukkit.getScheduler().runTaskLater(plugin, () -> combatLogSuppressed.remove(uuid), 20L);
+    }
+
     @EventHandler
     public void onDeath(@NonNull PlayerDeathEvent event) {
         if (!config.deathChestEnabled()) {
@@ -237,6 +257,13 @@ public class DeathChestManager implements Listener {
         }
 
         if (event.getKeepInventory() || event.getKeepLevel()) {
+            return;
+        }
+
+        if (combatLogSuppressed.remove(event.getEntity().getUniqueId())) {
+            // Combat-log punishment kill (see CombatListener#onQuit) — leave
+            // event.getDrops() and the XP untouched so this death behaves exactly
+            // like vanilla: items on the ground, no protection, no death chest.
             return;
         }
 

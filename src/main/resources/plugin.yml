@@ -116,6 +116,11 @@ commands:
     usage: /fly
     permission: poppy.fly
     permission-message: "&4[!] You don't have permission to do this."
+  combat:
+    description: Check how much combat-tag time you have left.
+    usage: /combat
+    permission: poppy.combat
+    permission-message: "&4[!] You don't have permission to do this."
 
 permissions:
   poppy.*:
@@ -144,6 +149,7 @@ permissions:
       poppy.heal: true
       poppy.silkspawner: true
       poppy.fly: true
+      poppy.combat: true
 
   poppy.sethome:
     description: Allows creating homes with /sethome.
@@ -223,3 +229,6 @@ permissions:
   poppy.fly:
     description: Allows toggling flight with /fly.
     default: op
+  poppy.combat:
+    description: Allows checking remaining combat-tag time with /combat.
+    default: true

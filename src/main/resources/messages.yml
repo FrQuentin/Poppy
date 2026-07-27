@@ -92,6 +92,9 @@ afk:
 
 combat:
   in-combat: "&4[!] You can't teleport while in combat! ({seconds}s left)"
+  log-punished: "&4[!] {player} disconnected while in combat!"
+  remaining: "&e[!] You are in combat for {time} more."
+  not-in-combat: "&a[!] You are not in combat."
 
 tpa:
   usage: "&4[!] Usage: &f/tpa <player>"

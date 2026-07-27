@@ -221,4 +221,8 @@ public final class PoppyConfig {
     public boolean tpaAllowCrossWorld() {
         return plugin.getConfig().getBoolean("tpa-allow-cross-world", true);
     }
+
+    public boolean combatLogPunishEnabled() {
+        return plugin.getConfig().getBoolean("combat-log-punish", true);
+    }
 }

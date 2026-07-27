@@ -127,6 +127,8 @@ public final class Poppy extends JavaPlugin {
 
         Objects.requireNonNull(getCommand("fly")).setExecutor(new FlyCommand(this, flyManager, messages));
 
+        Objects.requireNonNull(getCommand("combat")).setExecutor(new CombatCommand(this, combatManager, messages));
+
         getServer().getPluginManager().registerEvents(
                 new HomesGUIListener(this, homeManager, homesGUI, confirmDeleteGUI, confirmOverwriteGUI, teleportManager, messages, stats, poppyLogger), this);
         getServer().getPluginManager().registerEvents(teleportManager, this);
@@ -135,7 +137,7 @@ public final class Poppy extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new JoinQuitListener(this, messages, config), this);
         getServer().getPluginManager().registerEvents(tabHealthListener, this);
         getServer().getPluginManager().registerEvents(new AfkListener(this, afkManager, messages, poppyLogger), this);
-        getServer().getPluginManager().registerEvents(new CombatListener(this, combatManager, config, poppyLogger), this);
+        getServer().getPluginManager().registerEvents(new CombatListener(this, combatManager, config, poppyLogger, messages, deathChestManager), this);
         getServer().getPluginManager().registerEvents(new UnknownCommandListener(this, messages, config), this);
         getServer().getPluginManager().registerEvents(new HomeCacheListener(this, homeManager), this);
         getServer().getPluginManager().registerEvents(shareHomeCommand, this);

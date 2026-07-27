@@ -169,3 +169,8 @@ tpa-max-distance: 0
 # If false, /tpaccept refuses to teleport across different worlds
 # (Overworld/Nether/End), even within tpa-max-distance.
 tpa-allow-cross-world: true
+
+# If true, a player who disconnects while combat-tagged is killed
+# immediately and a message is broadcast to the whole server — closes the
+# classic "Alt+F4 to escape a losing fight" exploit.
+combat-log-punish: true

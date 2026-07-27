@@ -339,7 +339,7 @@ public class HomeManager {
     }
 
     public int countPlayersWithHomes() {
-        File[] files = homesFolder.listFiles((dir, name) -> name.endsWith(".yml"));
+        File[] files = homesFolder.listFiles((_, name) -> name.endsWith(".yml"));
         if (files == null) {
             return 0;
         }
@@ -354,7 +354,7 @@ public class HomeManager {
     }
 
     public int countTotalHomes() {
-        File[] files = homesFolder.listFiles((dir, name) -> name.endsWith(".yml"));
+        File[] files = homesFolder.listFiles((_, name) -> name.endsWith(".yml"));
         if (files == null) {
             return 0;
         }

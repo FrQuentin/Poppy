@@ -77,6 +77,7 @@ rtp:
   failed: "&4[!] Couldn't find a safe spot, try again!"
   cooldown: "&4[!] You must wait {time} before using /rtp again!"
   already-searching: "&4[!] You're already searching for a spot, please wait!"
+  server-busy: "&4[!] Too many players are searching for a spot right now, please try again in a moment!"
 
 trash:
   title: "&8Trash"

@@ -39,35 +39,36 @@ import java.util.logging.Level;
  * matters a lot here since the default 5000-block max radius routinely
  * lands outside already-generated terrain.
  *
- * <p>{@link #handleChunkLoaded} — the code that touches world blocks and
- * this class's own {@link #inProgress}/{@link #lastUse} collections —
- * explicitly re-schedules itself onto the main thread via
- * {@link Bukkit#getScheduler()}'s {@code runTask} if it isn't already
- * running there, rather than assuming it. Paper's {@code getChunkAtAsync}
- * future does complete on the main thread in practice, but that's an
- * implementation detail of the current Paper version, not something this
- * code should silently depend on without a fallback — an unsynchronized
- * {@link HashSet}/{@link HashMap} touched off the main thread, or a world
- * block read off it, would otherwise be a silent corruption/crash risk if
- * that guarantee ever changed.
+ * <p><b>A failed search consumes the cooldown, a combat-tag rejection does
+ * not:</b> {@link #attemptFindSafeLocation} running out of attempts still
+ * calls {@link Bukkit}'s equivalent of {@link World#getChunkAtAsync} up to
+ * {@code rtp-max-attempts} times — chunk generation is one of the most
+ * expensive operations a Minecraft server can do, in both I/O and CPU.
+ * Without applying the cooldown on failure, a player in an area where
+ * {@link #isSafe} rarely succeeds (heavy ocean biome, etc.) could spam
+ * {@code /rtp} with zero cost between attempts, generating chunks
+ * essentially without limit — a permission-less DoS vector that also
+ * silently bloats the world files on disk. A combat-tag rejection, by
+ * contrast, is rejected by {@link TeleportManager} before any chunk work
+ * ever happens, so it stays free of charge — see where
+ * {@code lastUse.put(...)} is (and isn't) called below.
+ *
+ * <p>{@link #MAX_CONCURRENT_SEARCHES} caps how many /rtp searches can be
+ * in flight across the whole server at once, on top of {@link #inProgress}
+ * (which only serializes one player's own repeated presses). Without a
+ * server-wide cap, enough different players pressing /rtp at the same
+ * moment could still queue an unbounded number of concurrent
+ * chunk-generation chains even with per-player cooldowns in place.
  *
  * <p>{@link #inProgress} guards against a player spamming /rtp before their
- * first search resolves: without it, each call fires an independent async
- * chunk-generation chain (up to {@code rtp-max-attempts} chunk generations
- * each), so N rapid presses of /rtp in the same tick could queue up to
- * N x rtp-max-attempts concurrent chunk generations — on a fresh world,
- * that's enough to bring the server to its knees. The cooldown alone
- * doesn't help here since it's only applied on success (correctly — see
- * earlier fix), so it does nothing to stop a burst of presses before any
- * of them has resolved. {@link #inProgress} is removed on every exit path:
- * success, running out of attempts, the player going offline mid-search,
- * an exception, and on quit (see {@link #onQuit}) as a final safety net.
+ * first search resolves; removed on every exit path: success, running out
+ * of attempts, the player going offline mid-search, an exception, and on
+ * quit as a final safety net.
  *
- * <p>Unlike {@link #inProgress} (cleared on quit as a genuine safety net —
- * a lingering flag would otherwise permanently lock an offline player out
- * after reconnecting), {@link #lastUse} is deliberately <b>not</b> cleared
- * on quit: doing so would let a player reset their own cooldown for free
- * by disconnecting and reconnecting. The cooldown is meant to survive a
+ * <p>Unlike {@link #inProgress} (cleared on quit as a genuine safety net),
+ * {@link #lastUse} is deliberately <b>not</b> cleared on quit: doing so
+ * would let a player reset their own cooldown for free by disconnecting
+ * and reconnecting. The cooldown is meant to survive a
  * disconnect/reconnect, and only resets on a full server restart.
  *
  * <p>The Nether needs different vertical placement logic than the
@@ -77,6 +78,8 @@ import java.util.logging.Level;
  * the player on top of the world. See {@link #findNetherCandidate}.
  */
 public class RtpCommand extends SafeCommand implements Listener {
+
+    private static final int MAX_CONCURRENT_SEARCHES = 3;
 
     private final TeleportManager teleportManager;
     private final PoppyConfig config;
@@ -105,6 +108,11 @@ public class RtpCommand extends SafeCommand implements Listener {
             return true;
         }
 
+        if (inProgress.size() >= MAX_CONCURRENT_SEARCHES) {
+            player.sendMessage(messages.get("rtp.server-busy"));
+            return true;
+        }
+
         if (!inProgress.add(player.getUniqueId())) {
             player.sendMessage(messages.get("rtp.already-searching"));
             return true;
@@ -122,6 +130,11 @@ public class RtpCommand extends SafeCommand implements Listener {
     private void attemptFindSafeLocation(Player player, Location center, int attemptsLeft) {
         if (attemptsLeft <= 0) {
             inProgress.remove(player.getUniqueId());
+            // A failed search still cost up to rtp-max-attempts chunk generations —
+            // that's a real server expense, so it consumes the cooldown just like a
+            // successful teleport, unlike a combat-tag rejection which never reaches
+            // this point at all.
+            lastUse.put(player.getUniqueId(), System.currentTimeMillis());
             player.sendMessage(messages.get("rtp.failed"));
             return;
         }
@@ -135,7 +148,7 @@ public class RtpCommand extends SafeCommand implements Listener {
         world.getChunkAtAsync(x >> 4, z >> 4)
                 .thenRun(() -> handleChunkLoaded(player, world, x, z, center, attemptsLeft))
                 .exceptionally(throwable -> {
-                    // thenAccept runs after execute(...) has already returned, so this is
+                    // thenRun runs after execute(...) has already returned, so this is
                     // outside SafeCommand's try/catch — without this handler an exception
                     // here would just vanish silently inside the CompletableFuture.
                     inProgress.remove(player.getUniqueId());
@@ -150,7 +163,9 @@ public class RtpCommand extends SafeCommand implements Listener {
     /**
      * Everything that reads/writes world blocks or this class's own
      * collections lives here, guarded by an explicit main-thread check —
-     * see the class-level doc for why this isn't just assumed.
+     * Paper's chunk-load future does complete on the main thread in
+     * practice, but that's an implementation detail this code shouldn't
+     * silently depend on without a fallback.
      */
     private void handleChunkLoaded(Player player, World world, int x, int z, Location center, int attemptsLeft) {
         if (!Bukkit.isPrimaryThread()) {
@@ -192,9 +207,7 @@ public class RtpCommand extends SafeCommand implements Listener {
     /**
      * Scans downward from just below the Nether's solid bedrock roof,
      * returning the first vertical position that passes {@link #isSafe},
-     * or null if the whole column is solid all the way down (common near
-     * the roof itself, or in dense terrain). {@link #attemptFindSafeLocation}
-     * simply retries at a new random column when this returns null.
+     * or null if the whole column is solid all the way down.
      */
     private Location findNetherCandidate(World world, int x, int z) {
         int scanStart = Math.min(120, world.getMaxHeight() - 8);

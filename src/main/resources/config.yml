@@ -189,3 +189,8 @@ sleep-status-cooldown-seconds: 5
 # Cooldown (in seconds) between two /tpa or /tpahere requests sent by the
 # same player — prevents using teleport requests as a harassment/spam vector.
 tpa-request-cooldown-seconds: 5
+
+# If true, /tpaccept refuses to teleport a player into a location owned by
+# someone currently combat-tagged — blocks using /tpahere to bring an ally
+# straight into an ongoing fight, or /tpa to teleport into one.
+tpa-block-to-combat: true

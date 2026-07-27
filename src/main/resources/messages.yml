@@ -128,6 +128,7 @@ tpa:
   target-not-accepting: "&4[!] {player} is not currently accepting teleport requests!"
   toggle-on: "&a[!] You are now accepting teleport requests."
   toggle-off: "&c[!] You are no longer accepting teleport requests."
+  destination-in-combat: "&4[!] You can't teleport there right now — the destination is in combat!"
 
 poppy:
   wrong-gamemode: "&4[!] You need to be in Survival or Creative mode to do this!"

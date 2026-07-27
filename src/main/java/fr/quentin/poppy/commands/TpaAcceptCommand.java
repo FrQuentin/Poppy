@@ -1,5 +1,6 @@
 package fr.quentin.poppy.commands;
 
+import fr.quentin.poppy.manager.CombatManager;
 import fr.quentin.poppy.manager.TeleportManager;
 import fr.quentin.poppy.manager.TpaManager;
 import fr.quentin.poppy.model.Home;
@@ -24,30 +25,40 @@ import java.util.List;
  *
  * <p>The actual teleport goes through {@link TeleportManager#requestTeleport},
  * so the usual warmup/cancel-on-move/combat-tag rules apply to whoever is
- * moving, exactly like /home or /back.
+ * moving. That check alone, though, only ever looks at the mover's own
+ * combat tag — it says nothing about the <i>destination</i>. Without
+ * {@link #destinationInCombat}, {@code /tpahere} could be used to bring
+ * an untagged ally straight into an ongoing fight (the requester who's
+ * losing calls the shots, the accepter who arrives is never tagged
+ * themselves, so the mover-only check never fires) — the anti-flee
+ * mechanic is honored to the letter but defeated in spirit. Checked
+ * against whichever player's location is actually the destination: for
+ * {@link TpaManager.Type#NORMAL} that's the accepter ({@code player}, the
+ * one who typed {@code /tpaccept}); for {@link TpaManager.Type#HERE} it's
+ * the requester.
  *
- * <p>{@link #withinAllowedRange} enforces {@code tpa-max-distance} and
- * {@code tpa-allow-cross-world} (config.yml, both permissive/unlimited by
- * default) before actually teleporting — without a limit, /tpa and
- * /tpahere function as an unrestricted, instant teleport network between
- * two accounts across the whole map (or between dimensions), which is
- * often considered an exploit on a competitive public server even though
- * it isn't a technical bug. Checked here (accept time), not at request
- * time, since positions can change during the {@code tpa-expiry-seconds}
- * window a request stays pending.
+ * <p>{@link TpaManager#removeRequest} is only called once every validation
+ * (target offline, distance, destination combat) has already passed —
+ * not eagerly at the top of the method. A request rejected by, say, the
+ * distance check is left intact rather than consumed: without this, a
+ * failed {@code /tpaccept} would force both players to send a brand new
+ * request just to retry, even though nothing about the original request
+ * was actually invalid, just momentarily out of range.
  */
 public class TpaAcceptCommand extends SafeCommand implements TabCompleter {
 
     private final TpaManager tpaManager;
     private final TeleportManager teleportManager;
+    private final CombatManager combatManager;
     private final PoppyConfig config;
     private final PoppyLogger logger;
 
-    public TpaAcceptCommand(JavaPlugin plugin, TpaManager tpaManager, TeleportManager teleportManager,
+    public TpaAcceptCommand(JavaPlugin plugin, TpaManager tpaManager, TeleportManager teleportManager, CombatManager combatManager,
                             Messages messages, PoppyConfig config, PoppyLogger logger) {
         super(plugin, messages);
         this.tpaManager = tpaManager;
         this.teleportManager = teleportManager;
+        this.combatManager = combatManager;
         this.config = config;
         this.logger = logger;
     }
@@ -71,10 +82,10 @@ public class TpaAcceptCommand extends SafeCommand implements TabCompleter {
         }
 
         Player requester = Bukkit.getPlayer(request.requester());
-        tpaManager.removeRequest(player.getUniqueId(), request.requester());
-
         if (requester == null) {
-            // requester disconnected between the request and the accept
+            // The requester disconnected between the request and the accept —
+            // nothing left to retry, so this one really is consumed.
+            tpaManager.removeRequest(player.getUniqueId(), request.requester());
             player.sendMessage(messages.get("tpa.no-request", "player", args[0]));
             return true;
         }
@@ -84,6 +95,16 @@ public class TpaAcceptCommand extends SafeCommand implements TabCompleter {
             requester.sendMessage(messages.get("tpa.too-far"));
             return true;
         }
+
+        Player destinationOwner = request.type() == TpaManager.Type.NORMAL ? player : requester;
+        if (destinationInCombat(destinationOwner)) {
+            player.sendMessage(messages.get("tpa.destination-in-combat"));
+            requester.sendMessage(messages.get("tpa.destination-in-combat"));
+            return true;
+        }
+
+        // Every validation passed — only now is the request actually consumed.
+        tpaManager.removeRequest(player.getUniqueId(), request.requester());
 
         if (request.type() == TpaManager.Type.NORMAL) {
             // the requester moves to the accepter (this player)
@@ -100,6 +121,10 @@ public class TpaAcceptCommand extends SafeCommand implements TabCompleter {
         }
 
         return true;
+    }
+
+    private boolean destinationInCombat(Player destinationOwner) {
+        return config.tpaBlockToCombat() && combatManager.isInCombat(destinationOwner.getUniqueId());
     }
 
     private boolean withinAllowedRange(Player a, Player b) {

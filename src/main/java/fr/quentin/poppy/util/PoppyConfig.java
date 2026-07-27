@@ -84,6 +84,7 @@ public final class PoppyConfig {
     private volatile long tpaRequestCooldownMillis;
     private volatile double tpaMaxDistance;
     private volatile boolean tpaAllowCrossWorld;
+    private volatile boolean tpaBlockToCombat;
 
     private volatile long poppyLoreCooldownMillis;
     private volatile long poppyEasterEggCooldownMillis;
@@ -165,6 +166,7 @@ public final class PoppyConfig {
         tpaRequestCooldownMillis = Math.max(0, c.getInt("tpa-request-cooldown-seconds", 5)) * 1000L;
         tpaMaxDistance = Math.max(0, c.getDouble("tpa-max-distance", 0));
         tpaAllowCrossWorld = c.getBoolean("tpa-allow-cross-world", true);
+        tpaBlockToCombat = c.getBoolean("tpa-block-to-combat", true);
 
         poppyLoreCooldownMillis = Math.max(0, c.getInt("poppy-lore-cooldown-minutes", 30)) * 60L * 1000L;
         poppyEasterEggCooldownMillis = Math.max(0, c.getInt("poppy-easteregg-cooldown-seconds", 3)) * 1000L;
@@ -420,5 +422,9 @@ public final class PoppyConfig {
 
     public long healCooldownMillis() {
         return healCooldownMillis;
+    }
+
+    public boolean tpaBlockToCombat() {
+        return tpaBlockToCombat;
     }
 }

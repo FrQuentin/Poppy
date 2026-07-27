@@ -188,18 +188,17 @@ public final class Poppy extends JavaPlugin {
         getLogger().info(" Poppy v" + getPluginMeta().getVersion() + " enabled successfully.");
         getLogger().info(" config.yml and messages.yml loaded OK.");
         getLogger().info(" Spawn point: " + (spawnManager.hasSpawn() ? "configured" : "NOT SET (use /setspawn)"));
-
-        if (showStats) {
-            int playersWithHomes = homeManager.countPlayersWithHomes();
-            int totalHomes = homeManager.countTotalHomes();
-            getLogger().info(" Known players with homes: " + playersWithHomes + " (" + totalHomes + " homes total)");
-        }
-
         getLogger().info(" Modules: afk-auto=" + getConfig().getBoolean("afk-auto-enabled", true)
                 + ", combat-tag=" + getConfig().getBoolean("combat-tag-enabled", true)
                 + ", tab-health=" + getConfig().getBoolean("show-health-in-tab", true)
                 + ", custom-join-quit=" + getConfig().getBoolean("custom-join-message", true));
         getLogger().info("========================================");
+
+        if (showStats) {
+            homeManager.collectStatsAsync().thenAccept(stats ->
+                    getLogger().info(" Known players with homes: " + stats.playersWithHomes() + " (" + stats.totalHomes() + " homes total)")
+            );
+        }
     }
 
     private void logShutdownSummary() {

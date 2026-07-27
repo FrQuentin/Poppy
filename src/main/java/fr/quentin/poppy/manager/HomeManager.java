@@ -14,11 +14,7 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.logging.Level;
 
 /**
@@ -286,6 +282,40 @@ public class HomeManager {
     }
 
     /**
+     * Combines what were previously two separate O(n) scans
+     * ({@code countPlayersWithHomes} + {@code countTotalHomes}), each parsing
+     * every homes file independently — on a server with tens of thousands of
+     * players who have homes, that was tens of thousands of redundant YAML
+     * parses, synchronously, on the main thread, during {@code onEnable}.
+     * This does a single pass over the folder, parsing each file exactly
+     * once, and runs entirely on {@link #ioExecutor} — {@code onEnable}
+     * doesn't block on it at all; see {@code Poppy#logStartupBanner} for how
+     * the console banner reports the result once it's ready instead.
+     */
+    public record HomeStats(int playersWithHomes, int totalHomes) {
+    }
+
+    public CompletableFuture<HomeStats> collectStatsAsync() {
+        return CompletableFuture.supplyAsync(() -> {
+            File[] files = homesFolder.listFiles((_, name) -> name.endsWith(".yml"));
+            if (files == null) {
+                return new HomeStats(0, 0);
+            }
+
+            int players = 0;
+            int total = 0;
+            for (File file : files) {
+                int count = fileHomeCount(file);
+                if (count > 0) {
+                    players++;
+                    total += count;
+                }
+            }
+            return new HomeStats(players, total);
+        }, ioExecutor);
+    }
+
+    /**
      * Snapshots {@code homes} into {@link #inFlight} under a fresh identity
      * token, submits the async write, and clears the snapshot once done —
      * but only if this write's token is still the current one for this
@@ -353,33 +383,6 @@ public class HomeManager {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-    }
-
-    public int countPlayersWithHomes() {
-        File[] files = homesFolder.listFiles((_, name) -> name.endsWith(".yml"));
-        if (files == null) {
-            return 0;
-        }
-
-        int count = 0;
-        for (File file : files) {
-            if (fileHomeCount(file) > 0) {
-                count++;
-            }
-        }
-        return count;
-    }
-
-    public int countTotalHomes() {
-        File[] files = homesFolder.listFiles((_, name) -> name.endsWith(".yml"));
-        if (files == null) {
-            return 0;
-        }
-        int total = 0;
-        for (File file : files) {
-            total += fileHomeCount(file);
-        }
-        return total;
     }
 
     private int fileHomeCount(File file) {

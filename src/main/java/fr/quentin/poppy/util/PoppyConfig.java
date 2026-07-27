@@ -241,4 +241,12 @@ public final class PoppyConfig {
     public long tpaRequestCooldownMillis() {
         return Math.max(0, plugin.getConfig().getInt("tpa-request-cooldown-seconds", 5)) * 1000L;
     }
+
+    public int loggingFlushIntervalSeconds() {
+        return Math.max(1, plugin.getConfig().getInt("logging.flush-interval-seconds", 3));
+    }
+
+    public int loggingRetentionDays() {
+        return Math.max(0, plugin.getConfig().getInt("logging.retention-days", 30));
+    }
 }

@@ -97,6 +97,9 @@ logging:
   # How often (in seconds) queued log lines are flushed to disk in a batch,
   # instead of opening the file for every single event.
   flush-interval-seconds: 3
+  # How many days of daily log files to keep — older poppy-YYYY-MM-DD.log
+  # files are deleted on startup. Set to 0 to keep every log file forever.
+  retention-days: 30
   categories:
     home: true
     teleport: true

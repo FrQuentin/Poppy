@@ -97,6 +97,22 @@ import java.util.logging.Level;
  * <p>If either the {@code keepInventory} or {@code keepLevel} gamerule is
  * on, {@link #onDeath} bails out immediately.
  *
+ * <p><b>Point-of-no-return ordering in {@link #onDeath}:</b> the chest is
+ * fully built ({@link #createChestData}), filled
+ * ({@link #fillInventory}), and its cosmetic block placed
+ * ({@link #placeChestBlock}) — <i>before</i> {@link PlayerDeathEvent#getDrops()}
+ * is ever cleared or {@code chests} is updated. If any of those three
+ * steps throws (a malformed {@code messages.yml} key breaking the GUI
+ * title, a race on the block state if another plugin reacts to the
+ * simulated {@link BlockPlaceEvent} from {@link #isProtected} by placing
+ * something there itself, etc.), the death silently falls through to
+ * ordinary vanilla item drops instead of losing the player's inventory —
+ * the old ordering cleared the drops first and only then attempted to
+ * build the chest, so any failure in between destroyed the items with no
+ * recovery. This is the single most consequence-sensitive moment in the
+ * plugin; it's deliberately conservative here even at the cost of a
+ * slightly more verbose method body.
+ *
  * <p>Persistence is a single file written synchronously via
  * {@link #writeAtomically} — a temp-file-then-atomic-rename, same
  * technique as {@link HomeManager#writeToDisk}. Loaded once at startup in
@@ -247,18 +263,34 @@ public class DeathChestManager implements Listener {
                 return;
             }
 
+            // Build and fill the chest entirely before touching the event's drops —
+            // see the class-level doc on the point-of-no-return ordering. Anything
+            // that fails here (a malformed messages.yml key, a race on the block
+            // state, etc.) leaves event.getDrops() completely untouched, so vanilla
+            // death behavior takes over instead of silently destroying the player's
+            // inventory.
+            UUID id = UUID.randomUUID();
+            ChestData data;
+            List<ItemStack> overflow;
+            try {
+                data = createChestData(id, player.getUniqueId(), player.getName(), spot, System.currentTimeMillis());
+                overflow = fillInventory(data.inventory(), plannedDrops);
+                placeChestBlock(spot, id);
+            } catch (Exception e) {
+                plugin.getLogger().log(Level.SEVERE,
+                        "Failed to create a death chest for " + player.getName() + " — vanilla item drops kept intact instead", e);
+                return;
+            }
+
+            // Point of no return: the chest is fully built and filled, safe to
+            // commit — confiscate the vanilla drops now.
             event.getDrops().clear();
             if (refundXp > 0) {
                 event.setDroppedExp(0);
             }
 
-            UUID id = UUID.randomUUID();
-            placeChestBlock(spot, id);
-
-            ChestData data = createChestData(id, player.getUniqueId(), player.getName(), spot, System.currentTimeMillis());
             chests.put(id, data);
 
-            List<ItemStack> overflow = fillInventory(data.inventory(), plannedDrops);
             for (ItemStack item : overflow) {
                 player.getWorld().dropItemNaturally(spot, item);
             }

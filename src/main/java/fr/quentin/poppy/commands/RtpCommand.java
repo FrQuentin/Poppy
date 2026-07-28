@@ -2,12 +2,7 @@ package fr.quentin.poppy.commands;
 
 import fr.quentin.poppy.manager.TeleportManager;
 import fr.quentin.poppy.model.Home;
-import fr.quentin.poppy.util.CooldownStore;
-import fr.quentin.poppy.util.DurationFormat;
-import fr.quentin.poppy.util.Messages;
-import fr.quentin.poppy.util.PoppyConfig;
-import fr.quentin.poppy.util.PoppyStats;
-import fr.quentin.poppy.util.SafeCommand;
+import fr.quentin.poppy.util.*;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -67,12 +62,13 @@ public class RtpCommand extends SafeCommand implements Listener {
 
     private final Set<UUID> inProgress = new HashSet<>();
 
-    public RtpCommand(JavaPlugin plugin, TeleportManager teleportManager, Messages messages, PoppyConfig config, PoppyStats stats) {
+    public RtpCommand(JavaPlugin plugin, TeleportManager teleportManager, Messages messages, PoppyConfig config, PoppyStats stats, CooldownRegistry registry) {
         super(plugin, messages);
         this.teleportManager = teleportManager;
         this.config = config;
         this.stats = stats;
         this.cooldown = new CooldownStore(plugin);
+        registry.register("Random Teleport", cooldown);
     }
 
     @Override

@@ -126,6 +126,11 @@ commands:
     usage: /tpatoggle
     permission: poppy.tpa
     permission-message: "&4[!] You don't have permission to do this."
+  cooldowns:
+    description: See your remaining cooldowns.
+    usage: /cooldowns
+    permission: poppy.cooldowns
+    permission-message: "&4[!] You don't have permission to do this."
 
 permissions:
   poppy.*:
@@ -155,6 +160,7 @@ permissions:
       poppy.silkspawner: true
       poppy.fly: true
       poppy.combat: true
+      poppy.cooldowns: true
 
   poppy.sethome:
     description: Allows creating homes with /sethome.
@@ -236,4 +242,7 @@ permissions:
     default: op
   poppy.combat:
     description: Allows checking remaining combat-tag time with /combat.
+    default: true
+  poppy.cooldowns:
+    description: Allows checking cooldowns with /cooldowns.
     default: true

@@ -182,3 +182,9 @@ fly:
   disabled-attack: "&4[!] You just attacked {target} — your flight has been disabled!"
   locked-out: "&4[!] You must wait {time} before flying again!"
   blocked-end: "&4[!] You're in the End — you can't enable flight here. Return to the Overworld or Nether!"
+
+cooldowns:
+  header: "&7- &6Cooldowns"
+  line-active: "&8• &e{name} &7- &f{time}"
+  line-ready: "&8• &e{name} &7- &fReady"
+  none: "&7[!] You have no active cooldowns."

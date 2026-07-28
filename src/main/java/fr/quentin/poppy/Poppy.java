@@ -9,10 +9,7 @@ import fr.quentin.poppy.gui.TrashGUI;
 import fr.quentin.poppy.gui.TrashListener;
 import fr.quentin.poppy.listeners.*;
 import fr.quentin.poppy.manager.*;
-import fr.quentin.poppy.util.Messages;
-import fr.quentin.poppy.util.PoppyConfig;
-import fr.quentin.poppy.util.PoppyLogger;
-import fr.quentin.poppy.util.PoppyStats;
+import fr.quentin.poppy.util.*;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.Objects;
@@ -41,6 +38,7 @@ public final class Poppy extends JavaPlugin {
         stats = new PoppyStats();
 
         Messages messages = new Messages(this);
+        CooldownRegistry cooldownRegistry = new CooldownRegistry();
         poppyLogger = new PoppyLogger(this, config);
 
 
@@ -81,7 +79,7 @@ public final class Poppy extends JavaPlugin {
         Objects.requireNonNull(getCommand("delspawn")).setExecutor(new DelSpawnCommand(this, spawnManager, messages, poppyLogger));
         Objects.requireNonNull(getCommand("spawn")).setExecutor(new SpawnCommand(this, spawnManager, teleportManager, messages));
 
-        ShareHomeCommand shareHomeCommand = new ShareHomeCommand(this, homeManager, shareManager, messages, config, stats, poppyLogger);
+        ShareHomeCommand shareHomeCommand = new ShareHomeCommand(this, homeManager, shareManager, messages, config, stats, poppyLogger, cooldownRegistry);
         Objects.requireNonNull(getCommand("sharehome")).setExecutor(shareHomeCommand);
         Objects.requireNonNull(getCommand("sharehome")).setTabCompleter(shareHomeCommand);
 
@@ -90,7 +88,7 @@ public final class Poppy extends JavaPlugin {
 
         Objects.requireNonNull(getCommand("back")).setExecutor(new BackCommand(this, backManager, teleportManager, messages));
 
-        RtpCommand rtpCommand = new RtpCommand(this, teleportManager, messages, config, stats);
+        RtpCommand rtpCommand = new RtpCommand(this, teleportManager, messages, config, stats, cooldownRegistry);
         Objects.requireNonNull(getCommand("rtp")).setExecutor(rtpCommand);
         getServer().getPluginManager().registerEvents(rtpCommand, this);
 
@@ -125,12 +123,14 @@ public final class Poppy extends JavaPlugin {
         Objects.requireNonNull(getCommand("poppy")).setExecutor(poppyCommand);
         Objects.requireNonNull(getCommand("poppy")).setTabCompleter(poppyCommand);
 
-        Objects.requireNonNull(getCommand("feed")).setExecutor(new FeedCommand(this, messages, config));
-        Objects.requireNonNull(getCommand("heal")).setExecutor(new HealCommand(this, messages, config));
+        Objects.requireNonNull(getCommand("feed")).setExecutor(new FeedCommand(this, messages, config, cooldownRegistry));
+        Objects.requireNonNull(getCommand("heal")).setExecutor(new HealCommand(this, messages, config, cooldownRegistry));
 
         Objects.requireNonNull(getCommand("fly")).setExecutor(new FlyCommand(this, flyManager, messages));
 
         Objects.requireNonNull(getCommand("combat")).setExecutor(new CombatCommand(this, combatManager, messages));
+
+        Objects.requireNonNull(getCommand("cooldowns")).setExecutor(new CooldownsCommand(this, messages, cooldownRegistry));
 
         getServer().getPluginManager().registerEvents(
                 new HomesGUIListener(this, homeManager, homesGUI, confirmDeleteGUI, confirmOverwriteGUI, teleportManager, messages, stats, poppyLogger), this);

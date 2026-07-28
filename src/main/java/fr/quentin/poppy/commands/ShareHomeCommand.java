@@ -3,13 +3,7 @@ package fr.quentin.poppy.commands;
 import fr.quentin.poppy.manager.HomeManager;
 import fr.quentin.poppy.manager.ShareManager;
 import fr.quentin.poppy.model.Home;
-import fr.quentin.poppy.util.CooldownStore;
-import fr.quentin.poppy.util.DurationFormat;
-import fr.quentin.poppy.util.Messages;
-import fr.quentin.poppy.util.PoppyConfig;
-import fr.quentin.poppy.util.PoppyLogger;
-import fr.quentin.poppy.util.PoppyStats;
-import fr.quentin.poppy.util.SafeCommand;
+import fr.quentin.poppy.util.*;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
@@ -51,7 +45,7 @@ public class ShareHomeCommand extends SafeCommand implements TabCompleter {
     private final CooldownStore cooldown;
 
     public ShareHomeCommand(JavaPlugin plugin, HomeManager homeManager, ShareManager shareManager, Messages messages,
-                            PoppyConfig config, PoppyStats stats, PoppyLogger logger) {
+                            PoppyConfig config, PoppyStats stats, PoppyLogger logger, CooldownRegistry registry) {
         super(plugin, messages);
         this.homeManager = homeManager;
         this.shareManager = shareManager;
@@ -59,6 +53,7 @@ public class ShareHomeCommand extends SafeCommand implements TabCompleter {
         this.stats = stats;
         this.logger = logger;
         this.cooldown = new CooldownStore(plugin);
+        registry.register("Share Home", cooldown);
     }
 
     @Override

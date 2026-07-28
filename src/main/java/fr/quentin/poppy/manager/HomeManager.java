@@ -238,6 +238,16 @@ public class HomeManager {
      * {@link #load}'s synchronous file read on the main thread. A no-op if
      * the cache is already populated by the time this runs (e.g. some
      * other code path already called {@link #getHomes} for this player).
+     *
+     * <p>Also a no-op if the player is no longer online by the time the
+     * async read completes — without this check, a player who connects and
+     * immediately disconnects (a very common pattern on a public server:
+     * connection lag, IP scanners/bots) would have {@link #unload} fire and
+     * find nothing to remove (the cache entry doesn't exist yet), then the
+     * async read would land afterward and cache an entry for a now-offline
+     * player that no future {@link org.bukkit.event.player.PlayerQuitEvent}
+     * will ever evict — the exact leak {@link #getHomeUncached} exists to
+     * avoid, reintroduced through this different path.
      */
     public void preloadAsync(UUID uuid) {
         if (cache.containsKey(uuid)) {
@@ -246,7 +256,12 @@ public class HomeManager {
 
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             LinkedHashMap<String, Home> homes = readFromDisk(uuid);
-            Bukkit.getScheduler().runTask(plugin, () -> cache.putIfAbsent(uuid, homes));
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                if (Bukkit.getPlayer(uuid) == null) {
+                    return;
+                }
+                cache.putIfAbsent(uuid, homes);
+            });
         });
     }
 

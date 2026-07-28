@@ -113,6 +113,8 @@ public final class PoppyConfig {
 
     private volatile boolean flyForceDisableOnJoin;
 
+    private volatile boolean combatLogPunishOnKick;
+
     public PoppyConfig(JavaPlugin plugin) {
         this.plugin = plugin;
         reload();
@@ -196,6 +198,8 @@ public final class PoppyConfig {
 
         feedCooldownMillis = Math.max(0, c.getInt("feed-cooldown-seconds", 180)) * 1000L;
         healCooldownMillis = Math.max(0, c.getInt("heal-cooldown-seconds", 180)) * 1000L;
+
+        combatLogPunishOnKick = c.getBoolean("combat-log-punish-on-kick", false);
     }
 
     private int computeTrashSize(int configured) {
@@ -434,5 +438,9 @@ public final class PoppyConfig {
 
     public boolean flyForceDisableOnJoin() {
         return flyForceDisableOnJoin;
+    }
+
+    public boolean combatLogPunishOnKick() {
+        return combatLogPunishOnKick;
     }
 }

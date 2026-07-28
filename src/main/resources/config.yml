@@ -203,3 +203,9 @@ tpa-block-to-combat: true
 # plugin). Set to false if you run another plugin that grants flight
 # outside of Poppy's own /fly command.
 fly-force-disable-on-join: true
+
+# If true, a player kicked while in combat is also punished by the
+# combat-log system (drop + health to 0) — off by default, since a kick
+# (admin kick, anti-cheat false positive) usually shouldn't be treated the
+# same as a voluntary disconnect.
+combat-log-punish-on-kick: false

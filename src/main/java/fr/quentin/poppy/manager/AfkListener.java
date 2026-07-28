@@ -129,10 +129,22 @@ public class AfkListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void onCommand(@NonNull PlayerCommandPreprocessEvent event) {
         try {
-            onActivity(event.getPlayer());
+            // Only records the timestamp here, never clears AFK/broadcasts — a
+            // command is a fine signal that the player isn't idle (pushes back
+            // auto-AFK), but PlayerCommandPreprocessEvent fires BEFORE the command
+            // actually runs. Calling the full onActivity() here would have this
+            // handler clear AFK status (and broadcast "no longer AFK") on /afk
+            // itself, right before AfkCommand.toggle() runs and flips it back —
+            // making /afk impossible to use to leave AFK, and firing two
+            // server-wide broadcasts per press instead of one.
+            recordActivity(event.getPlayer());
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Error in AfkListener#onCommand for " + event.getPlayer().getName(), e);
         }
+    }
+
+    private void recordActivity(Player player) {
+        afkManager.recordActivity(player.getUniqueId());
     }
 
     /**
@@ -153,13 +165,13 @@ public class AfkListener implements Listener {
     }
 
     /**
-     * Shared by every activity signal: records the timestamp, and if the
-     * player was AFK, clears it and broadcasts the "no longer AFK"
-     * message — exactly what {@link #onMove} always did on its own,
-     * now reused by every other signal too.
+     * Full activity handling: records the timestamp AND, if the player was
+     * AFK, clears it and broadcasts the "no longer AFK" message. Used by
+     * every activity signal except {@link #onCommand} — see its own doc for
+     * why command preprocessing specifically must stay record-only.
      */
     private void onActivity(Player player) {
-        afkManager.recordActivity(player.getUniqueId());
+        recordActivity(player);
 
         if (!afkManager.isAfk(player.getUniqueId())) {
             return;

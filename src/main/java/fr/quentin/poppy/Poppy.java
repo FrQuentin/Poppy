@@ -144,7 +144,7 @@ public final class Poppy extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new UnknownCommandListener(this, messages, config), this);
         getServer().getPluginManager().registerEvents(new HomeCacheListener(this, homeManager), this);
         getServer().getPluginManager().registerEvents(shareHomeCommand, this);
-        getServer().getPluginManager().registerEvents(new TpaQuitListener(tpaManager), this);
+        getServer().getPluginManager().registerEvents(new TpaQuitListener(tpaManager, messages), this);
         getServer().getPluginManager().registerEvents(new PoppyLoreListener(this, messages, config, poppyLogger), this);
         getServer().getPluginManager().registerEvents(new DeathCoordsListener(this, messages, deathLocationManager, config, poppyLogger), this);
         getServer().getPluginManager().registerEvents(deathChestManager, this);

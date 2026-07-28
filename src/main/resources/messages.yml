@@ -129,6 +129,7 @@ tpa:
   toggle-on: "&a[!] You are now accepting teleport requests."
   toggle-off: "&c[!] You are no longer accepting teleport requests."
   destination-in-combat: "&4[!] You can't teleport there right now — the destination is in combat!"
+  toggle-off-reminder: "&e[!] Reminder: you have teleport requests blocked. Use /tpatoggle to re-enable them."
 
 poppy:
   wrong-gamemode: "&4[!] You need to be in Survival or Creative mode to do this!"

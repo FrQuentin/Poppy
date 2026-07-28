@@ -5,10 +5,12 @@ import fr.quentin.poppy.util.Messages;
 import fr.quentin.poppy.util.PoppyConfig;
 import fr.quentin.poppy.util.PoppyLogger;
 import org.bukkit.Bukkit;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -16,14 +18,21 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.logging.Level;
 
 /**
  * Tracks pending /tpa and /tpahere requests, the {@code /tpatoggle}
  * opt-out ({@link #requestsDisabled}), and per-requester cooldown (via a
- * shared {@link CooldownStore} — not a raw {@code Map<UUID, Long>}, same
- * reasoning as {@link fr.quentin.poppy.commands.AfkCommand}).
- * {@link #requestsDisabled} is deliberately never purged: it's a durable
- * player preference, not a cooldown, so there's no expiry to sweep.
+ * shared {@link CooldownStore}).
+ *
+ * <p>{@link #requestsDisabled} is persisted to {@code tpatoggle.yml} —
+ * unlike a plain cooldown, this is a deliberate, durable player
+ * preference, often used specifically to opt out of harassment via
+ * repeated teleport requests. Losing it silently on every server restart
+ * would mean a player relying on it for that reason has their protection
+ * quietly disabled without ever being told. Written synchronously (a
+ * small file, changed rarely — only on an actual {@code /tpatoggle}
+ * command, not a hot path) via {@link fr.quentin.poppy.util.AtomicYamlWriter}.
  */
 public class TpaManager {
 
@@ -36,6 +45,7 @@ public class TpaManager {
     private final Messages messages;
     private final PoppyConfig config;
     private final PoppyLogger logger;
+    private final File toggleFile;
 
     private final Map<UUID, Map<UUID, Request>> requestsByTarget = new HashMap<>();
     private final Map<UUID, Map<UUID, BukkitTask>> expiryTasks = new HashMap<>();
@@ -48,6 +58,9 @@ public class TpaManager {
         this.config = config;
         this.logger = logger;
         this.requestCooldown = new CooldownStore(plugin);
+        this.toggleFile = new File(plugin.getDataFolder(), "tpatoggle.yml");
+
+        loadDisabledRequests();
     }
 
     public void createRequest(UUID target, UUID requester, Type type) {
@@ -184,12 +197,20 @@ public class TpaManager {
         }
     }
 
+    /**
+     * @return true if requests are now accepted, false if now blocked
+     */
     public boolean toggleRequests(UUID uuid) {
+        boolean nowAccepting;
         if (requestsDisabled.remove(uuid)) {
-            return true;
+            nowAccepting = true;
+        } else {
+            requestsDisabled.add(uuid);
+            nowAccepting = false;
         }
-        requestsDisabled.add(uuid);
-        return false;
+
+        saveDisabledRequests();
+        return nowAccepting;
     }
 
     public boolean isAcceptingRequests(UUID uuid) {
@@ -202,5 +223,35 @@ public class TpaManager {
 
     public void recordRequestSent(UUID uuid) {
         requestCooldown.start(uuid, config.tpaRequestCooldownMillis());
+    }
+
+    private void loadDisabledRequests() {
+        if (!toggleFile.exists()) {
+            return;
+        }
+
+        YamlConfiguration yaml = YamlConfiguration.loadConfiguration(toggleFile);
+        for (String uuidString : yaml.getStringList("disabled")) {
+            try {
+                requestsDisabled.add(UUID.fromString(uuidString));
+            } catch (IllegalArgumentException e) {
+                plugin.getLogger().log(Level.WARNING, "Skipping an invalid UUID in tpatoggle.yml: " + uuidString);
+            }
+        }
+    }
+
+    /**
+     * Small file, changed only on an actual {@code /tpatoggle} command —
+     * not a hot path, so a synchronous atomic write here is fine.
+     */
+    private void saveDisabledRequests() {
+        YamlConfiguration yaml = new YamlConfiguration();
+        List<String> uuids = new ArrayList<>();
+        for (UUID uuid : requestsDisabled) {
+            uuids.add(uuid.toString());
+        }
+        yaml.set("disabled", uuids);
+
+        fr.quentin.poppy.util.AtomicYamlWriter.save(yaml, toggleFile, plugin, "tpatoggle.yml");
     }
 }

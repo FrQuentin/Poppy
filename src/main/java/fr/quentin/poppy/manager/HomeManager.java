@@ -311,9 +311,25 @@ public class HomeManager {
     public record HomeStats(int playersWithHomes, int totalHomes) {
     }
 
+    /**
+     * Combines what were previously two separate O(n) scans, parsing each
+     * file exactly once, entirely off the main thread.
+     *
+     * <p>Deliberately NOT run on {@link #ioExecutor}: that executor is
+     * single-threaded and shared with every homes write ({@code save},
+     * {@code unload}) — a long reporting scan (potentially several minutes on
+     * a server with tens of thousands of homes files) would queue behind it
+     * and, worse, queue every homes write behind *itself* for its entire
+     * duration. {@code inFlight} still keeps reads correct during that
+     * window, but durability wouldn't be: a crash while the scan is running
+     * would lose every home created since startup, since none of it would
+     * have reached disk yet. Using the default common pool instead means
+     * this scan never competes with, or delays, actual player data being
+     * saved.
+     */
     public CompletableFuture<HomeStats> collectStatsAsync() {
         return CompletableFuture.supplyAsync(() -> {
-            File[] files = homesFolder.listFiles((_, name) -> name.endsWith(".yml"));
+            File[] files = homesFolder.listFiles((dir, name) -> name.endsWith(".yml"));
             if (files == null) {
                 return new HomeStats(0, 0);
             }
@@ -328,7 +344,7 @@ public class HomeManager {
                 }
             }
             return new HomeStats(players, total);
-        }, ioExecutor);
+        });
     }
 
     /**

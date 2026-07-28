@@ -37,68 +37,75 @@ import java.util.logging.Level;
  * common feature many servers expect but vanilla doesn't provide (vanilla
  * spawners never drop, regardless of the tool). Toggleable via
  * {@code silkspawner-enabled} in config.yml; specific entity types can be
- * excluded via {@code silkspawner-blacklist} (e.g. to keep a
- * Wither Skeleton farm from being trivially relocated).
+ * excluded via {@code silkspawner-blacklist}.
  *
  * <p>Only applies in Survival — Creative already never drops items on
- * block break regardless of enchantments (vanilla behavior), so allowing
- * this in Creative would hand out free spawners for nothing.
+ * block break regardless of enchantments.
  *
- * <p>Breaking a spawner normally drops XP (15-43 points) regardless of
- * tool — vanilla never lets that be exploited since the block is gone for
- * good afterward. Once pickup-and-replace is possible, though, that XP
- * becomes an infinite farm (break, replace, break again...) unless it's
- * suppressed specifically on a successful Silk Touch pickup — see
- * {@code event.setExpToDrop(0)} in {@link #onBreak}. A blacklisted or
- * non-Silk-Touch break still destroys the block for good, exactly like
- * vanilla, so its XP is left untouched in that case.
+ * <p>Breaking a spawner normally drops XP regardless of tool; on a
+ * successful Silk Touch pickup that XP is suppressed (see
+ * {@code event.setExpToDrop(0)} in {@link #onBreak}), otherwise
+ * pick-up-and-replace would be an infinite XP farm.
  *
  * <p><b>Split decide/materialize to close a duplication window:</b>
  * {@link #onBreak} runs at {@link EventPriority#HIGHEST} — high, but not
- * last. Any listener registered at {@code HIGHEST} after this one (load
- * order between plugins isn't something Poppy controls), or at
+ * last. Any listener registered at {@code HIGHEST} after this one, or at
  * {@link EventPriority#MONITOR}, can still cancel the break after this
- * class has already decided to hand out a spawner item. Dropping the item
- * immediately at {@code HIGHEST} — the old design — meant a later
- * cancellation left the block standing <i>and</i> the item already on the
- * ground: an infinite spawner duplication loop (break, get item, break
- * cancelled by a claim plugin, block still there, repeat). Instead,
+ * class has already decided to hand out a spawner item. Instead,
  * {@link #onBreak} only records the decision in {@link #pendingDrops};
  * {@link #onBreakMonitor}, at {@code MONITOR} (guaranteed to run after
- * every other plugin's handler), is what actually drops the item — and
- * only after re-checking {@link BlockBreakEvent#isCancelled()} and, a
- * tick later, that the block has genuinely become air. If anything
- * cancelled the break in between, nothing is dropped and the spawner
- * survives untouched, so there's never a state where both the block and
- * the item exist.
+ * every other plugin's handler), is what actually sends the success
+ * message and drops the item — and only after re-checking
+ * {@link BlockBreakEvent#isCancelled()} and, a tick later, that the block
+ * has genuinely become air. The success message itself is sent here too,
+ * not in {@link #onBreak} — sending it earlier risked telling the player
+ * they got a spawner item right before a protection plugin's later
+ * cancellation left them with nothing.
+ *
+ * <p>{@link #notifiedKey} tracks, per physical spawner (not per item
+ * instance, which is rebuilt on every break), whether the "you picked up
+ * a spawner" chat message has already been shown for it once. Written
+ * into the dropped item's PDC in {@link #buildSpawnerItem} and copied
+ * back onto the block's PDC in {@link #onPlace} — so it survives an
+ * arbitrary number of break/place cycles for the same spawner. Without
+ * this, a player relocating a spawner (break, place, break again) would
+ * get the success message spammed in chat every single time.
  *
  * <p>The spawner's mob type is read from the broken block's
- * {@link CreatureSpawner} state and stored on the dropped item via
- * {@link org.bukkit.persistence.PersistentDataContainer}, then read back
- * and re-applied to the newly placed block in {@link #onPlace} — so the
- * item always places as the same mob type it was picked up as, with a
- * name/lore reflecting that mob (e.g. "Skeleton Spawner" / "Skeleton").
+ * {@link CreatureSpawner} state and stored on the dropped item, then read
+ * back and re-applied to the newly placed block in {@link #onPlace} —
+ * re-checking the blacklist, the {@code poppy.silkspawner} permission,
+ * and a sanity check ({@code isSpawnable()}/{@code isAlive()}) at that
+ * point too, not just at break time: an item obtained before a type was
+ * blacklisted, handed to a player without the permission, or forged with
+ * an arbitrary PDC value (a hand-crafted NBT string via a Creative
+ * {@code /give}) would otherwise stay placeable/uncontrolled forever.
  */
 public class SilkSpawnerListener implements Listener {
+
+    private record PendingDrop(EntityType entityType, boolean alreadyNotified) {
+    }
 
     private final JavaPlugin plugin;
     private final Messages messages;
     private final PoppyConfig config;
     private final NamespacedKey entityTypeKey;
+    private final NamespacedKey notifiedKey;
 
     /**
-     * Chest-break decisions awaiting confirmation at {@link #onBreakMonitor}.
+     * Break decisions awaiting confirmation at {@link #onBreakMonitor}.
      * Keyed by block location since that's stable across the two handler
      * calls for the same physical break; removed as soon as it's consumed
      * (or discarded on cancellation) so it never lingers.
      */
-    private final Map<Location, EntityType> pendingDrops = new HashMap<>();
+    private final Map<Location, PendingDrop> pendingDrops = new HashMap<>();
 
     public SilkSpawnerListener(JavaPlugin plugin, Messages messages, PoppyConfig config) {
         this.plugin = plugin;
         this.messages = messages;
         this.config = config;
         this.entityTypeKey = new NamespacedKey(plugin, "silk_spawner_entity_type");
+        this.notifiedKey = new NamespacedKey(plugin, "silk_spawner_notified");
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -141,11 +148,12 @@ public class SilkSpawnerListener implements Listener {
                 return;
             }
 
+            boolean alreadyNotified = spawnerState.getPersistentDataContainer()
+                    .getOrDefault(notifiedKey, PersistentDataType.INTEGER, 0) == 1;
+
             event.setDropItems(false);
             event.setExpToDrop(0);
-            pendingDrops.put(block.getLocation(), entityType);
-
-            player.sendMessage(messages.get("silkspawner.success", "mob", formatName(entityType)));
+            pendingDrops.put(block.getLocation(), new PendingDrop(entityType, alreadyNotified));
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Error in SilkSpawnerListener#onBreak for " + event.getPlayer().getName(), e);
         }
@@ -153,18 +161,21 @@ public class SilkSpawnerListener implements Listener {
 
     /**
      * Runs after every other plugin's handler has had a chance to cancel
-     * the break — see the class-level doc. Only materializes the spawner
-     * item once both this event is still uncancelled here, and (a tick
-     * later, since some plugins revert a break asynchronously-adjacent to
-     * this point rather than via cancellation) the block has actually
-     * become air.
+     * the break — see the class-level doc. Only sends the success message
+     * and materializes the spawner item once both this event is still
+     * uncancelled here, and (a tick later) the block has actually become
+     * air.
      */
     @EventHandler(priority = EventPriority.MONITOR)
     public void onBreakMonitor(@NonNull BlockBreakEvent event) {
         try {
+            if (pendingDrops.isEmpty()) {
+                return;
+            }
+
             Block block = event.getBlock();
-            EntityType entityType = pendingDrops.remove(block.getLocation());
-            if (entityType == null) {
+            PendingDrop pending = pendingDrops.remove(block.getLocation());
+            if (pending == null) {
                 return;
             }
 
@@ -172,9 +183,15 @@ public class SilkSpawnerListener implements Listener {
                 return;
             }
 
+            Player player = event.getPlayer();
+
+            if (!pending.alreadyNotified()) {
+                player.sendMessage(messages.get("silkspawner.success", "mob", formatName(pending.entityType())));
+            }
+
             Bukkit.getScheduler().runTask(plugin, () -> {
                 if (block.getType() != Material.SPAWNER) {
-                    block.getWorld().dropItemNaturally(block.getLocation(), buildSpawnerItem(entityType));
+                    block.getWorld().dropItemNaturally(block.getLocation(), buildSpawnerItem(pending.entityType()));
                 }
             });
         } catch (Exception e) {
@@ -206,10 +223,7 @@ public class SilkSpawnerListener implements Listener {
             EntityType entityType = EntityType.valueOf(storedType);
             Player player = event.getPlayer();
 
-            // Re-checked here, not just at break time — an item obtained before a
-            // type was added to the blacklist, or handed to a player without
-            // poppy.silkspawner, would otherwise stay placeable forever regardless
-            // of current server rules.
+            // Re-checked here, not just at break time — see the class-level doc.
             if (config.silkSpawnerBlacklist().contains(entityType.name())) {
                 event.setCancelled(true);
                 player.sendMessage(messages.get("silkspawner.blacklisted", "mob", formatName(entityType)));
@@ -222,12 +236,6 @@ public class SilkSpawnerListener implements Listener {
                 return;
             }
 
-            // Sanity check against an item forged with an arbitrary PDC value (a
-            // creative-mode /give with a hand-crafted NBT string, e.g.
-            // ENDER_DRAGON or WITHER) rather than one legitimately created by
-            // onBreak. EntityType.valueOf accepts any valid constant regardless of
-            // whether it makes sense as a spawner target; only a genuinely invalid
-            // string is caught by the IllegalArgumentException below on its own.
             if (!entityType.isSpawnable() || !entityType.isAlive()) {
                 event.setCancelled(true);
                 player.sendMessage(messages.get("silkspawner.blacklisted", "mob", formatName(entityType)));
@@ -239,6 +247,9 @@ public class SilkSpawnerListener implements Listener {
             }
 
             spawnerState.setSpawnedType(entityType);
+            // Propagate the "already notified" flag onto the block too, so a future
+            // break of this exact spawner also sees it — see the class-level doc.
+            spawnerState.getPersistentDataContainer().set(notifiedKey, PersistentDataType.INTEGER, 1);
             spawnerState.update(true, false);
         } catch (IllegalArgumentException e) {
             event.setCancelled(true);
@@ -256,11 +267,20 @@ public class SilkSpawnerListener implements Listener {
         meta.displayName(Component.text(name + " Spawner", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
         meta.lore(List.of(Component.text(name, NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)));
         meta.getPersistentDataContainer().set(entityTypeKey, PersistentDataType.STRING, entityType.name());
+        // Once an item exists, this spawner has necessarily already been broken (and
+        // therefore already notified) once — carry that forward so a later re-place
+        // keeps the flag on the block too.
+        meta.getPersistentDataContainer().set(notifiedKey, PersistentDataType.INTEGER, 1);
 
         item.setItemMeta(meta);
         return item;
     }
 
+    /**
+     * Converts a vanilla entity type constant into a readable name, e.g.
+     * {@code WITHER_SKELETON} → "Wither Skeleton" — works for any current
+     * or future {@link EntityType} without a hand-maintained name list.
+     */
     private String formatName(EntityType entityType) {
         String[] parts = entityType.name().split("_");
         StringBuilder builder = new StringBuilder();

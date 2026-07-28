@@ -55,7 +55,7 @@ public final class Poppy extends JavaPlugin {
         AfkManager afkManager = new AfkManager();
         DeathLocationManager deathLocationManager = new DeathLocationManager();
         deathChestManager = new DeathChestManager(this, messages, config, poppyLogger);
-        FlyManager flyManager = new FlyManager(this, messages, config, combatManager);
+        FlyManager flyManager = new FlyManager(this, messages, config, combatManager, cooldownRegistry);
 
         // Both created here (not inline at registerEvents time) since PoppyCommand
         // needs a reference to each to call reapply() from /poppy reload.
@@ -116,7 +116,7 @@ public final class Poppy extends JavaPlugin {
         Objects.requireNonNull(getCommand("tpacancel")).setExecutor(tpaCancelCommand);
         Objects.requireNonNull(getCommand("tpacancel")).setTabCompleter(tpaCancelCommand);
 
-        TpaToggleCommand tpaToggleCommand = new TpaToggleCommand(this, tpaManager, messages);
+        TpaToggleCommand tpaToggleCommand = new TpaToggleCommand(this, tpaManager, messages, config);
         Objects.requireNonNull(getCommand("tpatoggle")).setExecutor(tpaToggleCommand);
 
         PoppyCommand poppyCommand = new PoppyCommand(this, messages, config, poppyLogger, sleepPercentageListener, tabHealthListener);
@@ -127,6 +127,7 @@ public final class Poppy extends JavaPlugin {
         Objects.requireNonNull(getCommand("heal")).setExecutor(new HealCommand(this, messages, config, cooldownRegistry));
 
         Objects.requireNonNull(getCommand("fly")).setExecutor(new FlyCommand(this, flyManager, messages));
+        Objects.requireNonNull(getCommand("flytime")).setExecutor(new FlyTimeCommand(this, flyManager, messages));
 
         Objects.requireNonNull(getCommand("combat")).setExecutor(new CombatCommand(this, combatManager, messages));
 
@@ -140,7 +141,7 @@ public final class Poppy extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new JoinQuitListener(this, messages, config), this);
         getServer().getPluginManager().registerEvents(tabHealthListener, this);
         getServer().getPluginManager().registerEvents(new AfkListener(this, afkManager, messages, poppyLogger), this);
-        getServer().getPluginManager().registerEvents(new CombatListener(this, combatManager, config, poppyLogger, messages, deathChestManager, backManager), this);
+        getServer().getPluginManager().registerEvents(new CombatListener(this, combatManager, config, poppyLogger, messages, deathChestManager, backManager, deathLocationManager), this);
         getServer().getPluginManager().registerEvents(new UnknownCommandListener(this, messages, config), this);
         getServer().getPluginManager().registerEvents(new HomeCacheListener(this, homeManager), this);
         getServer().getPluginManager().registerEvents(new TpaQuitListener(tpaManager, messages), this);

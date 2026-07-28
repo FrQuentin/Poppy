@@ -131,6 +131,11 @@ commands:
     usage: /cooldowns
     permission: poppy.cooldowns
     permission-message: "&4[!] You don't have permission to do this."
+  flytime:
+    description: Check your remaining cumulative flight time.
+    usage: /flytime
+    permission: poppy.fly
+    permission-message: "&4[!] You don't have permission to do this."
 
 permissions:
   poppy.*:

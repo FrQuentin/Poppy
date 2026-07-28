@@ -86,6 +86,7 @@ public final class PoppyConfig {
     private volatile double tpaMaxDistance;
     private volatile boolean tpaAllowCrossWorld;
     private volatile boolean tpaBlockToCombat;
+    private volatile long tpaToggleCooldownMillis;
 
     private volatile long poppyLoreCooldownMillis;
     private volatile long poppyEasterEggCooldownMillis;
@@ -108,6 +109,9 @@ public final class PoppyConfig {
 
     private volatile long flyLockoutMillis;
     private volatile boolean flyParticlesEnabled;
+    private volatile long flyMaxDurationMillis;
+    private volatile long flyMaxDurationCooldownMillis;
+    private volatile long flyMaxDurationWarningSeconds;
 
     private volatile long feedCooldownMillis;
     private volatile long healCooldownMillis;
@@ -175,6 +179,7 @@ public final class PoppyConfig {
         tpaMaxDistance = Math.max(0, c.getDouble("tpa-max-distance", 0));
         tpaAllowCrossWorld = c.getBoolean("tpa-allow-cross-world", true);
         tpaBlockToCombat = c.getBoolean("tpa-block-to-combat", true);
+        tpaToggleCooldownMillis = Math.max(0, c.getInt("tpa-toggle-cooldown-seconds", 3)) * 1000L;
 
         poppyLoreCooldownMillis = Math.max(0, c.getInt("poppy-lore-cooldown-minutes", 30)) * 60L * 1000L;
         poppyEasterEggCooldownMillis = Math.max(0, c.getInt("poppy-easteregg-cooldown-seconds", 3)) * 1000L;
@@ -197,6 +202,9 @@ public final class PoppyConfig {
 
         flyLockoutMillis = Math.max(0, c.getInt("fly-lockout-seconds", 30)) * 1000L;
         flyParticlesEnabled = c.getBoolean("fly-particles-enabled", true);
+        flyMaxDurationMillis = Math.max(0, c.getInt("fly-max-duration-minutes", 30)) * 60L * 1000L;
+        flyMaxDurationCooldownMillis = Math.max(0, c.getInt("fly-max-duration-cooldown-minutes", 60)) * 60L * 1000L;
+        flyMaxDurationWarningSeconds = Math.max(0, c.getInt("fly-max-duration-warning-seconds", 30));
 
         feedCooldownMillis = Math.max(0, c.getInt("feed-cooldown-seconds", 180)) * 1000L;
         healCooldownMillis = Math.max(0, c.getInt("heal-cooldown-seconds", 180)) * 1000L;
@@ -448,5 +456,21 @@ public final class PoppyConfig {
 
     public int rtpMaxConcurrentSearches() {
         return rtpMaxConcurrentSearches;
+    }
+
+    public long flyMaxDurationMillis() {
+        return flyMaxDurationMillis;
+    }
+
+    public long flyMaxDurationCooldownMillis() {
+        return flyMaxDurationCooldownMillis;
+    }
+
+    public long flyMaxDurationWarningSeconds() {
+        return flyMaxDurationWarningSeconds;
+    }
+
+    public long tpaToggleCooldownMillis() {
+        return tpaToggleCooldownMillis;
     }
 }

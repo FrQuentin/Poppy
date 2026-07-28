@@ -215,3 +215,23 @@ combat-log-punish-on-kick: false
 # to rtp-max-attempts chunk generations, so this bounds worst-case
 # concurrent load. Raise on a large server, lower on a small one.
 rtp-max-concurrent-searches: 3
+
+# Maximum cumulative time (in minutes) a player can have /fly enabled
+# before being forced to land and wait out a cooldown. Cumulative, not
+# per-session: toggling /fly off and back on doesn't reset the counter,
+# only actually hitting the cap and waiting out the cooldown below does.
+# Set to 0 to disable this limit entirely (only the post-damage lockout
+# still applies).
+fly-max-duration-minutes: 30
+# How long (in minutes) a player must wait after hitting the max flight
+# duration above before they can use /fly again.
+fly-max-duration-cooldown-minutes: 60
+
+# How many seconds before a player's cumulative flight budget runs out to
+# warn them with a chat message. Set to 0 to disable the warning.
+fly-max-duration-warning-seconds: 30
+
+# Cooldown (in seconds) between two /tpatoggle uses — /tpatoggle writes a
+# small file to disk synchronously each time, so this prevents spamming
+# that write with no real purpose.
+tpa-toggle-cooldown-seconds: 3

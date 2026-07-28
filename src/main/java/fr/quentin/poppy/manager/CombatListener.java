@@ -28,57 +28,42 @@ import java.util.logging.Level;
 /**
  * Tags both parties in PvP (melee or projectile) into {@link CombatManager},
  * which {@link TeleportManager} (and {@link FlyManager}) then check to
- * block teleporting/flying for a short time after combat — see
- * {@code combat-tag-enabled} / {@code combat-tag-seconds} in config.yml.
+ * block teleporting/flying for a short time after combat.
  *
- * <p>Death clears the tag immediately rather than letting it linger for
- * its remaining duration: a dead player is by definition no longer in
- * combat.
- *
- * <p><b>Disconnecting during combat deliberately does NOT clear the
- * tag</b> — clearing it on quit is the classic "Alt+F4 to dodge a losing
- * fight" exploit. {@link CombatManager}'s map is already self-expiring,
- * so there's no memory-leak concern in leaving the entry alone here.
+ * <p>Death clears the tag immediately. Disconnecting during combat
+ * deliberately does NOT clear the tag — clearing it on quit is the
+ * classic "Alt+F4 to dodge a losing fight" exploit.
  *
  * <p><b>Combat-log punishment ({@link #onQuit}):</b> toggleable via
  * {@code combat-log-punish} in config.yml, a player who disconnects while
- * still tagged has their inventory dropped on the ground and cleared
- * <i>explicitly</i>, before {@link Player#setHealth(double)} is called —
- * not the other way around. This matters for two reasons, both found by
- * auditing an earlier version of this method that called
- * {@code setHealth(0)} directly:
- * <ul>
- *   <li>{@code PlayerQuitEvent} fires for far more than a voluntary
- *   disconnect — an admin {@code /kick}, an anti-cheat false positive, a
- *   network timeout, a mid-fight ban. {@link #onQuit} explicitly excludes
- *   a server shutdown ({@link Bukkit#isStopping()}) and, by default, a
- *   kick ({@link #recentlyKicked}, populated by {@link #onKick}) —
- *   {@code combat-log-punish-on-kick} in config.yml opts back into
- *   punishing kicks for servers that want anti-cheat kicks treated the
- *   same as a genuine log-out.</li>
- *   <li>{@code setHealth(0)} still triggers a real, synchronous
- *   {@link PlayerDeathEvent} nested inside the {@code PlayerQuitEvent}
- *   dispatch already in progress — every other {@code PlayerDeathEvent}
- *   listener still fires, including {@code BackListener#onDeath}, which
- *   unconditionally records a fresh {@code /back} location. Since the
- *   player is already disconnecting, no future {@code PlayerQuitEvent}
- *   will ever fire to clean that entry back out — a real, permanent leak
- *   of one {@link Location} (and the {@link org.bukkit.World} reference
- *   it holds) per combat-log, previously dependent on
- *   {@code BackListener} happening to be registered before this class in
- *   {@code Poppy#onEnable}. Clearing the inventory manually first at
- *   least closes the more serious item-duplication risk (nothing left for
- *   the nested death's own drop logic to touch), but the leak itself is
- *   independent of that and is closed explicitly instead:
- *   {@link BackManager#remove(UUID)} is called again right after
- *   {@code setHealth(0)}, undoing whatever the nested death re-inserted,
- *   without depending on listener registration order at all.</li>
- * </ul>
- * {@code setHealth(0)} itself is kept (rather than replaced with some
- * other death-marking mechanism) purely so the player still sees the
- * normal death screen when they reconnect — by the time it runs, their
- * inventory is already empty, so the nested death event has nothing left
- * to duplicate.
+ * still tagged has their inventory dropped and cleared explicitly, before
+ * {@link Player#setHealth(double)} — kept only so they see the death
+ * screen on return; the inventory is already empty by then. Excludes a
+ * server shutdown ({@link Bukkit#isStopping()}) and, by default, a kick
+ * ({@link #recentlyKicked}, populated by {@link #onKick} and consumed by
+ * {@link #onQuit} rather than relying on a fixed-delay cleanup, closing a
+ * timing race an earlier version had) — {@code combat-log-punish-on-kick}
+ * opts back into punishing kicks too.
+ *
+ * <p>{@code setHealth(0)} still triggers a real, synchronous
+ * {@link PlayerDeathEvent} nested inside the {@code PlayerQuitEvent}
+ * dispatch already in progress. This class runs {@link #onQuit} at
+ * {@link EventPriority#MONITOR} — deliberately last among the
+ * {@code PlayerQuitEvent} listeners — so every other {@code onQuit}
+ * handler that would normally clean up per-player state for this
+ * disconnecting player has already run <i>before</i> the nested death
+ * fires. That nested death still re-triggers every {@code PlayerDeathEvent}
+ * listener, which re-inserts state those already-run {@code onQuit}
+ * handlers just cleared — for a player who's now offline and will never
+ * fire another {@code PlayerQuitEvent} to clean it up again. Two such
+ * leaks are known and explicitly undone here, right after
+ * {@code setHealth(0)}: {@link BackManager#remove(UUID)} (from
+ * {@code BackListener#onDeath} recording a fresh {@code /back} location)
+ * and {@link DeathLocationManager#remove(UUID)} (from
+ * {@code DeathCoordsListener#onDeath} recording a fresh death location).
+ * Both are undone explicitly rather than relying on listener registration
+ * order, so this doesn't silently regress if either of those managers
+ * changes.
  */
 public class CombatListener implements Listener {
 
@@ -89,11 +74,13 @@ public class CombatListener implements Listener {
     private final Messages messages;
     private final DeathChestManager deathChestManager;
     private final BackManager backManager;
+    private final DeathLocationManager deathLocationManager;
 
     private final Set<UUID> recentlyKicked = new HashSet<>();
 
     public CombatListener(JavaPlugin plugin, CombatManager combatManager, PoppyConfig config, PoppyLogger logger,
-                          Messages messages, DeathChestManager deathChestManager, BackManager backManager) {
+                          Messages messages, DeathChestManager deathChestManager, BackManager backManager,
+                          DeathLocationManager deathLocationManager) {
         this.plugin = plugin;
         this.combatManager = combatManager;
         this.config = config;
@@ -101,6 +88,7 @@ public class CombatListener implements Listener {
         this.messages = messages;
         this.deathChestManager = deathChestManager;
         this.backManager = backManager;
+        this.deathLocationManager = deathLocationManager;
     }
 
     @EventHandler
@@ -139,24 +127,20 @@ public class CombatListener implements Listener {
     }
 
     /**
-     * Populates {@link #recentlyKicked} — consumed directly by {@link #onQuit}
-     * as soon as it fires, whenever that actually happens; the scheduled
-     * removal here is only a safety net in case a {@link PlayerQuitEvent}
-     * never follows this kick at all (the kick got cancelled by another
-     * plugin, the connection was already gone, etc.). A short 1-tick cleanup
-     * used to be here instead, but that was too aggressive: the actual
-     * disconnect/quit dispatch for a kick isn't guaranteed to happen in the
-     * very next tick (the server can defer it, e.g. to flush the disconnect
-     * packet first), so removing the entry that early could race ahead of
-     * the quit event it exists to gate — silently punishing a kicked player
-     * as if they'd combat-logged, exactly the bug this was supposed to
-     * prevent.
+     * Populates {@link #recentlyKicked} — consumed directly by
+     * {@link #onQuit} as soon as it fires; the scheduled removal here is
+     * only a safety net in case a {@link PlayerQuitEvent} never follows
+     * this kick at all.
      */
     @EventHandler(priority = EventPriority.MONITOR)
     public void onKick(@NonNull PlayerKickEvent event) {
-        UUID uuid = event.getPlayer().getUniqueId();
-        recentlyKicked.add(uuid);
-        Bukkit.getScheduler().runTaskLater(plugin, () -> recentlyKicked.remove(uuid), 20L);
+        try {
+            UUID uuid = event.getPlayer().getUniqueId();
+            recentlyKicked.add(uuid);
+            Bukkit.getScheduler().runTaskLater(plugin, () -> recentlyKicked.remove(uuid), 20L);
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE, "Error in CombatListener#onKick for " + event.getPlayer().getName(), e);
+        }
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -164,8 +148,6 @@ public class CombatListener implements Listener {
         Player player = event.getPlayer();
         UUID uuid = player.getUniqueId();
 
-        // Consumed here, not left to the scheduled cleanup in onKick — this is what
-        // actually closes the race described in onKick's doc.
         boolean wasKicked = recentlyKicked.remove(uuid);
 
         if (!config.combatLogPunishEnabled() || !combatManager.isInCombat(uuid)) {
@@ -194,7 +176,12 @@ public class CombatListener implements Listener {
             deathChestManager.suppressNextDeathChest(uuid);
             player.setHealth(0.0);
 
+            // The nested death above still re-fires every PlayerDeathEvent listener
+            // that runs before this one in the quit dispatch (this handler is
+            // MONITOR, deliberately last) — undoing both known re-insertions here
+            // rather than relying on registration order.
             backManager.remove(uuid);
+            deathLocationManager.remove(uuid);
 
             combatManager.remove(uuid);
         } catch (Exception e) {

@@ -1,8 +1,6 @@
 package fr.quentin.poppy.manager;
 
-import fr.quentin.poppy.util.CooldownStore;
-import fr.quentin.poppy.util.Messages;
-import fr.quentin.poppy.util.PoppyConfig;
+import fr.quentin.poppy.util.*;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
@@ -25,8 +23,11 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.projectiles.ProjectileSource;
 import org.jspecify.annotations.NonNull;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Level;
@@ -36,69 +37,32 @@ import java.util.logging.Level;
  * takes any damage, and blocks /fly for {@code fly-lockout-seconds}
  * afterward via a shared {@link CooldownStore}.
  *
- * <p><b>Only ever acts on flight this class itself granted.</b> Every
- * place that would disable a player's flight — {@link #disableFlightAndLock}
- * on damage, {@link #onWorldChange} entering the End — gates on
- * {@link #activeFly} first, not on the player's raw
- * {@link Player#getAllowFlight()}/{@link Player#isFlying()} state. Without
- * that gate, Poppy would cut the flight of any Survival/Adventure player
- * regardless of who granted it: a VIP rank's flight perk, a spawn-area
- * flight zone, a staff mode, an event plugin — a silent, very hard to
- * diagnose incompatibility for an admin running more than just this
- * plugin.
+ * <p><b>Only ever acts on flight this class itself granted</b> — see
+ * {@link #disableFlightAndLock}, {@link #onJoin}, {@link #onGameModeChange}
+ * for how {@link #activeFly} gates every action.
  *
- * <p>{@link #onJoin} and {@link #onGameModeChange}'s "force allowFlight
- * off if not tracked as active" safety net is the one place that
- * necessarily still can't distinguish Poppy-granted flight from
- * third-party flight — that's the whole point of the check, closing the
- * "disconnect while /fly is on to keep flying forever" persisted-data
- * exploit (see the class-level doc further down). Since that's
- * unavoidably broad, it's gated behind {@code fly-force-disable-on-join}
- * in config.yml (default {@code true}) so a server running another
- * flight-granting plugin can opt out.
+ * <p><b>Cumulative flight time budget:</b> {@link #flyTimeUsedMillis}
+ * tracks, per player, how much total time they've had /fly enabled —
+ * incremented every second by {@link #tickFlightDuration} for anyone in
+ * {@link #activeFly}, whether airborne or not. Cumulative, not
+ * per-session: toggling /fly off and back on does NOT reset the counter
+ * — only actually hitting {@code fly-max-duration-minutes} does,
+ * otherwise a player could dodge the whole limit by toggling off just
+ * before the cap. {@link #warnedThisCycle} (a one-shot warning at
+ * {@code fly-max-duration-warning-seconds} remaining) follows the exact
+ * same lifecycle as {@link #flyTimeUsedMillis} for the same reason: it's
+ * only cleared alongside it (cap hit, a damage lockout, or quit), never
+ * on a manual toggle — so a player can't dodge the warning either by
+ * toggling off and back on right after seeing it.
  *
- * <p>Integrated with {@link CombatManager}: {@link #isLocked} also treats
- * an active PvP combat tag as a lockout. {@link #onPvpDamage} grounds the
- * attacker on every hit they land (PvP or PvE), which the generic
- * {@link #onDamage} (only reacts to whoever received the damage) never
- * covers on its own, and tells them who/what they just attacked.
+ * <p>Hitting the cap forces flight off and starts {@link #lockoutStore}
+ * for {@code fly-max-duration-cooldown-minutes} — the same store used for
+ * the post-damage lockout, so {@link #isLocked}/{@link #displayRemainingSeconds}
+ * handle both cases automatically with no separate code path.
  *
- * <p>Fall damage never triggers this: turning /fly off mid-air naturally
- * causes fall damage on landing, which shouldn't relock the player right
- * after they voluntarily grounded themselves.
- *
- * <p>Flight can't be enabled while in the End — see {@link #toggle} — and
- * is force-disabled if an already-flying player ends up there anyway (an
- * End portal, an ender pearl thrown while flying, etc. — see
- * {@link #onWorldChange}), since free flight trivializes finding End
- * cities/elytras. Not restricted in the Overworld or Nether.
- *
- * <p>{@link #activeFly} tracks who currently has flight active
- * specifically via this system — distinct from {@link Player#isFlying()},
- * which is also true for Creative/Spectator flight, or flight granted by
- * another plugin. This is what lets {@link #spawnFlightParticles} show a
- * particle ring only for genuine /fly users, visually telling them apart
- * from someone flying for any other reason.
- *
- * <p><b>Rejoin/gamemode desync protection:</b> {@code allowFlight} is part
- * of a player's persisted data, not something Bukkit resets on its own —
- * so a naive quit handler that only forgot {@link #activeFly} without
- * also clearing the actual flight flags would leave a player able to fly
- * for free forever after reconnecting. {@link #onQuit} force-clears both
- * {@code allowFlight} and {@code isFlying} for anyone still in
- * {@link #activeFly} before removing them — this part is always safe,
- * since it only acts on players Poppy itself tracked as flying.
- * {@link #onJoin} additionally re-syncs on every login (if
- * {@code fly-force-disable-on-join} is on): a Survival/Adventure player
- * who isn't tracked in {@link #activeFly} gets {@code allowFlight} forced
- * off. {@link #onGameModeChange} keeps things in sync the other way too:
- * switching to Creative/Spectator drops the player from
- * {@link #activeFly}, and switching back to Survival/Adventure forces
- * {@code allowFlight} off (same opt-out) unless still tracked as active.
- *
- * <p>The post-damage lockout is deliberately <b>not</b> cleared on quit —
- * same reasoning as {@code FeedCommand}/{@code HealCommand}: clearing it
- * would let a player dodge the wait by disconnecting and reconnecting.
+ * <p>Fall damage never triggers a lockout. Flight can't be enabled while
+ * in the End, and is force-disabled if an already-flying player ends up
+ * there anyway.
  */
 public class FlyManager implements Listener {
 
@@ -107,6 +71,7 @@ public class FlyManager implements Listener {
     private static final long PARTICLE_INTERVAL_TICKS = 4L;
     private static final double PARTICLE_RADIUS = 0.6;
     private static final int PARTICLE_POINTS = 8;
+    private static final long DURATION_TICK_INTERVAL_TICKS = 20L;
 
     private final JavaPlugin plugin;
     private final Messages messages;
@@ -115,23 +80,21 @@ public class FlyManager implements Listener {
     private final CooldownStore lockoutStore;
 
     private final Set<UUID> activeFly = new HashSet<>();
+    private final Map<UUID, Long> flyTimeUsedMillis = new HashMap<>();
+    private final Set<UUID> warnedThisCycle = new HashSet<>();
 
-    public FlyManager(JavaPlugin plugin, Messages messages, PoppyConfig config, CombatManager combatManager) {
+    public FlyManager(JavaPlugin plugin, Messages messages, PoppyConfig config, CombatManager combatManager, CooldownRegistry registry) {
         this.plugin = plugin;
         this.messages = messages;
         this.config = config;
         this.combatManager = combatManager;
         this.lockoutStore = new CooldownStore(plugin);
+        registry.register("Fly", lockoutStore);
 
         Bukkit.getScheduler().runTaskTimer(plugin, this::tickParticles, PARTICLE_INTERVAL_TICKS, PARTICLE_INTERVAL_TICKS);
+        Bukkit.getScheduler().runTaskTimer(plugin, this::tickFlightDuration, DURATION_TICK_INTERVAL_TICKS, DURATION_TICK_INTERVAL_TICKS);
     }
 
-    /**
-     * Toggles flight for the player. Returns {@link ToggleResult#BLOCKED_END}
-     * without changing anything if they're currently in the End and trying
-     * to turn flight on — turning it off is always allowed regardless of
-     * world.
-     */
     public ToggleResult toggle(Player player) {
         UUID uuid = player.getUniqueId();
 
@@ -152,21 +115,41 @@ public class FlyManager implements Listener {
         return ToggleResult.ENABLED;
     }
 
-    /**
-     * Whether /fly is currently blocked for this player — either their own
-     * post-damage lockout, or an active PvP combat tag.
-     */
     public boolean isLocked(UUID uuid) {
         return lockoutStore.isActive(uuid) || combatManager.isInCombat(uuid);
     }
 
-    /**
-     * The longer of the player's own lockout and their remaining PvP
-     * combat-tag time — used for the /fly denial message so it always
-     * shows the actual wait, whichever system is currently the binding one.
-     */
     public long displayRemainingSeconds(UUID uuid) {
         return Math.max(lockoutStore.remainingSeconds(uuid), combatManager.remainingSeconds(uuid));
+    }
+
+    /**
+     * Seconds remaining in the player's cumulative flight budget — see the
+     * class-level doc on {@link #flyTimeUsedMillis}. Returns -1 if
+     * {@code fly-max-duration-minutes} is 0 (no limit configured), so a
+     * caller can distinguish "unlimited" from "budget exhausted" (0).
+     *
+     * <p>Returns 0 whenever {@link #isLocked} is true (a post-damage or
+     * post-max-duration lockout, or an active combat tag) — without this,
+     * a player locked out of /fly entirely would still see their full
+     * remaining budget here, since {@link #flyTimeUsedMillis} is cleared the
+     * moment a lockout starts (there's nothing "used" left to subtract from
+     * the max) and this method had no way to distinguish that from a fresh,
+     * fully-available budget.
+     */
+    public long remainingFlightBudgetSeconds(UUID uuid) {
+        long maxMillis = config.flyMaxDurationMillis();
+        if (maxMillis <= 0) {
+            return -1;
+        }
+
+        if (isLocked(uuid)) {
+            return 0;
+        }
+
+        long used = flyTimeUsedMillis.getOrDefault(uuid, 0L);
+        long remaining = maxMillis - used;
+        return remaining <= 0 ? 0 : (remaining / 1000) + 1;
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -184,7 +167,7 @@ public class FlyManager implements Listener {
                 return;
             }
 
-            disableFlightAndLock(player, null);
+            disableFlightAndLock(player, null, config.flyLockoutMillis(), "fly.disabled-damage", null);
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Error in FlyManager#onDamage for " + event.getEntity().getName(), e);
         }
@@ -202,7 +185,7 @@ public class FlyManager implements Listener {
                 return;
             }
 
-            disableFlightAndLock(attacker, event.getEntity());
+            disableFlightAndLock(attacker, event.getEntity(), config.flyLockoutMillis(), "fly.disabled-attack", "target");
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Error in FlyManager#onPvpDamage", e);
         }
@@ -231,12 +214,6 @@ public class FlyManager implements Listener {
         }
     }
 
-    /**
-     * Only forces {@code allowFlight} off if {@code fly-force-disable-on-join}
-     * is enabled — see the class-level doc for why this specific safety
-     * net can't distinguish Poppy-granted flight from third-party flight,
-     * and why it's opt-out rather than always-on.
-     */
     @EventHandler
     public void onJoin(@NonNull PlayerJoinEvent event) {
         try {
@@ -272,9 +249,6 @@ public class FlyManager implements Listener {
                 return;
             }
 
-            // Switching into Survival/Adventure — same opt-out as onJoin, and the
-            // same reasoning: this can't tell Poppy-granted flight apart from
-            // flight another plugin might legitimately want active here.
             if (config.flyForceDisableOnJoin() && !activeFly.contains(uuid) && player.getAllowFlight()) {
                 player.setAllowFlight(false);
                 player.setFlying(false);
@@ -293,22 +267,20 @@ public class FlyManager implements Listener {
             player.setAllowFlight(false);
             player.setFlying(false);
         }
+
+        // Not just activeFly — flyTimeUsedMillis/warnedThisCycle are otherwise
+        // never cleared for a player who quits mid-cycle without hitting the cap
+        // or taking damage, which would leave a permanent entry behind.
+        flyTimeUsedMillis.remove(uuid);
+        warnedThisCycle.remove(uuid);
     }
 
-    /**
-     * @param target the entity the player just attacked, for the
-     *               notification message — null when called from the
-     *               generic {@link #onDamage} path.
-     */
-    private void disableFlightAndLock(Player player, Entity target) {
+    private void disableFlightAndLock(Player player, Entity target, long lockoutMillis, String messagePath, String targetPlaceholderName) {
         GameMode mode = player.getGameMode();
         if (mode != GameMode.SURVIVAL && mode != GameMode.ADVENTURE) {
             return;
         }
 
-        // Only act on flight this class itself granted — see the class-level
-        // doc. A player flying via another plugin's own permission/perk is
-        // left entirely alone here.
         if (!activeFly.contains(player.getUniqueId())) {
             return;
         }
@@ -316,13 +288,60 @@ public class FlyManager implements Listener {
         player.setFlying(false);
         player.setAllowFlight(false);
         activeFly.remove(player.getUniqueId());
+        flyTimeUsedMillis.remove(player.getUniqueId());
+        warnedThisCycle.remove(player.getUniqueId());
 
-        lockoutStore.start(player.getUniqueId(), config.flyLockoutMillis());
+        lockoutStore.start(player.getUniqueId(), lockoutMillis);
 
-        if (target != null) {
-            player.sendMessage(messages.get("fly.disabled-attack", "target", targetName(target)));
+        if (target != null && targetPlaceholderName != null) {
+            player.sendMessage(messages.get(messagePath, targetPlaceholderName, targetName(target)));
         } else {
-            player.sendMessage(messages.get("fly.disabled-damage"));
+            player.sendMessage(messages.get(messagePath));
+        }
+    }
+
+    /**
+     * Runs every second, adding one second of usage for every player
+     * currently in {@link #activeFly}. Sends a one-shot warning at
+     * {@code fly-max-duration-warning-seconds} remaining (via
+     * {@link #warnedThisCycle}, so it's never repeated for the same
+     * budget cycle), then forces flight off and starts the long
+     * {@link #lockoutStore} cooldown once the budget is fully exhausted.
+     */
+    private void tickFlightDuration() {
+        long maxMillis = config.flyMaxDurationMillis();
+        if (maxMillis <= 0 || activeFly.isEmpty()) {
+            return;
+        }
+
+        long warningMillis = config.flyMaxDurationWarningSeconds() * 1000L;
+
+        for (UUID uuid : new ArrayList<>(activeFly)) {
+            Player player = Bukkit.getPlayer(uuid);
+            if (player == null || !player.isOnline()) {
+                continue;
+            }
+
+            long used = flyTimeUsedMillis.merge(uuid, 1000L, Long::sum);
+            long remaining = maxMillis - used;
+
+            if (remaining <= 0) {
+                player.setFlying(false);
+                player.setAllowFlight(false);
+                activeFly.remove(uuid);
+                flyTimeUsedMillis.remove(uuid);
+                warnedThisCycle.remove(uuid);
+
+                long cooldownMillis = config.flyMaxDurationCooldownMillis();
+                lockoutStore.start(uuid, cooldownMillis);
+
+                player.sendMessage(messages.get("fly.max-duration-reached", "time", DurationFormat.format((cooldownMillis / 1000) + 1)));
+                continue;
+            }
+
+            if (warningMillis > 0 && remaining <= warningMillis && warnedThisCycle.add(uuid)) {
+                player.sendMessage(messages.get("fly.max-duration-warning", "time", DurationFormat.format((remaining / 1000) + 1)));
+            }
         }
     }
 

@@ -130,6 +130,7 @@ tpa:
   toggle-off: "&c[!] You are no longer accepting teleport requests."
   destination-in-combat: "&4[!] You can't teleport there right now — the destination is in combat!"
   toggle-off-reminder: "&e[!] Reminder: you have teleport requests blocked. Use /tpatoggle to re-enable them."
+  toggle-cooldown: "&4[!] Please wait {time} before using /tpatoggle again!"
 
 poppy:
   wrong-gamemode: "&4[!] You need to be in Survival or Creative mode to do this!"
@@ -182,6 +183,11 @@ fly:
   disabled-attack: "&4[!] You just attacked {target} — your flight has been disabled!"
   locked-out: "&4[!] You must wait {time} before flying again!"
   blocked-end: "&4[!] You're in the End — you can't enable flight here. Return to the Overworld or Nether!"
+  max-duration-reached: "&4[!] You've been flying for a while — landing you now. You can fly again in {time}."
+  max-duration-warning: "&e[!] Warning: you only have {time} of flight left!"
+  time-remaining: "&e[!] You have {time} of flight time remaining."
+  time-unlimited: "&e[!] You have unlimited flight time (no limit configured)."
+  time-locked: "&4[!] You can't fly right now — try again in {time}."
 
 cooldowns:
   header: "&7- &6Cooldowns"

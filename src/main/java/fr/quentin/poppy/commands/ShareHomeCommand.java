@@ -3,7 +3,13 @@ package fr.quentin.poppy.commands;
 import fr.quentin.poppy.manager.HomeManager;
 import fr.quentin.poppy.manager.ShareManager;
 import fr.quentin.poppy.model.Home;
-import fr.quentin.poppy.util.*;
+import fr.quentin.poppy.util.CooldownStore;
+import fr.quentin.poppy.util.DurationFormat;
+import fr.quentin.poppy.util.Messages;
+import fr.quentin.poppy.util.PoppyConfig;
+import fr.quentin.poppy.util.PoppyLogger;
+import fr.quentin.poppy.util.PoppyStats;
+import fr.quentin.poppy.util.SafeCommand;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
@@ -16,11 +22,25 @@ import org.bukkit.event.Listener;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jspecify.annotations.NonNull;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.UUID;
 
+/**
+ * Handles /sharehome: broadcasts a clickable teleport link for one of the
+ * sender's homes to the whole server. Clicking the link runs
+ * {@code /poppygoto <token>} — see {@link fr.quentin.poppy.commands.PoppyGotoCommand}.
+ *
+ * <p>Rate-limited via {@code sharehome-cooldown-seconds} in config.yml,
+ * tracked in a shared {@link CooldownStore} — deliberately never cleared
+ * on quit or per-player, same reasoning as {@link AfkCommand}: a cooldown
+ * on a server-wide broadcast command must survive a disconnect/reconnect,
+ * and the store purges expired entries on its own periodic sweep.
+ *
+ * <p>Still implements {@link Listener} (with no handlers) purely so
+ * {@code Poppy#onEnable}'s existing {@code registerEvents(shareHomeCommand, this)}
+ * call keeps compiling — it used to carry a {@code PlayerQuitEvent}
+ * handler that cleared the old raw cooldown map, removed once the switch
+ * to {@link CooldownStore} made it unnecessary.
+ */
 public class ShareHomeCommand extends SafeCommand implements TabCompleter, Listener {
 
     private final HomeManager homeManager;
@@ -28,8 +48,7 @@ public class ShareHomeCommand extends SafeCommand implements TabCompleter, Liste
     private final PoppyConfig config;
     private final PoppyStats stats;
     private final PoppyLogger logger;
-
-    private final Map<UUID, Long> lastUse = new HashMap<>();
+    private final CooldownStore cooldown;
 
     public ShareHomeCommand(JavaPlugin plugin, HomeManager homeManager, ShareManager shareManager, Messages messages,
                             PoppyConfig config, PoppyStats stats, PoppyLogger logger) {
@@ -39,6 +58,7 @@ public class ShareHomeCommand extends SafeCommand implements TabCompleter, Liste
         this.config = config;
         this.stats = stats;
         this.logger = logger;
+        this.cooldown = new CooldownStore(plugin);
     }
 
     @Override
@@ -48,7 +68,7 @@ public class ShareHomeCommand extends SafeCommand implements TabCompleter, Liste
             return true;
         }
 
-        long remaining = cooldownRemaining(player.getUniqueId());
+        long remaining = cooldown.remainingSeconds(player.getUniqueId());
         if (remaining > 0) {
             player.sendMessage(messages.get("sharehome.cooldown", "time", DurationFormat.format(remaining)));
             return true;
@@ -67,7 +87,7 @@ public class ShareHomeCommand extends SafeCommand implements TabCompleter, Liste
         }
 
         String token = shareManager.share(player.getUniqueId(), home.name());
-        lastUse.put(player.getUniqueId(), System.currentTimeMillis());
+        cooldown.start(player.getUniqueId(), config.sharehomeCooldownMillis());
         stats.incrementSharesCreated();
 
         logger.log(PoppyLogger.Category.SHARE, player, "shared home '" + home.name() + "'");
@@ -87,18 +107,5 @@ public class ShareHomeCommand extends SafeCommand implements TabCompleter, Liste
             return List.of();
         }
         return homeManager.suggestHomeNames(player.getUniqueId(), args[0]);
-    }
-
-    private long cooldownRemaining(UUID uuid) {
-        long cooldownMillis = config.sharehomeCooldownMillis();
-        if (cooldownMillis <= 0) {
-            return 0;
-        }
-        Long last = lastUse.get(uuid);
-        if (last == null) {
-            return 0;
-        }
-        long remainingMillis = cooldownMillis - (System.currentTimeMillis() - last);
-        return remainingMillis <= 0 ? 0 : (remainingMillis / 1000) + 1;
     }
 }

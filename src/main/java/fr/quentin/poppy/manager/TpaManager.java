@@ -1,5 +1,6 @@
 package fr.quentin.poppy.manager;
 
+import fr.quentin.poppy.util.CooldownStore;
 import fr.quentin.poppy.util.Messages;
 import fr.quentin.poppy.util.PoppyConfig;
 import fr.quentin.poppy.util.PoppyLogger;
@@ -8,8 +9,22 @@ import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
+/**
+ * Tracks pending /tpa and /tpahere requests, the {@code /tpatoggle}
+ * opt-out ({@link #requestsDisabled}), and per-requester cooldown (via a
+ * shared {@link CooldownStore} — not a raw {@code Map<UUID, Long>}, same
+ * reasoning as {@link fr.quentin.poppy.commands.AfkCommand}).
+ * {@link #requestsDisabled} is deliberately never purged: it's a durable
+ * player preference, not a cooldown, so there's no expiry to sweep.
+ */
 public class TpaManager {
 
     public enum Type { NORMAL, HERE }
@@ -25,22 +40,23 @@ public class TpaManager {
     private final Map<UUID, Map<UUID, Request>> requestsByTarget = new HashMap<>();
     private final Map<UUID, Map<UUID, BukkitTask>> expiryTasks = new HashMap<>();
     private final Set<UUID> requestsDisabled = new HashSet<>();
-    private final Map<UUID, Long> lastRequestSent = new HashMap<>();
+    private final CooldownStore requestCooldown;
 
     public TpaManager(JavaPlugin plugin, Messages messages, PoppyConfig config, PoppyLogger logger) {
         this.plugin = plugin;
         this.messages = messages;
         this.config = config;
         this.logger = logger;
+        this.requestCooldown = new CooldownStore(plugin);
     }
 
     public void createRequest(UUID target, UUID requester, Type type) {
         cancelExpiry(target, requester);
 
-        requestsByTarget.computeIfAbsent(target, _ -> new HashMap<>()).put(requester, new Request(requester, type));
+        requestsByTarget.computeIfAbsent(target, key -> new HashMap<>()).put(requester, new Request(requester, type));
 
         BukkitTask task = Bukkit.getScheduler().runTaskLater(plugin, () -> expire(target, requester), config.tpaExpirySeconds() * 20L);
-        expiryTasks.computeIfAbsent(target, _ -> new HashMap<>()).put(requester, task);
+        expiryTasks.computeIfAbsent(target, key -> new HashMap<>()).put(requester, task);
     }
 
     public Request findRequestByName(UUID target, String requesterName) {
@@ -168,15 +184,6 @@ public class TpaManager {
         }
     }
 
-    /**
-     * Toggles whether this player accepts incoming /tpa or /tpahere requests
-     * at all. A blocked requester is told the target isn't accepting
-     * requests (see {@code TpaCommand.execute}), not that they were
-     * specifically blocked — a basic harassment deterrent that needs no
-     * per-player blocklist.
-     *
-     * @return true if requests are now accepted, false if now blocked
-     */
     public boolean toggleRequests(UUID uuid) {
         if (requestsDisabled.remove(uuid)) {
             return true;
@@ -189,26 +196,11 @@ public class TpaManager {
         return !requestsDisabled.contains(uuid);
     }
 
-    /**
-     * Rate-limits how often a player can send a new /tpa or /tpahere
-     * request — without this, sending repeated requests to the same or
-     * different targets is a free, permission-less way to spam a clickable
-     * chat message at people.
-     */
     public long requestCooldownRemainingSeconds(UUID uuid) {
-        long cooldownMillis = config.tpaRequestCooldownMillis();
-        if (cooldownMillis <= 0) {
-            return 0;
-        }
-        Long last = lastRequestSent.get(uuid);
-        if (last == null) {
-            return 0;
-        }
-        long remainingMillis = cooldownMillis - (System.currentTimeMillis() - last);
-        return remainingMillis <= 0 ? 0 : (remainingMillis / 1000) + 1;
+        return requestCooldown.remainingSeconds(uuid);
     }
 
     public void recordRequestSent(UUID uuid) {
-        lastRequestSent.put(uuid, System.currentTimeMillis());
+        requestCooldown.start(uuid, config.tpaRequestCooldownMillis());
     }
 }

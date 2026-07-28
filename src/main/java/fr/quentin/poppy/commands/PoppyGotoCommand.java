@@ -9,6 +9,7 @@ import fr.quentin.poppy.util.Messages;
 import fr.quentin.poppy.util.PoppyConfig;
 import fr.quentin.poppy.util.PoppyLogger;
 import fr.quentin.poppy.util.SafeCommand;
+import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -23,30 +24,42 @@ import java.util.UUID;
  * Internal command triggered by the clickable link created by /sharehome —
  * never meant to be typed manually. Deliberately has no permission node in
  * plugin.yml: the short-lived {@link ShareManager} token itself is the
- * access control, so any player who received (or guessed) a valid token can
- * use it.
+ * access control.
  *
  * <p>The token resolves to the sharer's UUID and home name, re-fetched
- * live via {@link HomeManager#getHomeUncached} at teleport time — that
- * variant, not the cache-populating {@link HomeManager#getHome}, since
- * the owner may not be online this session (or ever again); populating
- * the cache here would leak an entry {@code HomeCacheListener} will never
- * see a quit event to clean up.
+ * live via {@link HomeManager#getHomeUncached} at teleport time — the
+ * owner may not be online this session, so this avoids leaking a cache
+ * entry {@code HomeCacheListener} would never see a quit event to clean
+ * up.
  *
- * <p>The token is a full UUID (128 bits of randomness), making brute-force
- * guessing already computationally infeasible within the token's short
- * expiry window on its own. {@link #failedAttempts}/{@link #lockoutStore}
- * add defense-in-depth on top of that: after
- * {@code sharehome-max-failed-attempts} wrong tokens in a row from the
- * same player, they're locked out of trying again for
- * {@code sharehome-lockout-seconds}.
+ * <p>The token is a full UUID (128 bits), making brute-force guessing
+ * already computationally infeasible on its own. {@link #failedAttempts}/
+ * {@link #lockoutStore} add defense-in-depth: after
+ * {@code sharehome-max-failed-attempts} wrong tokens in a row, the player
+ * is locked out for {@code sharehome-lockout-seconds}. The lockout itself
+ * lives in a shared {@link CooldownStore}.
  *
- * <p>The lockout is deliberately not cleared on quit — same reasoning as
- * {@code PoppyLoreListener}'s cooldown: clearing it would let a
- * brute-forcing player reset their own lockout for free by disconnecting
- * and reconnecting with the same account.
+ * <p>{@link #failedAttempts} can't live in {@link CooldownStore} the same
+ * way — it's a count, not a plain expiry — so each entry carries its own
+ * last-attempt timestamp ({@link FailedAttempts}), and both the attempt
+ * count and the raw map itself have an expiry of their own:
+ * {@link #registerFailedAttempt} resets the count to 1 if the previous
+ * attempt is older than {@link #ATTEMPT_WINDOW_MILLIS} (so a wrong guess
+ * five minutes after a previous one doesn't compound toward a lockout),
+ * and {@link #purgeStaleAttempts()} — run every 5 minutes — evicts any
+ * entry nobody has touched recently at all. Without either, a single
+ * wrong token from a player never seen again would leave a permanent
+ * entry in memory, the same unbounded-growth pattern {@link CooldownStore}
+ * exists to prevent elsewhere, applied here to a counter instead of a
+ * plain cooldown.
  */
 public class PoppyGotoCommand extends SafeCommand {
+
+    private static final long ATTEMPT_WINDOW_MILLIS = 5 * 60 * 1000L;
+    private static final long PURGE_INTERVAL_TICKS = 20L * 60 * 5;
+
+    private record FailedAttempts(int count, long lastAttemptMillis) {
+    }
 
     private final ShareManager shareManager;
     private final HomeManager homeManager;
@@ -55,7 +68,7 @@ public class PoppyGotoCommand extends SafeCommand {
     private final PoppyLogger logger;
     private final CooldownStore lockoutStore;
 
-    private final Map<UUID, Integer> failedAttempts = new HashMap<>();
+    private final Map<UUID, FailedAttempts> failedAttempts = new HashMap<>();
 
     public PoppyGotoCommand(JavaPlugin plugin, ShareManager shareManager, HomeManager homeManager, TeleportManager teleportManager,
                             Messages messages, PoppyConfig config, PoppyLogger logger) {
@@ -66,6 +79,8 @@ public class PoppyGotoCommand extends SafeCommand {
         this.config = config;
         this.logger = logger;
         this.lockoutStore = new CooldownStore(plugin);
+
+        Bukkit.getScheduler().runTaskTimer(plugin, this::purgeStaleAttempts, PURGE_INTERVAL_TICKS, PURGE_INTERVAL_TICKS);
     }
 
     @Override
@@ -94,28 +109,33 @@ public class PoppyGotoCommand extends SafeCommand {
 
         Home home = homeManager.getHomeUncached(ownerUuid, homeName);
         if (home == null) {
-            // The owner deleted or renamed this home since sharing it — the link is
-            // no longer meaningful, treat it the same as an expired one.
             player.sendMessage(messages.get("sharehome.expired"));
             return true;
         }
 
-        // getHomeUncached, not getHome — the owner may not be online this session
-        // (or ever again), so re-resolving via the cache-populating path here would
-        // leak an entry in HomeManager's cache for a player HomeCacheListener will
-        // never see a quit event for.
         teleportManager.requestTeleport(player, () -> homeManager.getHomeUncached(ownerUuid, homeName), "sharehome.teleport-success");
         return true;
     }
 
     private void registerFailedAttempt(Player player) {
         UUID uuid = player.getUniqueId();
-        int attempts = failedAttempts.merge(uuid, 1, Integer::sum);
+        long now = System.currentTimeMillis();
 
-        if (attempts >= config.sharehomeMaxFailedAttempts()) {
+        FailedAttempts previous = failedAttempts.get(uuid);
+        int count = (previous == null || now - previous.lastAttemptMillis() > ATTEMPT_WINDOW_MILLIS) ? 1 : previous.count() + 1;
+
+        if (count >= config.sharehomeMaxFailedAttempts()) {
             failedAttempts.remove(uuid);
             lockoutStore.start(uuid, config.sharehomeLockoutMillis());
             logger.log(PoppyLogger.Category.SHARE, player, "locked out of /poppygoto after too many invalid tokens in a row");
+            return;
         }
+
+        failedAttempts.put(uuid, new FailedAttempts(count, now));
+    }
+
+    private void purgeStaleAttempts() {
+        long cutoff = System.currentTimeMillis() - ATTEMPT_WINDOW_MILLIS;
+        failedAttempts.entrySet().removeIf(entry -> entry.getValue().lastAttemptMillis() < cutoff);
     }
 }

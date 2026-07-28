@@ -1,7 +1,8 @@
 package fr.quentin.poppy.commands;
 
-import fr.quentin.poppy.manager.SleepPercentageListener;
 import fr.quentin.poppy.listeners.TabHealthListener;
+import fr.quentin.poppy.manager.SleepPercentageListener;
+import fr.quentin.poppy.util.CooldownStore;
 import fr.quentin.poppy.util.Messages;
 import fr.quentin.poppy.util.PoppyConfig;
 import fr.quentin.poppy.util.PoppyLogger;
@@ -24,27 +25,16 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jspecify.annotations.NonNull;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.UUID;
 
 /**
  * Handles /poppy: with no argument, a small easter egg (places or drops a
- * poppy — see {@link #handleEasterEgg}). With {@code reload}, reloads
- * config.yml and messages.yml live and re-applies the two settings that
- * can't just be read live via {@link PoppyConfig} on their own — the
- * sleep gamerule and the tab-health refresh interval (see
- * {@link #handleReload}).
+ * poppy). With {@code reload}, reloads config.yml and messages.yml live.
  *
- * <p>{@link #handleEasterEgg} guards its placement with a simulated
- * {@link BlockPlaceEvent} (see {@link #isProtected}) — same pattern as
- * {@code DeathChestManager#isProtected} — before calling
- * {@code setBlockData(...)} directly, which otherwise bypasses protection
- * plugins (WorldGuard, GriefPrevention...) entirely since it mutates the
- * world at the engine level with no event involved.
- * {@link Block#canPlace(BlockData)} alone only checks physical
- * placement validity (soil type, replaceability), never claims/regions.
+ * <p>The easter egg is rate-limited via
+ * {@code poppy-easteregg-cooldown-seconds} in config.yml, tracked in a
+ * shared {@link CooldownStore} rather than a raw
+ * {@code Map<UUID, Long>} — same reasoning as {@link AfkCommand}.
  */
 public class PoppyCommand extends SafeCommand implements TabCompleter {
 
@@ -52,7 +42,7 @@ public class PoppyCommand extends SafeCommand implements TabCompleter {
     private final PoppyLogger logger;
     private final SleepPercentageListener sleepPercentageListener;
     private final TabHealthListener tabHealthListener;
-    private final Map<UUID, Long> lastEasterEgg = new HashMap<>();
+    private final CooldownStore easterEggCooldown;
 
     public PoppyCommand(JavaPlugin plugin, Messages messages, PoppyConfig config, PoppyLogger logger,
                         SleepPercentageListener sleepPercentageListener, TabHealthListener tabHealthListener) {
@@ -61,6 +51,7 @@ public class PoppyCommand extends SafeCommand implements TabCompleter {
         this.logger = logger;
         this.sleepPercentageListener = sleepPercentageListener;
         this.tabHealthListener = tabHealthListener;
+        this.easterEggCooldown = new CooldownStore(plugin);
     }
 
     @Override
@@ -111,7 +102,7 @@ public class PoppyCommand extends SafeCommand implements TabCompleter {
             return;
         }
 
-        long remaining = cooldownRemaining(player.getUniqueId());
+        long remaining = easterEggCooldown.remainingSeconds(player.getUniqueId());
         if (remaining > 0) {
             player.sendMessage(messages.get("poppy.cooldown"));
             return;
@@ -131,7 +122,7 @@ public class PoppyCommand extends SafeCommand implements TabCompleter {
             return;
         }
 
-        lastEasterEgg.put(player.getUniqueId(), System.currentTimeMillis());
+        easterEggCooldown.start(player.getUniqueId(), config.poppyEasterEggCooldownMillis());
 
         Block feetBlock = player.getLocation().getBlock();
         BlockData poppyData = Material.POPPY.createBlockData();
@@ -154,32 +145,6 @@ public class PoppyCommand extends SafeCommand implements TabCompleter {
         player.sendMessage(messages.get("poppy.success"));
     }
 
-    private long cooldownRemaining(UUID uuid) {
-        long cooldownMillis = config.poppyEasterEggCooldownMillis();
-        if (cooldownMillis <= 0) {
-            return 0;
-        }
-        Long last = lastEasterEgg.get(uuid);
-        if (last == null) {
-            return 0;
-        }
-        long remainingMillis = cooldownMillis - (System.currentTimeMillis() - last);
-        return remainingMillis <= 0 ? 0 : (remainingMillis / 1000) + 1;
-    }
-
-    /**
-     * Fires a simulated {@link BlockPlaceEvent} before any world mutation
-     * happens, so protection plugins (WorldGuard, GriefPrevention,
-     * Lands...) that listen on that event get a chance to cancel it —
-     * exactly as if the player had physically placed a poppy there. Same
-     * approach as {@code DeathChestManager#isProtected}.
-     *
-     * <p>The {@link BlockPlaceEvent} constructor used here is marked
-     * {@code @ApiStatus.Internal} by Paper — there's no stable public
-     * alternative for simulating a place event from plugin code. Accepted
-     * since verifying protection before this placement matters more than
-     * the (small) risk of Paper changing the signature in a future version.
-     */
     @SuppressWarnings("UnstableApiUsage")
     private boolean isProtected(Block block, Player player) {
         BlockState replacedState = block.getState();

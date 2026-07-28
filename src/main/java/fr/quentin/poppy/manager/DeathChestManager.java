@@ -1,5 +1,6 @@
 package fr.quentin.poppy.manager;
 
+import fr.quentin.poppy.util.AtomicYamlWriter;
 import fr.quentin.poppy.util.Messages;
 import fr.quentin.poppy.util.PoppyConfig;
 import fr.quentin.poppy.util.PoppyLogger;
@@ -1295,22 +1296,7 @@ public class DeathChestManager implements Listener {
     }
 
     private void writeAtomically(YamlConfiguration yaml, File file) {
-        File tempFile = new File(file.getParentFile(), file.getName() + ".tmp");
-
-        try {
-            yaml.save(tempFile);
-            try {
-                Files.move(tempFile.toPath(), file.toPath(),
-                        StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch (AtomicMoveNotSupportedException e) {
-                Files.move(tempFile.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
-            }
-        } catch (IOException e) {
-            plugin.getLogger().log(Level.SEVERE, "Could not save death chests", e);
-            if (!tempFile.delete()) {
-                plugin.getLogger().log(Level.WARNING, "Could not delete leftover temp file: " + tempFile);
-            }
-        }
+        AtomicYamlWriter.save(yaml, file, plugin, "death chests");
     }
 
     /**

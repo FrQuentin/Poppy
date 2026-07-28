@@ -29,26 +29,39 @@ import java.util.regex.Pattern;
  *
  * <p><b>Default-merging on {@link #reload()}:</b> the file is only ever
  * copied from the jar once, the first time it doesn't exist — after that,
- * a plugin update that adds new message keys (or an admin who deleted a
- * line) would otherwise leave those keys permanently missing for every
- * existing install, showing the raw path in-game instead of real text
- * (e.g. a literal {@code death.chest-gui-title} as a chest's title) until
- * they're manually re-added. {@link #reload} merges the jar's bundled
- * defaults on top of the on-disk file via
- * {@link YamlConfiguration#setDefaults} +
- * {@link org.bukkit.configuration.ConfigurationOptions#copyDefaults(boolean)},
- * then saves the merged result back to disk — an admin's existing
- * customizations are preserved (they take priority over the defaults
- * being merged in), and any newly-added key gets its default value
- * written to their file automatically, visible for them to edit going
- * forward rather than silently falling back forever.
+ * a plugin update that adds new message keys would otherwise leave those
+ * keys permanently missing for every existing install. {@link #reload}
+ * merges the jar's bundled defaults on top of the on-disk file via
+ * {@link YamlConfiguration#setDefaults} + {@code copyDefaults(true)}.
+ *
+ * <p>The merged result is only written back to disk — via
+ * {@link AtomicYamlWriter}, not a raw {@code save(file)} — when
+ * {@link #hasMissingKeys} finds something the merge actually needed to
+ * add. Two things this fixes over the original version: (1) an
+ * unconditional {@code save()} here was the one file in this plugin an
+ * admin hand-edits and had no crash-safety at all — a truncated write
+ * mid-save would corrupt their customizations with no recovery, unlike
+ * every other persisted file which already used the atomic
+ * temp-file-then-rename pattern; (2) {@code reload()} runs on every
+ * startup and every {@code /poppy reload}, so rewriting the file every
+ * single time — even when nothing changed — needlessly re-risked it for
+ * no reason. Skipping the write entirely when there's nothing to merge
+ * closes both: the file is only ever touched when it actually needs to
+ * change, and that touch is now atomic.
+ *
+ * <p><b>Known, unverified caveat:</b> whether {@code copyDefaults(true)} +
+ * {@code save()} preserves an admin's own {@code #} comments in
+ * messages.yml depends on the server/Bukkit version and isn't something
+ * this class can guarantee from the API alone. Worth checking manually on
+ * your exact server version: add a comment to messages.yml, add a new key
+ * to the bundled defaults (or delete an existing line to force a merge),
+ * run {@code /poppy reload}, and confirm the comment survived.
  *
  * <p>The {@code config} field is {@code volatile}: {@link #get} can be
- * called from async callbacks (e.g. a teleport's {@code .exceptionally(...)}),
- * and {@link #reload} replaces the whole object rather than mutating it in
- * place — {@code volatile} guarantees every thread sees either the
- * complete old reference or the complete new one after a reload, never a
- * half-updated view.
+ * called from async callbacks, and {@link #reload} replaces the whole
+ * object rather than mutating it in place — {@code volatile} guarantees
+ * every thread sees either the complete old reference or the complete new
+ * one after a reload, never a half-updated view.
  *
  * <p>Placeholder substitution happens <b>after</b> legacy color-code
  * deserialization, and in a single combined-regex pass, not sequential
@@ -84,13 +97,32 @@ public class Messages {
                 YamlConfiguration defaults = YamlConfiguration.loadConfiguration(new InputStreamReader(in, StandardCharsets.UTF_8));
                 loaded.setDefaults(defaults);
                 loaded.options().copyDefaults(true);
-                loaded.save(file);
+
+                if (hasMissingKeys(loaded, defaults)) {
+                    AtomicYamlWriter.save(loaded, file, plugin, "messages.yml");
+                }
             }
         } catch (IOException e) {
             plugin.getLogger().log(Level.WARNING, "Could not merge default messages into messages.yml", e);
         }
 
         config = loaded;
+    }
+
+    /**
+     * True if the on-disk file is missing any key present in the bundled
+     * defaults — {@link org.bukkit.configuration.MemorySection#isSet}
+     * (unlike {@code contains}) ignores values that only come from
+     * defaults, so this reliably detects "would {@code save()} actually
+     * add anything new" before ever touching the disk.
+     */
+    private boolean hasMissingKeys(YamlConfiguration loaded, YamlConfiguration defaults) {
+        for (String key : defaults.getKeys(true)) {
+            if (!loaded.isSet(key)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -118,7 +150,7 @@ public class Messages {
 
         return result.replaceText(TextReplacementConfig.builder()
                 .match(combinedPattern)
-                .replacement((matchResult, builder) -> {
+                .replacement((matchResult, _) -> {
                     String key = matchResult.group(1);
                     return Component.text(values.getOrDefault(key, matchResult.group()));
                 })

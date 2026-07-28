@@ -1,6 +1,7 @@
 package fr.quentin.poppy.manager;
 
 import fr.quentin.poppy.model.Home;
+import fr.quentin.poppy.util.AtomicYamlWriter;
 import org.bukkit.Location;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -129,32 +130,7 @@ public class SpawnManager {
         return config;
     }
 
-    /**
-     * Writes to a temporary file first, then atomically renames it over
-     * the real file — see the class-level rationale. If the filesystem
-     * doesn't support atomic moves (some Docker overlay filesystems, some
-     * network mounts), {@link AtomicMoveNotSupportedException} is a
-     * subclass of {@link IOException}: without a specific fallback, it
-     * would silently fall into the generic error path below and the save
-     * would be lost entirely. The fallback here still performs the write —
-     * just without the atomicity guarantee — rather than losing it.
-     */
     private void writeToDisk(YamlConfiguration config) {
-        File tempFile = new File(file.getParentFile(), file.getName() + ".tmp");
-
-        try {
-            config.save(tempFile);
-            try {
-                Files.move(tempFile.toPath(), file.toPath(),
-                        StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch (AtomicMoveNotSupportedException e) {
-                Files.move(tempFile.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
-            }
-        } catch (IOException e) {
-            plugin.getLogger().log(Level.SEVERE, "Could not save spawn.yml", e);
-            if (!tempFile.delete()) {
-                plugin.getLogger().log(Level.WARNING, "Could not delete leftover temp file: " + tempFile);
-            }
-        }
+        AtomicYamlWriter.save(config, file, plugin, "spawn.yml");
     }
 }

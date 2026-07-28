@@ -1,6 +1,7 @@
 package fr.quentin.poppy.manager;
 
 import fr.quentin.poppy.model.Home;
+import fr.quentin.poppy.util.AtomicYamlWriter;
 import fr.quentin.poppy.util.PoppyConfig;
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.ConfigurationSection;
@@ -411,32 +412,8 @@ public class HomeManager {
         return config;
     }
 
-    /**
-     * Only ever runs on {@link #ioExecutor}'s single thread, so no
-     * synchronization is needed here — the executor itself is what
-     * prevents concurrent writes.
-     *
-     * <p>Writes to a temporary file first, then atomically renames it over
-     * the real file. If the filesystem doesn't support atomic moves,
-     * {@link AtomicMoveNotSupportedException} falls back to a plain move.
-     */
-    protected void writeToDisk(YamlConfiguration config, File file, UUID uuid) {
-        File tempFile = new File(file.getParentFile(), file.getName() + ".tmp");
-
-        try {
-            config.save(tempFile);
-            try {
-                Files.move(tempFile.toPath(), file.toPath(),
-                        StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch (AtomicMoveNotSupportedException e) {
-                Files.move(tempFile.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
-            }
-        } catch (IOException e) {
-            plugin.getLogger().log(Level.SEVERE, "Could not save homes for " + uuid, e);
-            if (!tempFile.delete()) {
-                plugin.getLogger().log(Level.WARNING, "Could not delete leftover temp file: " + tempFile);
-            }
-        }
+    private void writeToDisk(YamlConfiguration config, File file, UUID uuid) {
+        AtomicYamlWriter.save(config, file, plugin, "homes for " + uuid);
     }
 
     /**

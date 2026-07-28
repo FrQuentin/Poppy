@@ -53,6 +53,7 @@ public final class PoppyConfig {
     private volatile int rtpMaxRadius;
     private volatile int rtpMaxAttempts;
     private volatile long rtpCooldownMillis;
+    private volatile int rtpMaxConcurrentSearches;
 
     private volatile int trashSize;
 
@@ -141,6 +142,7 @@ public final class PoppyConfig {
         rtpMaxRadius = Math.max(rtpMinRadius + 1, c.getInt("rtp-max-radius", 5000));
         rtpMaxAttempts = Math.max(1, c.getInt("rtp-max-attempts", 20));
         rtpCooldownMillis = Math.max(0, c.getInt("rtp-cooldown-seconds", 30)) * 1000L;
+        rtpMaxConcurrentSearches = Math.max(1, c.getInt("rtp-max-concurrent-searches", 3));
 
         trashSize = computeTrashSize(c.getInt("trash-size", 27));
 
@@ -442,5 +444,9 @@ public final class PoppyConfig {
 
     public boolean combatLogPunishOnKick() {
         return combatLogPunishOnKick;
+    }
+
+    public int rtpMaxConcurrentSearches() {
+        return rtpMaxConcurrentSearches;
     }
 }

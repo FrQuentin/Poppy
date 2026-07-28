@@ -41,7 +41,7 @@ import java.util.List;
  * handler that cleared the old raw cooldown map, removed once the switch
  * to {@link CooldownStore} made it unnecessary.
  */
-public class ShareHomeCommand extends SafeCommand implements TabCompleter, Listener {
+public class ShareHomeCommand extends SafeCommand implements TabCompleter {
 
     private final HomeManager homeManager;
     private final ShareManager shareManager;

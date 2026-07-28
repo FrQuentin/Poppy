@@ -43,9 +43,6 @@ import java.util.logging.Level;
  * {@link TeleportManager} before any chunk work happens at all, so it
  * stays free.
  *
- * <p>{@link #MAX_CONCURRENT_SEARCHES} caps how many /rtp searches can be
- * in flight across the whole server at once, on top of {@link #inProgress}
- * (which only serializes one player's own repeated presses).
  *
  * <p>The cooldown itself lives in a shared {@link CooldownStore} — see its
  * class-level doc for why that's preferable to a raw
@@ -62,8 +59,6 @@ import java.util.logging.Level;
  * see {@link #findNetherCandidate}.
  */
 public class RtpCommand extends SafeCommand implements Listener {
-
-    private static final int MAX_CONCURRENT_SEARCHES = 3;
 
     private final TeleportManager teleportManager;
     private final PoppyConfig config;
@@ -93,13 +88,14 @@ public class RtpCommand extends SafeCommand implements Listener {
             return true;
         }
 
-        if (inProgress.size() >= MAX_CONCURRENT_SEARCHES) {
-            player.sendMessage(messages.get("rtp.server-busy"));
+        if (!inProgress.add(player.getUniqueId())) {
+            player.sendMessage(messages.get("rtp.already-searching"));
             return true;
         }
 
-        if (!inProgress.add(player.getUniqueId())) {
-            player.sendMessage(messages.get("rtp.already-searching"));
+        if (inProgress.size() > config.rtpMaxConcurrentSearches()) {
+            inProgress.remove(player.getUniqueId());
+            player.sendMessage(messages.get("rtp.server-busy"));
             return true;
         }
 

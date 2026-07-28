@@ -209,3 +209,9 @@ fly-force-disable-on-join: true
 # (admin kick, anti-cheat false positive) usually shouldn't be treated the
 # same as a voluntary disconnect.
 combat-log-punish-on-kick: false
+
+# Server-wide cap on how many /rtp searches can be in flight at once
+# (independent of each player's own cooldown). Each search can trigger up
+# to rtp-max-attempts chunk generations, so this bounds worst-case
+# concurrent load. Raise on a large server, lower on a small one.
+rtp-max-concurrent-searches: 3

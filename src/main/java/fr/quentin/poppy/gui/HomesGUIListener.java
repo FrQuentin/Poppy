@@ -7,6 +7,7 @@ import fr.quentin.poppy.util.Messages;
 import fr.quentin.poppy.util.PoppyLogger;
 import fr.quentin.poppy.util.PoppyStats;
 import org.bukkit.Bukkit;
+import org.bukkit.entity.HumanEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -179,11 +180,18 @@ public class HomesGUIListener implements Listener {
      * player-deposited item that {@link #onClick}/{@link #onDrag} somehow
      * missed, or filler that got merged with a player's own matching stack —
      * either way, {@link #onClose} refunds it rather than letting it vanish.
+     *
+     * <p>A plain filler pane is always exactly 1 item — this class never
+     * places a stack of them. So an untagged
+     * {@code LIGHT_GRAY_STAINED_GLASS_PANE} with amount &gt; 1 is treated as
+     * NOT recognized (a player's own stack that happened to merge with a
+     * filler slot), rather than matching on material alone regardless of
+     * quantity.
      */
     private boolean isRecognizedGuiItem(ItemStack item) {
         ItemMeta meta = item.getItemMeta();
         if (meta == null) {
-            return item.getType() == org.bukkit.Material.LIGHT_GRAY_STAINED_GLASS_PANE;
+            return item.getType() == org.bukkit.Material.LIGHT_GRAY_STAINED_GLASS_PANE && item.getAmount() == 1;
         }
 
         PersistentDataContainer pdc = meta.getPersistentDataContainer();
@@ -191,6 +199,7 @@ public class HomesGUIListener implements Listener {
         boolean hasDeleteAction = pdc.has(confirmDeleteGUI.getActionKey(), PersistentDataType.STRING);
         boolean hasOverwriteAction = pdc.has(confirmOverwriteGUI.getActionKey(), PersistentDataType.STRING);
         boolean isPlainFiller = item.getType() == org.bukkit.Material.LIGHT_GRAY_STAINED_GLASS_PANE
+                && item.getAmount() == 1
                 && !hasHomeName && !hasDeleteAction && !hasOverwriteAction;
 
         return hasHomeName || hasDeleteAction || hasOverwriteAction || isPlainFiller;
@@ -312,17 +321,23 @@ public class HomesGUIListener implements Listener {
         teleportManager.requestTeleport(player, () -> homeManager.getHome(uuid, name), "home.success");
     }
 
-    /**
-     * Empties the cursor before any deferred open/close — see the
-     * class-level doc. {@link InventoryClickEvent#setCancelled(boolean)}
-     * already blocks the click's item movement, but leaves whatever was
-     * already on the cursor (e.g. picked up from the player's own
-     * inventory in a separate, earlier click) untouched; without this,
-     * that item is exactly what's at risk of ending up in an inconsistent
-     * client/server state across the deferred GUI switch.
-     */
     private void clearCursor(InventoryClickEvent event) {
-        event.getWhoClicked().setItemOnCursor(null);
+        HumanEntity who = event.getWhoClicked();
+        ItemStack cursor = who.getItemOnCursor();
+        who.setItemOnCursor(null);
+
+        if (cursor == null || cursor.getType().isAir()) {
+            return;
+        }
+
+        // Returned, not destroyed — consistent with onClose's safety net elsewhere
+        // in this class. In practice this should rarely have anything to return
+        // (onClick cancels every click, so the cursor should normally be empty),
+        // but it's reachable via Creative mode's SetCreativeModeSlot packets
+        // (which don't go through InventoryClickEvent), another plugin
+        // uncancelling the event at a later priority, or a modified client.
+        who.getInventory().addItem(cursor).values()
+                .forEach(leftover -> who.getWorld().dropItemNaturally(who.getLocation(), leftover));
     }
 
     /**

@@ -91,13 +91,28 @@ public class CombatListener implements Listener {
         this.deathLocationManager = deathLocationManager;
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onDamage(@NonNull EntityDamageByEntityEvent event) {
         if (!config.combatTagEnabled()) {
             return;
         }
 
         try {
+            // A hit cancelled by a protection plugin, or one that deals zero final
+            // damage (a snowball, an egg, damage fully absorbed), is not combat —
+            // without this guard, hitting someone in a PvP-off zone still tagged
+            // them, and a disconnect within the next 10s triggered the combat-log
+            // punishment (drop + kill) on a player who never actually fought. Same
+            // guard as FlyManager#onDamage/onPvpDamage on the same events.
+            // ignoreCancelled = true already filters out an event cancelled before
+            // MONITOR runs; the explicit getFinalDamage() check on top of that also
+            // catches an event some other plugin left uncancelled but reduced to
+            // zero damage (e.g. full damage absorption via an effect), which
+            // ignoreCancelled alone wouldn't filter.
+            if (event.getFinalDamage() <= 0) {
+                return;
+            }
+
             if (!(event.getEntity() instanceof Player victim)) {
                 return;
             }

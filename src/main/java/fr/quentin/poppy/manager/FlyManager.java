@@ -130,12 +130,12 @@ public class FlyManager implements Listener {
      * caller can distinguish "unlimited" from "budget exhausted" (0).
      *
      * <p>Returns 0 whenever {@link #isLocked} is true (a post-damage or
-     * post-max-duration lockout, or an active combat tag) — without this,
-     * a player locked out of /fly entirely would still see their full
-     * remaining budget here, since {@link #flyTimeUsedMillis} is cleared the
-     * moment a lockout starts (there's nothing "used" left to subtract from
-     * the max) and this method had no way to distinguish that from a fresh,
-     * fully-available budget.
+     * post-max-duration lockout, or an active combat tag) — this is purely a
+     * display choice ("you can't fly right now"), not a reflection of the
+     * underlying budget: {@link #flyTimeUsedMillis} is NOT cleared by a
+     * post-damage lockout (see {@link #disableFlightAndLock}), so the real
+     * remaining budget is preserved underneath and becomes visible again as
+     * soon as the lockout ends.
      */
     public long remainingFlightBudgetSeconds(UUID uuid) {
         long maxMillis = config.flyMaxDurationMillis();
@@ -288,9 +288,13 @@ public class FlyManager implements Listener {
         player.setFlying(false);
         player.setAllowFlight(false);
         activeFly.remove(player.getUniqueId());
-        flyTimeUsedMillis.remove(player.getUniqueId());
-        warnedThisCycle.remove(player.getUniqueId());
-
+        // flyTimeUsedMillis and warnedThisCycle are DELIBERATELY kept here: the
+        // cumulative budget only resets by actually paying the real cap cooldown
+        // (see tickFlightDuration). Clearing them on the post-damage lockout let a
+        // player trade fly-max-duration-cooldown-minutes for fly-lockout-seconds
+        // by taking a trivial hit right before the cap — a full bypass of the
+        // limit. The warning already shown stays valid for the same reason: the
+        // budget cycle hasn't actually changed.
         lockoutStore.start(player.getUniqueId(), lockoutMillis);
 
         if (target != null && targetPlaceholderName != null) {

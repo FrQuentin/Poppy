@@ -181,33 +181,6 @@ public class RtpCommand extends SafeCommand implements Listener {
     }
 
     private boolean isSafe(Location location) {
-        Block ground = location.clone().subtract(0, 1, 0).getBlock();
-        Block feet = location.getBlock();
-        Block head = location.clone().add(0, 1, 0).getBlock();
-
-        Material groundType = ground.getType();
-        if (!groundType.isSolid()
-                || groundType == Material.MAGMA_BLOCK || groundType == Material.CACTUS
-                || groundType == Material.CAMPFIRE || groundType == Material.SOUL_CAMPFIRE) {
-            return false;
-        }
-
-        // FIRE/SOUL_FIRE are neither solid nor liquid, so the checks below don't
-        // catch them on their own — without this explicit check, /rtp could land
-        // a player directly inside a fire block (very common in the Nether, where
-        // findNetherCandidate scans just above netherrack that's frequently
-        // topped with eternal fire). Aligned with the hazards
-        // DeathBackCommand#isSafe already checks for.
-        for (Block block : new Block[] {feet, head}) {
-            Material type = block.getType();
-            if (type == Material.FIRE || type == Material.SOUL_FIRE) {
-                return false;
-            }
-        }
-
-        if (feet.getType().isSolid() || head.getType().isSolid()) {
-            return false;
-        }
-        return !feet.isLiquid() && !head.isLiquid();
+        return SafetyCheck.isSafe(location, true);
     }
 }

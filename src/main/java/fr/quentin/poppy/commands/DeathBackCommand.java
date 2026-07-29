@@ -5,10 +5,9 @@ import fr.quentin.poppy.manager.TeleportManager;
 import fr.quentin.poppy.model.Home;
 import fr.quentin.poppy.util.Messages;
 import fr.quentin.poppy.util.SafeCommand;
+import fr.quentin.poppy.util.SafetyCheck;
 import org.bukkit.Location;
-import org.bukkit.Material;
 import org.bukkit.World;
-import org.bukkit.block.Block;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -136,42 +135,7 @@ public class DeathBackCommand extends SafeCommand {
         return best;
     }
 
-    /**
-     * Checks the given location itself for hazards. Called both on the
-     * exact death spot and on every candidate scanned by
-     * {@link #findNearbySafeSpot}.
-     */
     private boolean isSafe(Location location) {
-        World world = location.getWorld();
-        if (location.getY() < world.getMinHeight() || location.getY() >= world.getMaxHeight()) {
-            return false;
-        }
-
-        Block below = location.clone().subtract(0, 1, 0).getBlock();
-        Block feet = location.getBlock();
-        Block head = location.clone().add(0, 1, 0).getBlock();
-
-        for (Block block : new Block[] {below, feet, head}) {
-            Material type = block.getType();
-            if (type == Material.LAVA || type == Material.FIRE || type == Material.SOUL_FIRE
-                    || type == Material.MAGMA_BLOCK || type == Material.CACTUS) {
-                return false;
-            }
-        }
-
-        // Below must be something the player actually rests on — solid ground OR a
-        // liquid (water is buoyant, no fall) — but not empty air. This is narrower
-        // than a plain "not solid" check (which would accept a fall into open air
-        // above a hazard, the original bug this method was fixed for) while still
-        // deliberately not requiring strictly solid ground like RtpCommand.isSafe
-        // does: a solid-only requirement would reject a water-death location
-        // entirely, sending a drowned player through a search radius instead of
-        // straight back to where they actually died.
-        boolean hasFooting = below.getType().isSolid() || below.isLiquid();
-        if (!hasFooting) {
-            return false;
-        }
-
-        return !feet.getType().isSolid() && !head.getType().isSolid();
+        return SafetyCheck.isSafe(location, false);
     }
 }

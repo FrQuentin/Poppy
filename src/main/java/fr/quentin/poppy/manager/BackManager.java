@@ -26,6 +26,17 @@ public class BackManager {
         backLocations.put(player.getUniqueId(), player.getLocation());
     }
 
+    /**
+     * Same as {@link #recordLocation(Player)}, but with the location supplied
+     * explicitly rather than read from the player's current position at call
+     * time — used by {@code TeleportManager#onTeleportComplete} to commit a
+     * location captured earlier (before an async teleport), only once that
+     * teleport is confirmed to have actually succeeded.
+     */
+    public void recordLocation(Player player, Location location) {
+        backLocations.put(player.getUniqueId(), location);
+    }
+
     public Location getBack(UUID uuid) {
         return backLocations.get(uuid);
     }

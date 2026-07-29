@@ -249,15 +249,22 @@ public class TeleportManager implements Listener {
             return;
         }
 
-        backManager.recordLocation(player);
+        // Captured before the teleport (the origin must reflect where the player
+        // actually was), but not committed to BackManager until the teleport is
+        // confirmed successful in onTeleportComplete — committing it here
+        // unconditionally meant a failed teleportAsync (success == false) still
+        // overwrote whatever /back location the player had before with their own
+        // current position, silently destroying a real /back target for a
+        // teleport that never happened.
+        Location origin = player.getLocation();
 
         player.teleportAsync(location)
                 .thenAccept(success -> {
                     if (!Bukkit.isPrimaryThread()) {
-                        Bukkit.getScheduler().runTask(plugin, () -> onTeleportComplete(player, home, success, successMessagePath, onSuccess));
+                        Bukkit.getScheduler().runTask(plugin, () -> onTeleportComplete(player, origin, home, success, successMessagePath, onSuccess));
                         return;
                     }
-                    onTeleportComplete(player, home, success, successMessagePath, onSuccess);
+                    onTeleportComplete(player, origin, home, success, successMessagePath, onSuccess);
                 })
                 .exceptionally(throwable -> {
                     if (!Bukkit.isPrimaryThread()) {
@@ -269,15 +276,21 @@ public class TeleportManager implements Listener {
                 });
     }
 
+
     /**
      * Only ever runs on the main thread — guaranteed by both callers in
      * {@link #teleportNow}. Safe to touch Bukkit API and mutable state here.
      */
-    private void onTeleportComplete(Player player, Home home, boolean success, String successMessagePath, Runnable onSuccess) {
+    private void onTeleportComplete(Player player, Location origin, Home home, boolean success, String successMessagePath, Runnable onSuccess) {
         if (!success) {
             plugin.getLogger().warning("Teleport of " + player.getName() + " to '" + home.name() + "' did not complete successfully");
             return;
         }
+
+        // Committed only now that the teleport is confirmed successful — see
+        // teleportNow's doc on why this can't happen before the async result is
+        // known.
+        backManager.recordLocation(player, origin);
 
         stats.incrementTeleports();
 

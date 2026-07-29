@@ -33,6 +33,7 @@ import org.bukkit.event.block.BlockPistonRetractEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
@@ -159,6 +160,18 @@ public class DeathChestManager implements Listener {
     private static final int MAX_PROTECTION_CHECKS = 8;
     private static final int VIRTUAL_INVENTORY_SIZE = 54;
     private static final BlockFace CHEST_FACING = BlockFace.SOUTH;
+
+    /**
+     * {@link InventoryAction} values that put an item INTO the clicked slot —
+     * the ones {@link #onDepositClick} blocks when the clicked inventory is a
+     * death chest. Deliberately excludes anything that only removes items
+     * (pickups, {@code COLLECT_TO_CURSOR}, a shift-click moving items OUT to
+     * the player's own inventory) — those stay allowed, since the whole point
+     * is "take-only", not "frozen solid".
+     */
+    private static final EnumSet<InventoryAction> DEPOSIT_ACTIONS = EnumSet.of(
+            InventoryAction.PLACE_ALL, InventoryAction.PLACE_SOME, InventoryAction.PLACE_ONE,
+            InventoryAction.SWAP_WITH_CURSOR, InventoryAction.HOTBAR_SWAP);
 
     /**
      * Marker holder identifying a death chest's virtual inventory, purely
@@ -461,6 +474,85 @@ public class DeathChestManager implements Listener {
             }
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Error in DeathChestManager#onClose", e);
+        }
+    }
+
+    /**
+     * Makes a death chest take-only when {@code death-chest-read-only} is
+     * enabled: blocks any click that would place an item into the chest's
+     * inventory, while leaving every withdrawal path untouched (a normal
+     * pickup, a shift-click moving items OUT to the player's own inventory,
+     * {@code COLLECT_TO_CURSOR}). Without this, a death chest is a free,
+     * unbreakable, explosion/piston-immune storage container for the
+     * duration of its expiry — the storage model that makes it
+     * duplication-proof also happens to make it a great safe, which was
+     * never the intent.
+     *
+     * <p>Runs at {@link EventPriority#HIGH}, before {@link #onChestClick}'s
+     * {@code MONITOR} dirty-tracking — that handler already skips marking
+     * the chest dirty when the event ends up cancelled, so a blocked deposit
+     * correctly never triggers a save.
+     */
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onDepositClick(@NonNull InventoryClickEvent event) {
+        if (!config.deathChestEnabled() || !config.deathChestReadOnly()) {
+            return;
+        }
+
+        if (!(event.getInventory().getHolder() instanceof DeathChestHolder)) {
+            return;
+        }
+
+        try {
+            Inventory topInventory = event.getView().getTopInventory();
+            boolean clickedTop = event.getClickedInventory() == topInventory;
+
+            boolean isDeposit;
+            if (clickedTop) {
+                isDeposit = DEPOSIT_ACTIONS.contains(event.getAction());
+            } else {
+                // A shift-click from the player's own inventory always targets the
+                // other open inventory — here, the death chest — so it's a deposit.
+                isDeposit = event.getAction() == InventoryAction.MOVE_TO_OTHER_INVENTORY;
+            }
+
+            if (isDeposit && event.getWhoClicked() instanceof Player player) {
+                event.setCancelled(true);
+                player.sendMessage(messages.get("death.chest-read-only"));
+            }
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE, "Error in DeathChestManager#onDepositClick for " + event.getWhoClicked().getName(), e);
+        }
+    }
+
+    /**
+     * Same idea as {@link #onDepositClick} but for dragging (holding a click
+     * and sweeping across multiple slots): cancels the whole drag if any
+     * raw slot involved belongs to the death chest's inventory.
+     */
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onDepositDrag(@NonNull InventoryDragEvent event) {
+        if (!config.deathChestEnabled() || !config.deathChestReadOnly()) {
+            return;
+        }
+
+        if (!(event.getInventory().getHolder() instanceof DeathChestHolder)) {
+            return;
+        }
+
+        try {
+            int topSize = event.getView().getTopInventory().getSize();
+            for (int rawSlot : event.getRawSlots()) {
+                if (rawSlot < topSize) {
+                    event.setCancelled(true);
+                    if (event.getWhoClicked() instanceof Player player) {
+                        player.sendMessage(messages.get("death.chest-read-only"));
+                    }
+                    return;
+                }
+            }
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE, "Error in DeathChestManager#onDepositDrag for " + event.getWhoClicked().getName(), e);
         }
     }
 

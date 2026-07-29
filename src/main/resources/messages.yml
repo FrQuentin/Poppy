@@ -159,6 +159,7 @@ death:
   xp-bottle-not-yours: "&4[!] This XP bottle doesn't belong to you!"
   chest-gui-title: "&8{player}'s Death Chest"
   chest-no-adjacent: "&4[!] You can't place a chest against a death chest!"
+  chest-read-only: "&4[!] This chest is read-only — you can take items out, but not put any in!"
 
 sleep:
   status: "&e[!] {player} is now sleeping ({sleeping}/{total} players sleeping)"

@@ -235,3 +235,10 @@ fly-max-duration-warning-seconds: 30
 # small file to disk synchronously each time, so this prevents spamming
 # that write with no real purpose.
 tpa-toggle-cooldown-seconds: 3
+
+# If true, a death chest is take-only: the owner (or a bypass-permission
+# player) can withdraw items from it, but nobody can deposit anything —
+# closing off using it as a free, unbreakable, explosion-immune storage
+# chest for the duration of death-chest-expiry-minutes. Set to false to
+# allow deposits like a normal chest.
+death-chest-read-only: true

@@ -80,6 +80,7 @@ public final class PoppyConfig {
     private volatile boolean deathChestStoreXp;
     private volatile long deathChestExpiryMillis;
     private volatile int deathChestXpRefundPercent;
+    private volatile boolean deathChestReadOnly;
 
     private volatile int tpaExpirySeconds;
     private volatile long tpaRequestCooldownMillis;
@@ -173,6 +174,7 @@ public final class PoppyConfig {
         deathChestStoreXp = c.getBoolean("death-chest-store-xp", true);
         deathChestExpiryMillis = Math.max(0, c.getInt("death-chest-expiry-minutes", 30)) * 60L * 1000L;
         deathChestXpRefundPercent = Math.clamp(c.getInt("death-chest-xp-refund-percent", 50), 0, 100);
+        deathChestReadOnly = c.getBoolean("death-chest-read-only", true);
 
         tpaExpirySeconds = Math.max(5, c.getInt("tpa-expiry-seconds", 60));
         tpaRequestCooldownMillis = Math.max(0, c.getInt("tpa-request-cooldown-seconds", 5)) * 1000L;
@@ -472,5 +474,9 @@ public final class PoppyConfig {
 
     public long tpaToggleCooldownMillis() {
         return tpaToggleCooldownMillis;
+    }
+
+    public boolean deathChestReadOnly() {
+        return deathChestReadOnly;
     }
 }

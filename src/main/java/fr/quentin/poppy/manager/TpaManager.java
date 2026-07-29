@@ -155,18 +155,26 @@ public class TpaManager {
         Player targetPlayer = Bukkit.getPlayer(target);
         Player requesterPlayer = Bukkit.getPlayer(requester);
 
-        if (requesterPlayer != null && targetPlayer != null) {
-            requesterPlayer.sendMessage(messages.get("tpa.expired-requester", "player", targetPlayer.getName()));
+        // Each side notified independently — previously both messages required
+        // BOTH players to still be online, so if either had disconnected in the
+        // meantime, the one still online (waiting on a response) never learned
+        // their request had expired at all; it just silently vanished.
+        if (requesterPlayer != null) {
+            String targetName = targetPlayer != null ? targetPlayer.getName() : nameOf(target);
+            requesterPlayer.sendMessage(messages.get("tpa.expired-requester", "player", targetName));
+            logger.log(PoppyLogger.Category.TPA, requesterPlayer, "request to " + targetName + " expired");
         }
-        if (targetPlayer != null && requesterPlayer != null) {
-            targetPlayer.sendMessage(messages.get("tpa.expired-target", "player", requesterPlayer.getName()));
-        }
-
-        if (requesterPlayer != null && targetPlayer != null) {
-            logger.log(PoppyLogger.Category.TPA, requesterPlayer, "request to " + targetPlayer.getName() + " expired");
+        if (targetPlayer != null) {
+            String requesterName = requesterPlayer != null ? requesterPlayer.getName() : nameOf(requester);
+            targetPlayer.sendMessage(messages.get("tpa.expired-target", "player", requesterName));
         }
 
         removeRequest(target, requester);
+    }
+
+    private String nameOf(UUID uuid) {
+        String name = Bukkit.getOfflinePlayer(uuid).getName();
+        return name != null ? name : "someone";
     }
 
     private void cancelExpiry(UUID target, UUID requester) {

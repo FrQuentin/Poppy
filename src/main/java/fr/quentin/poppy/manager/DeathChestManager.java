@@ -49,10 +49,6 @@ import org.bukkit.scheduler.BukkitTask;
 import org.jspecify.annotations.NonNull;
 
 import java.io.File;
-import java.io.IOException;
-import java.nio.file.AtomicMoveNotSupportedException;
-import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.logging.Level;
@@ -619,6 +615,43 @@ public class DeathChestManager implements Listener {
     }
 
     /**
+     * Prevents a player-placed chest from merging with a death chest's
+     * cosmetic block. {@link #placeChestBlock} forces {@code Type.SINGLE} at
+     * creation, but that doesn't survive an adjacent placement — vanilla
+     * itself reconnects the two halves the moment a matching chest is placed
+     * next to it, turning the marker into one half of a real double chest.
+     * The death chest's actual (always-empty, normally unreachable)
+     * inventory then becomes visible and fillable through the player's own
+     * half — and whatever gets stored there is destroyed with no drop the
+     * moment {@link #removeBlockIfMatching} later calls
+     * {@code setType(AIR)} on the marker at expiry/emptying.
+     */
+    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
+    public void onChestPlaceNextToDeathChest(@NonNull BlockPlaceEvent event) {
+        if (!config.deathChestEnabled()) {
+            return;
+        }
+
+        try {
+            Material placedType = event.getBlock().getType();
+            if (placedType != Material.CHEST && placedType != Material.TRAPPED_CHEST) {
+                return;
+            }
+
+            for (BlockFace face : new BlockFace[] {BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST}) {
+                Block neighbor = event.getBlock().getRelative(face);
+                if (isTrackedDeathChestBlock(neighbor)) {
+                    event.setCancelled(true);
+                    event.getPlayer().sendMessage(messages.get("death.chest-no-adjacent"));
+                    return;
+                }
+            }
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE, "Error in DeathChestManager#onChestPlaceNextToDeathChest", e);
+        }
+    }
+
+    /**
      * True only for a chest block that's both PDC-tagged AND backed by a real
      * {@link ChestData} entry — see {@link #onBreak} for why an orphaned
      * marker (tagged, but no tracked data) must NOT be treated as protected:
@@ -862,9 +895,24 @@ public class DeathChestManager implements Listener {
 
     private void removeBlockIfMatching(Location location, UUID expectedId) {
         Block block = location.getBlock();
-        if (expectedId.equals(chestIdOf(block))) {
-            block.setType(Material.AIR);
+        if (!expectedId.equals(chestIdOf(block))) {
+            return;
         }
+
+        // Belt-and-suspenders: drop any leftover contents of the real tile
+        // entity before destroying it. onChestPlaceNextToDeathChest is the
+        // actual fix (it prevents this block from ever merging with a
+        // player-placed chest in the first place) — this is just a safety net
+        // in case that guard is ever bypassed by a future change.
+        if (block.getState() instanceof Chest chestState) {
+            for (ItemStack item : chestState.getBlockInventory().getContents()) {
+                if (item != null) {
+                    block.getWorld().dropItemNaturally(block.getLocation(), item);
+                }
+            }
+        }
+
+        block.setType(Material.AIR);
     }
 
     /**

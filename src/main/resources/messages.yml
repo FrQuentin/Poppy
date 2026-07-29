@@ -158,6 +158,7 @@ death:
   xp-restored: "&a[!] You feel your experience returning..."
   xp-bottle-not-yours: "&4[!] This XP bottle doesn't belong to you!"
   chest-gui-title: "&8{player}'s Death Chest"
+  chest-no-adjacent: "&4[!] You can't place a chest against a death chest!"
 
 sleep:
   status: "&e[!] {player} is now sleeping ({sleeping}/{total} players sleeping)"

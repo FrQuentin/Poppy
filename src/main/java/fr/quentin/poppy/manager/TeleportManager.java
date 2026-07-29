@@ -9,6 +9,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
@@ -196,10 +197,20 @@ public class TeleportManager implements Listener {
         }
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onDamage(@NonNull EntityDamageEvent event) {
         try {
             if (!config.cancelOnDamage()) {
+                return;
+            }
+
+            // Same guard as FlyManager#onDamage (and CombatListener#onDamage): a
+            // hit cancelled by a protection plugin, or one dealing zero final
+            // damage (a snowball, a fully-absorbed hit), is not "you took
+            // damage" — without this, spamming snowballs at someone from a
+            // protected zone cancelled their teleport warmup repeatedly, for
+            // free, with zero actual damage ever dealt.
+            if (event.getFinalDamage() <= 0) {
                 return;
             }
 

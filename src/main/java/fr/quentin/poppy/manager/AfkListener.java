@@ -130,15 +130,17 @@ public class AfkListener implements Listener {
     public void onCommand(@NonNull PlayerCommandPreprocessEvent event) {
         try {
             String root = event.getMessage().split(" ", 2)[0].toLowerCase(java.util.Locale.ROOT);
-            // /afk itself must stay record-only: clearing + broadcasting here
-            // would fire right before AfkCommand re-toggles it, making /afk
-            // unusable to leave AFK (the original bug this whole split was
-            // written to fix). Any other command is a genuine activity signal
-            // and should clear AFK just like a click or a movement — without
-            // this, a player marked AFK who ran /home and kept playing purely
-            // through commands stayed tagged [AFK] forever until they physically
-            // moved or clicked something.
-            if (root.equals("/afk")) {
+            // Strip an optional plugin-namespace prefix ("/poppy:afk") before
+            // comparing — a vanilla client can type the namespaced form, and
+            // without unwrapping it here, it slipped past the "/afk" check below
+            // and ran the full onActivity() — resurrecting the original bug this
+            // whole split existed to fix (clear + broadcast right before
+            // AfkCommand's own re-toggle, making /afk unusable to leave AFK,
+            // plus a double broadcast).
+            int colon = root.indexOf(':');
+            String bare = colon >= 0 ? "/" + root.substring(colon + 1) : root;
+
+            if (bare.equals("/afk")) {
                 recordActivity(event.getPlayer());
             } else {
                 onActivity(event.getPlayer());

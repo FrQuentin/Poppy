@@ -17,6 +17,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.jspecify.annotations.NonNull;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * Handles /tpaccept <player>: accepts a pending /tpa or /tpahere request
@@ -83,8 +84,6 @@ public class TpaAcceptCommand extends SafeCommand implements TabCompleter {
 
         Player requester = Bukkit.getPlayer(request.requester());
         if (requester == null) {
-            // The requester disconnected between the request and the accept —
-            // nothing left to retry, so this one really is consumed.
             tpaManager.removeRequest(player.getUniqueId(), request.requester());
             player.sendMessage(messages.get("tpa.no-request", "player", args[0]));
             return true;
@@ -110,17 +109,40 @@ public class TpaAcceptCommand extends SafeCommand implements TabCompleter {
             // the requester moves to the accepter (this player)
             logger.log(PoppyLogger.Category.TPA, player, "accepted /tpa from " + requester.getName());
             player.sendMessage(messages.get("tpa.accept-success", "player", requester.getName()));
-            Home destination = Home.fromLocation(player.getName(), player.getLocation());
-            teleportManager.requestTeleport(requester, destination, "tpa.teleported");
+            teleportManager.requestTeleport(requester, liveDestination(player), "tpa.teleported");
         } else {
             // the accepter (this player) moves to the requester
             logger.log(PoppyLogger.Category.TPA, player, "accepted /tpahere from " + requester.getName());
             player.sendMessage(messages.get("tpa.accept-here-success", "player", requester.getName()));
-            Home destination = Home.fromLocation(requester.getName(), requester.getLocation());
-            teleportManager.requestTeleport(player, destination, "tpa.teleported");
+            teleportManager.requestTeleport(player, liveDestination(requester), "tpa.teleported");
         }
 
         return true;
+    }
+
+    /**
+     * Destination re-resolved at the actual moment of teleport (end of
+     * warmup), not frozen at accept time — same supplier pattern as /home,
+     * /spawn, and /sharehome links, which was curiously missing from this,
+     * the only player-to-player teleport. Two effects: (1) the mover arrives
+     * at the destination's CURRENT position, not where they were 3 seconds
+     * ago; (2) the destination-in-combat check is re-evaluated at the end of
+     * the warmup — without this, a requester could send /tpahere right
+     * BEFORE engaging combat and have an untagged ally materialize in the
+     * middle of the fight during the warmup window. Returning null cleanly
+     * cancels the teleport via the existing teleport.target-missing message;
+     * a destination going offline mid-warmup is covered by the same path.
+     */
+    private Supplier<Home> liveDestination(Player destinationOwner) {
+        return () -> {
+            if (!destinationOwner.isOnline()) {
+                return null;
+            }
+            if (destinationInCombat(destinationOwner)) {
+                return null;
+            }
+            return Home.fromLocation(destinationOwner.getName(), destinationOwner.getLocation());
+        };
     }
 
     private boolean destinationInCombat(Player destinationOwner) {

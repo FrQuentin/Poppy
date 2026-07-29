@@ -787,6 +787,18 @@ public class DeathChestManager implements Listener {
         return expiryMillis > 0 && System.currentTimeMillis() - data.createdAt() >= expiryMillis;
     }
 
+    /**
+     * Guarded against a config change since the task was scheduled: the
+     * {@code runTaskLater} delay in {@link #onDeath}/{@link #loadAll} is
+     * fixed at the value {@code death-chest-expiry-minutes} had at
+     * scheduling time. If an admin lengthens (or disables) that setting via
+     * {@code /poppy reload} before this fires, executing unconditionally
+     * would expire the chest early against the admin's own updated
+     * intention. Re-checked against the live config here instead, with any
+     * remaining time rescheduled — the opposite case (an admin shortening the
+     * expiry) is already covered separately by {@link #onChunkLoad}'s
+     * {@link #checkExpiry} call.
+     */
     private void expireIfPresent(UUID id) {
         try {
             ChestData data = chests.get(id);
@@ -794,11 +806,22 @@ public class DeathChestManager implements Listener {
                 return;
             }
 
-            boolean hadItems = !isEmpty(data.inventory);
+            long expiryMillis = config.deathChestExpiryMillis();
+            if (expiryMillis <= 0) {
+                return;
+            }
+
+            long remaining = expiryMillis - (System.currentTimeMillis() - data.createdAt());
+            if (remaining > 0) {
+                Bukkit.getScheduler().runTaskLater(plugin, () -> expireIfPresent(id), Math.max(1L, remaining / 50L));
+                return;
+            }
+
+            boolean hadItems = !isEmpty(data.inventory());
             removeChest(data, true);
 
             if (hadItems) {
-                logger.log(PoppyLogger.Category.DEATH_CHEST, ownerNameOf(data.owner),
+                logger.log(PoppyLogger.Category.DEATH_CHEST, data.ownerName(),
                         "death chest expired, remaining items dropped on the ground");
             }
         } catch (Exception e) {

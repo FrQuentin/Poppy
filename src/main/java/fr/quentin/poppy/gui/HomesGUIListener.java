@@ -250,6 +250,16 @@ public class HomesGUIListener implements Listener {
         clearCursor(event);
 
         if (action.equals(ConfirmDeleteGUI.ACTION_CONFIRM)) {
+            // Re-checked here, not just when the GUI was opened: a modified client
+            // can send command packets while an inventory is open (the server
+            // still processes them), so poppy.delhome could have been removed
+            // mid-session between opening this GUI and clicking Confirm.
+            if (!player.hasPermission("poppy.delhome")) {
+                player.sendMessage(messages.get("general.no-permission"));
+                closeLater(player);
+                return;
+            }
+
             String homeName = holder.getHomeName();
             Home home = homeManager.getHome(player.getUniqueId(), homeName);
             if (home != null) {
@@ -283,7 +293,31 @@ public class HomesGUIListener implements Listener {
         clearCursor(event);
 
         if (action.equals(ConfirmOverwriteGUI.ACTION_CONFIRM)) {
+            // Same reasoning as the permission re-check below: a modified client
+            // can send command packets while this GUI is open, so poppy.sethome
+            // could have been removed mid-session.
+            if (!player.hasPermission("poppy.sethome")) {
+                player.sendMessage(messages.get("general.no-permission"));
+                closeLater(player);
+                return;
+            }
+
             Home pending = holder.getPendingHome();
+
+            // Re-validated here too: between opening this GUI and clicking Confirm,
+            // a modified client could send /delhome + /sethome (the server still
+            // processes command packets sent while an inventory is open). If the
+            // home being "overwritten" was deleted in that window, this is
+            // actually a NEW home, not a replacement — and must go through the
+            // limit check like any other creation, or a player could exceed their
+            // poppy.homes.<n> limit indefinitely.
+            boolean stillExists = homeManager.hasHome(player.getUniqueId(), pending.name());
+            if (!stillExists && homeManager.isFull(player)) {
+                player.sendMessage(messages.get("sethome.full", "max", String.valueOf(homeManager.getLimit(player))));
+                closeLater(player);
+                return;
+            }
+
             homeManager.addHome(player.getUniqueId(), pending);
             logger.log(PoppyLogger.Category.HOME, player, "overwrote home '" + pending.name() + "' at "
                     + pending.worldName() + ": " + (int) pending.x() + ", " + (int) pending.y() + ", " + (int) pending.z());

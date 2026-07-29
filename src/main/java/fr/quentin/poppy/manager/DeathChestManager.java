@@ -192,14 +192,14 @@ public class DeathChestManager implements Listener {
 
     /**
      * One active death chest: its owner, the owner's name cached at creation
-     * time (avoiding a repeated {@link Bukkit#getOfflinePlayer(UUID)} lookup
-     * on every log line or GUI title build — that call can hit disk/the
-     * Mojang cache on some setups, and would otherwise repeat for every
-     * active chest on every {@link #loadAll} too), the single block location
-     * that serves as its cosmetic access point, and the live virtual
-     * {@link Inventory} that actually holds the loot.
+     * time, the world name captured once at creation (not re-resolved from
+     * {@code location.getWorld()} on every save — see {@link #buildSnapshot}
+     * for why that mattered), the single block location that serves as its
+     * cosmetic access point, and the live virtual {@link Inventory} that
+     * actually holds the loot.
      */
-    private record ChestData(UUID id, UUID owner, String ownerName, Location location, long createdAt, Inventory inventory) {
+    private record ChestData(UUID id, UUID owner, String ownerName, String worldName,
+                             Location location, long createdAt, Inventory inventory) {
     }
 
     /**
@@ -921,7 +921,13 @@ public class DeathChestManager implements Listener {
                 messages.get("death.chest-gui-title", "player", ownerName));
         holder.setInventory(inventory);
 
-        return new ChestData(id, owner, ownerName, location, createdAt, inventory);
+        // The world name is captured here, at a moment the world is guaranteed
+        // loaded (a live player's death, or a loadAll entry whose world was just
+        // resolved) — buildSnapshot never calls location.getWorld() again, which
+        // throws IllegalArgumentException if the world was unloaded in the
+        // meantime and would otherwise break persistence for every chest at once,
+        // not just the one in the unloaded world.
+        return new ChestData(id, owner, ownerName, location.getWorld().getName(), location, createdAt, inventory);
     }
 
     /**
@@ -1115,30 +1121,38 @@ public class DeathChestManager implements Listener {
 
     /**
      * Builds the persisted snapshot — shared by {@link #persistAll} and
-     * {@link #persistAllSync} so the clone-on-main-thread logic (see the
-     * class-level doc on {@code ItemStack} thread-safety) only exists in one
-     * place, not duplicated and at risk of drifting between the two callers.
+     * {@link #persistAllSync}.
+     *
+     * <p>Each chest is serialized inside its own try/catch: a single
+     * pathological entry (the world it lived in unloaded mid-session, for
+     * example) must never prevent every other active chest from being saved
+     * — without this isolation, one bad entry threw before anything had been
+     * written, silently stopping persistence entirely from that point on.
      */
     private YamlConfiguration buildSnapshot() {
         YamlConfiguration yaml = new YamlConfiguration();
 
         for (ChestData data : chests.values()) {
-            String base = "chests." + data.id();
-            yaml.set(base + ".owner", data.owner().toString());
-            yaml.set(base + ".owner-name", data.ownerName());
-            yaml.set(base + ".world", data.location().getWorld().getName());
-            yaml.set(base + ".x", data.location().getBlockX());
-            yaml.set(base + ".y", data.location().getBlockY());
-            yaml.set(base + ".z", data.location().getBlockZ());
-            yaml.set(base + ".created", data.createdAt());
+            try {
+                String base = "chests." + data.id();
+                yaml.set(base + ".owner", data.owner().toString());
+                yaml.set(base + ".owner-name", data.ownerName());
+                yaml.set(base + ".world", data.worldName());
+                yaml.set(base + ".x", data.location().getBlockX());
+                yaml.set(base + ".y", data.location().getBlockY());
+                yaml.set(base + ".z", data.location().getBlockZ());
+                yaml.set(base + ".created", data.createdAt());
 
-            List<ItemStack> items = new ArrayList<>();
-            for (ItemStack item : data.inventory().getContents()) {
-                if (item != null) {
-                    items.add(item.clone());
+                List<ItemStack> items = new ArrayList<>();
+                for (ItemStack item : data.inventory().getContents()) {
+                    if (item != null) {
+                        items.add(item.clone());
+                    }
                 }
+                yaml.set(base + ".items", items);
+            } catch (Exception e) {
+                plugin.getLogger().log(Level.SEVERE, "Skipping death chest " + data.id() + " while building the save snapshot", e);
             }
-            yaml.set(base + ".items", items);
         }
 
         return yaml;

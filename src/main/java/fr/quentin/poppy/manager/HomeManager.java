@@ -443,7 +443,7 @@ public class HomeManager {
         return config;
     }
 
-    private void writeToDisk(YamlConfiguration config, File file, UUID uuid) {
+    protected void writeToDisk(YamlConfiguration config, File file, UUID uuid) {
         AtomicYamlWriter.save(config, file, plugin, "homes for " + uuid);
     }
 

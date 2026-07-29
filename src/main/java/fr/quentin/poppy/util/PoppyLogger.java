@@ -7,6 +7,7 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -24,36 +25,31 @@ import java.util.logging.Level;
  * via {@link PoppyConfig}, so {@code /poppy reload} applies immediately.
  *
  * <p>All I/O runs on {@link #ioExecutor}, a single-thread scheduled
- * executor — the same pattern {@link fr.quentin.poppy.manager.HomeManager}
- * uses, for the same two reasons: (1) it avoids ever calling Bukkit's own
- * scheduler, which throws {@code IllegalPluginAccessException} immediately
- * if scheduled after the plugin has been disabled — a real risk here
- * since {@link #log} can be called from async callbacks that may complete
- * just after {@code onDisable}; and (2) a single thread gives a natural,
- * cheap ordering guarantee with no extra locking. Being a
- * {@link ScheduledExecutorService} rather than a plain one also lets
- * {@link #flushTask} run periodically on this same thread, with no need
- * to involve Bukkit's scheduler for that either.
+ * executor — avoids ever calling Bukkit's own scheduler (which throws
+ * {@code IllegalPluginAccessException} if scheduled after the plugin has
+ * been disabled — a real risk since {@link #log} can be called from async
+ * callbacks that may complete just after {@code onDisable}), and gives a
+ * natural ordering guarantee with no extra locking.
  *
- * <p>{@link #writer} is kept open across calls rather than opened and
- * closed per line, and only rotated when the date actually changes — see
- * {@link #writerForToday}. {@link #writeLine} deliberately does
- * <b>not</b> flush after every line: on a busy server (combat, teleport,
- * AFK, death, sleep are all logged by default), that was dozens of
- * {@code fsync}-equivalent disk flushes per second for no real benefit —
- * a shared/hosted disk feels that. Durability is instead handled by
- * {@link #flushTask}, a periodic flush every
- * {@code logging.flush-interval-seconds} (config.yml), plus an
- * unconditional final flush at {@link #shutdown()} (via
- * {@link BufferedWriter#close()}, which flushes before closing).
+ * <p>{@link #writer} is kept open across calls, rotated only when the date
+ * actually changes — see {@link #writerForToday}, which explicitly opens
+ * it with {@link StandardCharsets#UTF_8} rather than the JVM's
+ * platform-default charset: without that, non-ASCII content (a formatted
+ * mob name, a player name with accents, an owner name) could silently be
+ * written using whatever charset the host OS defaults to, corrupting log
+ * files on some hosting setups. {@link #writeLine} does not flush after
+ * every line — durability is instead handled by {@link #flushTask}, a
+ * periodic flush every {@code logging.flush-interval-seconds}
+ * (config.yml), rescheduled by {@link #reapply()} whenever that interval
+ * changes via {@code /poppy reload} (the constructor's initial call to
+ * {@link #scheduleFlushTask} used to be the only time this ever ran,
+ * meaning the interval was effectively fixed until a restart — same class
+ * of problem {@code TabHealthListener#reapply} exists to solve for its own
+ * update interval), plus an unconditional final flush at
+ * {@link #shutdown()}.
  *
  * <p>{@link #purgeOldLogs()} runs once at construction, deleting any
- * {@code poppy-YYYY-MM-DD.log} file older than
- * {@code logging.retention-days} (config.yml, 30 by default; 0 keeps
- * every file forever) — without this, daily log files accumulate
- * indefinitely, and combined with any spam vector that generates a lot of
- * log lines, that can add up to a meaningful amount of disk space over
- * months.
+ * {@code poppy-YYYY-MM-DD.log} file older than {@code logging.retention-days}.
  *
  * <p>{@link #shutdown()} must be called from {@code Poppy#onDisable} to
  * flush and close the open file cleanly and stop accepting new log calls.
@@ -83,7 +79,7 @@ public class PoppyLogger {
     private BufferedWriter writer;
     private volatile boolean shutDown;
 
-    private final ScheduledFuture<?> flushTask;
+    private volatile ScheduledFuture<?> flushTask;
 
     public PoppyLogger(JavaPlugin plugin, PoppyConfig config) {
         this.plugin = plugin;
@@ -94,9 +90,7 @@ public class PoppyLogger {
         }
 
         ioExecutor.execute(this::purgeOldLogs);
-
-        long intervalSeconds = config.loggingFlushIntervalSeconds();
-        flushTask = ioExecutor.scheduleAtFixedRate(this::flushPeriodically, intervalSeconds, intervalSeconds, TimeUnit.SECONDS);
+        scheduleFlushTask();
     }
 
     public void log(Category category, Player player, String message) {
@@ -125,9 +119,31 @@ public class PoppyLogger {
     }
 
     /**
+     * Re-applies the flush interval from the current config — call after a
+     * config reload so a changed {@code logging.flush-interval-seconds}
+     * takes effect without restarting the server. Same pattern as
+     * {@code TabHealthListener#reapply}.
+     */
+    public void reapply() {
+        scheduleFlushTask();
+    }
+
+    /**
+     * Cancels the currently scheduled flush task (if any) and reschedules
+     * it with the interval currently in config.yml — called both from the
+     * constructor and from {@link #reapply()}.
+     */
+    private void scheduleFlushTask() {
+        if (flushTask != null) {
+            flushTask.cancel(false);
+        }
+        long intervalSeconds = config.loggingFlushIntervalSeconds();
+        flushTask = ioExecutor.scheduleAtFixedRate(this::flushPeriodically, intervalSeconds, intervalSeconds, TimeUnit.SECONDS);
+    }
+
+    /**
      * Only ever runs on {@link #ioExecutor}'s single thread. Does not
-     * flush — see the class-level doc on why that's handled by
-     * {@link #flushTask} instead.
+     * flush — see the class-level doc.
      */
     @SuppressWarnings("resource")
     private void writeLine(String line) {
@@ -142,7 +158,7 @@ public class PoppyLogger {
 
     /**
      * Periodic durability flush — only ever runs on {@link #ioExecutor}'s
-     * single thread, same as every other method touching {@link #writer}.
+     * single thread.
      */
     private void flushPeriodically() {
         if (writer == null) {
@@ -157,9 +173,7 @@ public class PoppyLogger {
 
     /**
      * Returns the writer for today's file, opening a new one only when the
-     * date has actually changed since the last write (or on the very
-     * first write) — the writer otherwise stays open across calls rather
-     * than being reopened per line.
+     * date has actually changed since the last write.
      */
     private BufferedWriter writerForToday() throws IOException {
         LocalDate today = LocalDate.now();
@@ -171,7 +185,9 @@ public class PoppyLogger {
 
         currentFileDate = today;
         File file = new File(logsFolder, FILE_PREFIX + today.format(FILE_DATE_FORMAT) + FILE_SUFFIX);
-        writer = new BufferedWriter(new FileWriter(file, true));
+        // Explicit UTF-8, not the JVM's platform-default charset — see the
+        // class-level doc.
+        writer = new BufferedWriter(new FileWriter(file, StandardCharsets.UTF_8, true));
         return writer;
     }
 
@@ -189,10 +205,8 @@ public class PoppyLogger {
 
     /**
      * Deletes any {@code poppy-YYYY-MM-DD.log} file older than
-     * {@code logging.retention-days} — see the class-level doc. Runs once
-     * at construction, off the main thread via {@link #ioExecutor}. A file
-     * whose name doesn't parse as one of ours (manually renamed,
-     * unexpected format) is left alone rather than guessed at.
+     * {@code logging.retention-days} — runs once at construction, off the
+     * main thread via {@link #ioExecutor}.
      */
     private void purgeOldLogs() {
         int retentionDays = config.loggingRetentionDays();
@@ -200,7 +214,7 @@ public class PoppyLogger {
             return;
         }
 
-        File[] files = logsFolder.listFiles((_, name) -> name.startsWith(FILE_PREFIX) && name.endsWith(FILE_SUFFIX));
+        File[] files = logsFolder.listFiles((dir, name) -> name.startsWith(FILE_PREFIX) && name.endsWith(FILE_SUFFIX));
         if (files == null) {
             return;
         }
@@ -221,14 +235,14 @@ public class PoppyLogger {
 
     /**
      * Stops accepting new log calls, cancels the periodic flush, flushes
-     * and closes the currently open file (via {@link BufferedWriter#close()},
-     * which flushes first), then shuts the executor down. Must be called
-     * from {@code Poppy#onDisable} — without it, the last few buffered
-     * lines of a session could be lost, and the file handle would leak.
+     * and closes the currently open file, then shuts the executor down.
+     * Must be called from {@code Poppy#onDisable}.
      */
     public void shutdown() {
         shutDown = true;
-        flushTask.cancel(false);
+        if (flushTask != null) {
+            flushTask.cancel(false);
+        }
         ioExecutor.execute(this::closeWriterQuietly);
         ioExecutor.shutdown();
     }

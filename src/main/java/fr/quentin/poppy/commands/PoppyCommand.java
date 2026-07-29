@@ -1,7 +1,7 @@
 package fr.quentin.poppy.commands;
 
-import fr.quentin.poppy.listeners.TabHealthListener;
 import fr.quentin.poppy.manager.SleepPercentageListener;
+import fr.quentin.poppy.listeners.TabHealthListener;
 import fr.quentin.poppy.util.CooldownStore;
 import fr.quentin.poppy.util.Messages;
 import fr.quentin.poppy.util.PoppyConfig;
@@ -29,12 +29,16 @@ import java.util.List;
 
 /**
  * Handles /poppy: with no argument, a small easter egg (places or drops a
- * poppy). With {@code reload}, reloads config.yml and messages.yml live.
+ * poppy). With {@code reload}, reloads config.yml and messages.yml live,
+ * and re-applies every setting that can't be picked up automatically by
+ * {@link PoppyConfig}'s own live reads alone — the sleep gamerule
+ * ({@link SleepPercentageListener#reapply}), the tab-health refresh
+ * interval ({@link TabHealthListener#reapply}), and the Poppy log file's
+ * flush interval ({@link PoppyLogger#reapply}).
  *
  * <p>The easter egg is rate-limited via
  * {@code poppy-easteregg-cooldown-seconds} in config.yml, tracked in a
- * shared {@link CooldownStore} rather than a raw
- * {@code Map<UUID, Long>} — same reasoning as {@link AfkCommand}.
+ * shared {@link CooldownStore}.
  */
 public class PoppyCommand extends SafeCommand implements TabCompleter {
 
@@ -89,6 +93,7 @@ public class PoppyCommand extends SafeCommand implements TabCompleter {
         messages.reload();
         sleepPercentageListener.reapply();
         tabHealthListener.reapply();
+        logger.reapply();
 
         String actorName = sender instanceof Player player ? player.getName() : "CONSOLE";
         logger.log(PoppyLogger.Category.ADMIN, actorName, "reloaded config.yml and messages.yml");

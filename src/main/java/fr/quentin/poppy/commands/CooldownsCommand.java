@@ -41,7 +41,7 @@ public class CooldownsCommand extends SafeCommand {
         player.sendMessage(Component.empty());
 
         for (CooldownRegistry.Entry entry : registry.entries()) {
-            long remaining = entry.store().remainingSeconds(player.getUniqueId());
+            long remaining = entry.remainingSecondsProvider().apply(player.getUniqueId());
             if (remaining > 0) {
                 player.sendMessage(messages.get("cooldowns.line-active", "name", entry.displayName(), "time", DurationFormat.format(remaining)));
             } else {

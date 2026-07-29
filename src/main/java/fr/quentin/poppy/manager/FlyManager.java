@@ -89,7 +89,7 @@ public class FlyManager implements Listener {
         this.config = config;
         this.combatManager = combatManager;
         this.lockoutStore = new CooldownStore(plugin);
-        registry.register("Fly", lockoutStore);
+        registry.registerCustom("Fly", this::displayRemainingSeconds);
 
         Bukkit.getScheduler().runTaskTimer(plugin, this::tickParticles, PARTICLE_INTERVAL_TICKS, PARTICLE_INTERVAL_TICKS);
         Bukkit.getScheduler().runTaskTimer(plugin, this::tickFlightDuration, DURATION_TICK_INTERVAL_TICKS, DURATION_TICK_INTERVAL_TICKS);

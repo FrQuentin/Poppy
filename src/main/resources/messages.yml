@@ -131,6 +131,7 @@ tpa:
   destination-in-combat: "&4[!] You can't teleport there right now — the destination is in combat!"
   toggle-off-reminder: "&e[!] Reminder: you have teleport requests blocked. Use /tpatoggle to re-enable them."
   toggle-cooldown: "&4[!] Please wait {time} before using /tpatoggle again!"
+  destination-combat-during-warmup: "&4[!] Teleport cancelled — the destination entered combat while you were teleporting!"
 
 poppy:
   wrong-gamemode: "&4[!] You need to be in Survival or Creative mode to do this!"

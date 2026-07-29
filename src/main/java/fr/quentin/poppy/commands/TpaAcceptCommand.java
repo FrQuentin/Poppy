@@ -24,27 +24,19 @@ import java.util.function.Supplier;
  * from the given player. Which of the two players actually moves depends
  * on the request's {@link TpaManager.Type} — see {@link TpaManager}.
  *
- * <p>The actual teleport goes through {@link TeleportManager#requestTeleport},
- * so the usual warmup/cancel-on-move/combat-tag rules apply to whoever is
- * moving. That check alone, though, only ever looks at the mover's own
- * combat tag — it says nothing about the <i>destination</i>. Without
- * {@link #destinationInCombat}, {@code /tpahere} could be used to bring
- * an untagged ally straight into an ongoing fight (the requester who's
- * losing calls the shots, the accepter who arrives is never tagged
- * themselves, so the mover-only check never fires) — the anti-flee
- * mechanic is honored to the letter but defeated in spirit. Checked
- * against whichever player's location is actually the destination: for
- * {@link TpaManager.Type#NORMAL} that's the accepter ({@code player}, the
- * one who typed {@code /tpaccept}); for {@link TpaManager.Type#HERE} it's
- * the requester.
+ * <p>The destination is re-resolved at the actual moment of teleport (end
+ * of warmup), not frozen at accept time — see {@link #liveDestination}.
+ * Without that, the destination-in-combat check
+ * ({@link #destinationInCombat}) only ever ran once, at accept time: a
+ * requester could send /tpahere right BEFORE engaging combat and have an
+ * untagged ally materialize in the middle of the fight during the
+ * {@code teleport-warmup-seconds} window.
  *
- * <p>{@link TpaManager#removeRequest} is only called once every validation
- * (target offline, distance, destination combat) has already passed —
- * not eagerly at the top of the method. A request rejected by, say, the
- * distance check is left intact rather than consumed: without this, a
- * failed {@code /tpaccept} would force both players to send a brand new
- * request just to retry, even though nothing about the original request
- * was actually invalid, just momentarily out of range.
+ * <p>{@link TpaManager#removeRequest} is only called once every
+ * validation (target offline, distance, destination combat) has already
+ * passed — a request rejected by, say, the distance check is left intact
+ * rather than consumed, so both players can simply retry without
+ * re-sending a brand new request.
  */
 public class TpaAcceptCommand extends SafeCommand implements TabCompleter {
 
@@ -109,12 +101,12 @@ public class TpaAcceptCommand extends SafeCommand implements TabCompleter {
             // the requester moves to the accepter (this player)
             logger.log(PoppyLogger.Category.TPA, player, "accepted /tpa from " + requester.getName());
             player.sendMessage(messages.get("tpa.accept-success", "player", requester.getName()));
-            teleportManager.requestTeleport(requester, liveDestination(player), "tpa.teleported");
+            teleportManager.requestTeleportResolved(requester, liveDestination(player), "tpa.teleported", null);
         } else {
             // the accepter (this player) moves to the requester
             logger.log(PoppyLogger.Category.TPA, player, "accepted /tpahere from " + requester.getName());
             player.sendMessage(messages.get("tpa.accept-here-success", "player", requester.getName()));
-            teleportManager.requestTeleport(player, liveDestination(requester), "tpa.teleported");
+            teleportManager.requestTeleportResolved(player, liveDestination(requester), "tpa.teleported", null);
         }
 
         return true;
@@ -122,26 +114,20 @@ public class TpaAcceptCommand extends SafeCommand implements TabCompleter {
 
     /**
      * Destination re-resolved at the actual moment of teleport (end of
-     * warmup), not frozen at accept time — same supplier pattern as /home,
-     * /spawn, and /sharehome links, which was curiously missing from this,
-     * the only player-to-player teleport. Two effects: (1) the mover arrives
-     * at the destination's CURRENT position, not where they were 3 seconds
-     * ago; (2) the destination-in-combat check is re-evaluated at the end of
-     * the warmup — without this, a requester could send /tpahere right
-     * BEFORE engaging combat and have an untagged ally materialize in the
-     * middle of the fight during the warmup window. Returning null cleanly
-     * cancels the teleport via the existing teleport.target-missing message;
-     * a destination going offline mid-warmup is covered by the same path.
+     * warmup) — see the class-level doc. Returns a distinct
+     * {@link TeleportManager.Resolution#failureMessagePath()} per failure
+     * reason: "went offline" vs "re-entered combat" are very different
+     * situations for the mover to understand.
      */
-    private Supplier<Home> liveDestination(Player destinationOwner) {
+    private Supplier<TeleportManager.Resolution> liveDestination(Player destinationOwner) {
         return () -> {
             if (!destinationOwner.isOnline()) {
-                return null;
+                return new TeleportManager.Resolution(null, "teleport.target-missing");
             }
             if (destinationInCombat(destinationOwner)) {
-                return null;
+                return new TeleportManager.Resolution(null, "tpa.destination-combat-during-warmup");
             }
-            return Home.fromLocation(destinationOwner.getName(), destinationOwner.getLocation());
+            return TeleportManager.Resolution.of(Home.fromLocation(destinationOwner.getName(), destinationOwner.getLocation()));
         };
     }
 

@@ -41,14 +41,13 @@ public final class Poppy extends JavaPlugin {
         CooldownRegistry cooldownRegistry = new CooldownRegistry();
         poppyLogger = new PoppyLogger(this, config);
 
-
         TpaManager tpaManager = new TpaManager(this, messages, config, poppyLogger);
 
         HomesGUI homesGUI = new HomesGUI(this, messages);
         ConfirmDeleteGUI confirmDeleteGUI = new ConfirmDeleteGUI(this, messages);
         ConfirmOverwriteGUI confirmOverwriteGUI = new ConfirmOverwriteGUI(this, messages);
         BackManager backManager = new BackManager();
-        CombatManager combatManager = new CombatManager(config);
+        CombatManager combatManager = new CombatManager(config, cooldownRegistry);
         TeleportManager teleportManager = new TeleportManager(this, messages, config, backManager, combatManager, stats, poppyLogger);
         ShareManager shareManager = new ShareManager(this, config);
         TrashGUI trashGUI = new TrashGUI(messages, config);

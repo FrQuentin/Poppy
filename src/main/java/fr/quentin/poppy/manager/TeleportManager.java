@@ -36,32 +36,43 @@ import java.util.logging.Level;
  *
  * <p>An optional {@code onSuccess} callback runs only once the teleport has
  * actually completed (see {@link #teleportNow}), not merely once it was
- * requested or accepted — this matters for callers like
- * {@code DeathBackCommand}, which needs to invalidate the death-location
- * link only after the player genuinely arrives, not just because the
- * warmup started (a combat-tag rejection during warmup would otherwise
- * burn the link for a teleport that never happened).
+ * requested or accepted.
  *
- * <p>The destination is a {@link Supplier<Home>}, re-resolved right before
- * the actual teleport — so a home/spawn deleted mid-warmup cancels instead
- * of using stale coordinates.
+ * <p>The destination is resolved via a {@link Resolution} supplier,
+ * re-resolved right before the actual teleport (not just once at request
+ * time) — so a home/spawn deleted mid-warmup cancels instead of using
+ * stale coordinates. {@link Resolution} carries an optional
+ * {@code failureMessagePath} so a caller can distinguish WHY a
+ * destination stopped being valid (e.g. {@code TpaAcceptCommand}
+ * distinguishing "the destination went offline" from "the destination
+ * re-entered combat during the warmup") — previously every such failure
+ * showed the same generic {@code teleport.target-missing} message.
  *
  * <p><b>{@link #onTeleportComplete}/{@link #onTeleportFailed} only ever run
- * on the main thread</b> — both {@code teleportAsync(...)}'s
- * {@code thenAccept}/{@code exceptionally} callbacks in {@link #teleportNow}
- * explicitly re-check {@link Bukkit#isPrimaryThread()} and defer via
- * {@link Bukkit#getScheduler()} if not, rather than assuming Paper's
- * teleport future always completes on the main thread. It does today, but
- * that's an implementation detail — the exact same class of assumption
- * {@code RtpCommand}'s {@code handleChunkLoaded} explicitly guards against.
- * An inconsistency between the two classes on this point was a sign one of
- * them was wrong, not that the assumption was safe; both now share the
- * same guard. This matters because these callbacks touch Bukkit API
- * (messaging, {@link PoppyStats}, {@link PoppyLogger}) and the caller's
- * {@code onSuccess} callback, which can itself mutate plain (unsynchronized)
- * collections — e.g. {@code DeathLocationManager#remove}.
+ * on the main thread</b> — both {@code teleportAsync(...)}'s callbacks in
+ * {@link #teleportNow} explicitly re-check {@link Bukkit#isPrimaryThread()}
+ * and defer if not, rather than assuming Paper's teleport future always
+ * completes on the main thread.
+ *
+ * <p>{@link #pendingTasks}/{@link #startLocations} only hold entries for
+ * the few seconds a warmup is active, so they're not a memory-leak risk
+ * and don't need an explicit quit listener — the running
+ * {@link BukkitRunnable} self-cleans via {@code !player.isOnline()} on its
+ * very next tick.
  */
 public class TeleportManager implements Listener {
+
+    /**
+     * A resolved (or failed-to-resolve) teleport destination. {@code home}
+     * null means the teleport can't proceed; {@code failureMessagePath}, if
+     * non-null, overrides the generic {@code teleport.target-missing}
+     * message with something more specific to why.
+     */
+    public record Resolution(Home home, String failureMessagePath) {
+        public static Resolution of(Home home) {
+            return new Resolution(home, null);
+        }
+    }
 
     private final JavaPlugin plugin;
     private final Messages messages;
@@ -86,31 +97,39 @@ public class TeleportManager implements Listener {
     }
 
     public boolean requestTeleport(Player player, Home home) {
-        return requestTeleport(player, () -> home, "home.success", null);
+        return requestTeleportInternal(player, () -> Resolution.of(home), "home.success", null);
     }
 
     public boolean requestTeleport(Player player, Home home, String successMessagePath) {
-        return requestTeleport(player, () -> home, successMessagePath, null);
+        return requestTeleportInternal(player, () -> Resolution.of(home), successMessagePath, null);
     }
 
     public boolean requestTeleport(Player player, Home home, String successMessagePath, Runnable onSuccess) {
-        return requestTeleport(player, () -> home, successMessagePath, onSuccess);
+        return requestTeleportInternal(player, () -> Resolution.of(home), successMessagePath, onSuccess);
     }
 
     public boolean requestTeleport(Player player, Supplier<Home> homeSupplier, String successMessagePath) {
-        return requestTeleport(player, homeSupplier, successMessagePath, null);
+        return requestTeleportInternal(player, () -> Resolution.of(homeSupplier.get()), successMessagePath, null);
+    }
+
+    public boolean requestTeleport(Player player, Supplier<Home> homeSupplier, String successMessagePath, Runnable onSuccess) {
+        return requestTeleportInternal(player, () -> Resolution.of(homeSupplier.get()), successMessagePath, onSuccess);
     }
 
     /**
-     * Same as {@link #requestTeleport(Player, Supplier, String)}, but with
-     * an {@code onSuccess} callback run only once the teleport has actually
-     * completed — see the class-level doc for why that distinction matters.
+     * Same as the {@link Supplier}{@code <Home>} overloads, but with a
+     * {@link Resolution} supplier that can attach a specific failure
+     * message — see {@link Resolution} for why that matters.
      *
      * @return true if the request was accepted (warmup started, or an
      *         instant teleport was dispatched); false if rejected outright
      *         because the player is combat-tagged.
      */
-    public boolean requestTeleport(Player player, Supplier<Home> homeSupplier, String successMessagePath, Runnable onSuccess) {
+    public boolean requestTeleportResolved(Player player, Supplier<Resolution> resolutionSupplier, String successMessagePath, Runnable onSuccess) {
+        return requestTeleportInternal(player, resolutionSupplier, successMessagePath, onSuccess);
+    }
+
+    private boolean requestTeleportInternal(Player player, Supplier<Resolution> resolutionSupplier, String successMessagePath, Runnable onSuccess) {
         UUID uuid = player.getUniqueId();
 
         if (combatManager.isInCombat(uuid)) {
@@ -122,7 +141,7 @@ public class TeleportManager implements Listener {
 
         int warmupSeconds = config.teleportWarmupSeconds();
         if (warmupSeconds <= 0) {
-            teleportNow(player, homeSupplier, successMessagePath, onSuccess);
+            teleportNow(player, resolutionSupplier, successMessagePath, onSuccess);
             return true;
         }
 
@@ -150,7 +169,7 @@ public class TeleportManager implements Listener {
                     if (remaining <= 0) {
                         pendingTasks.remove(uuid);
                         startLocations.remove(uuid);
-                        teleportNow(player, homeSupplier, successMessagePath, onSuccess);
+                        teleportNow(player, resolutionSupplier, successMessagePath, onSuccess);
                         cancel();
                         return;
                     }
@@ -204,12 +223,6 @@ public class TeleportManager implements Listener {
                 return;
             }
 
-            // Same guard as FlyManager#onDamage (and CombatListener#onDamage): a
-            // hit cancelled by a protection plugin, or one dealing zero final
-            // damage (a snowball, a fully-absorbed hit), is not "you took
-            // damage" — without this, spamming snowballs at someone from a
-            // protected zone cancelled their teleport warmup repeatedly, for
-            // free, with zero actual damage ever dealt.
             if (event.getFinalDamage() <= 0) {
                 return;
             }
@@ -236,10 +249,12 @@ public class TeleportManager implements Listener {
         startLocations.remove(uuid);
     }
 
-    protected void teleportNow(Player player, Supplier<Home> homeSupplier, String successMessagePath, Runnable onSuccess) {
-        Home home = homeSupplier.get();
+    protected void teleportNow(Player player, Supplier<Resolution> resolutionSupplier, String successMessagePath, Runnable onSuccess) {
+        Resolution resolution = resolutionSupplier.get();
+        Home home = resolution.home();
         if (home == null) {
-            player.sendMessage(messages.get("teleport.target-missing"));
+            String path = resolution.failureMessagePath() != null ? resolution.failureMessagePath() : "teleport.target-missing";
+            player.sendMessage(messages.get(path));
             return;
         }
 
@@ -249,13 +264,9 @@ public class TeleportManager implements Listener {
             return;
         }
 
-        // Captured before the teleport (the origin must reflect where the player
-        // actually was), but not committed to BackManager until the teleport is
-        // confirmed successful in onTeleportComplete — committing it here
-        // unconditionally meant a failed teleportAsync (success == false) still
-        // overwrote whatever /back location the player had before with their own
-        // current position, silently destroying a real /back target for a
-        // teleport that never happened.
+        // Captured before the teleport (the origin must reflect where the
+        // player actually was), but not committed to BackManager until the
+        // teleport is confirmed successful in onTeleportComplete.
         Location origin = player.getLocation();
 
         player.teleportAsync(location)
@@ -276,20 +287,16 @@ public class TeleportManager implements Listener {
                 });
     }
 
-
     /**
      * Only ever runs on the main thread — guaranteed by both callers in
-     * {@link #teleportNow}. Safe to touch Bukkit API and mutable state here.
+     * {@link #teleportNow}.
      */
-    private void onTeleportComplete(Player player, Location origin, Home home, boolean success, String successMessagePath, Runnable onSuccess) {
+    protected void onTeleportComplete(Player player, Location origin, Home home, boolean success, String successMessagePath, Runnable onSuccess) {
         if (!success) {
             plugin.getLogger().warning("Teleport of " + player.getName() + " to '" + home.name() + "' did not complete successfully");
             return;
         }
 
-        // Committed only now that the teleport is confirmed successful — see
-        // teleportNow's doc on why this can't happen before the async result is
-        // known.
         backManager.recordLocation(player, origin);
 
         stats.incrementTeleports();

@@ -1,5 +1,6 @@
 package fr.quentin.poppy.manager;
 
+import fr.quentin.poppy.util.CooldownRegistry;
 import fr.quentin.poppy.util.PoppyConfig;
 
 import java.util.HashMap;
@@ -15,8 +16,9 @@ public class CombatManager {
     private final PoppyConfig config;
     private final Map<UUID, Long> combatEndTimes = new HashMap<>();
 
-    public CombatManager(PoppyConfig config) {
+    public CombatManager(PoppyConfig config, CooldownRegistry registry) {
         this.config = config;
+        registry.registerCustom("Combat", this::remainingSeconds);
     }
 
     public void tag(UUID uuid) {

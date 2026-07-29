@@ -54,7 +54,7 @@ public final class Poppy extends JavaPlugin {
         AfkManager afkManager = new AfkManager();
         DeathLocationManager deathLocationManager = new DeathLocationManager();
         deathChestManager = new DeathChestManager(this, messages, config, poppyLogger);
-        FlyManager flyManager = new FlyManager(this, messages, config, combatManager, cooldownRegistry);
+        FlyManager flyManager = new FlyManager(this, messages, config, combatManager);
 
         // Both created here (not inline at registerEvents time) since PoppyCommand
         // needs a reference to each to call reapply() from /poppy reload.

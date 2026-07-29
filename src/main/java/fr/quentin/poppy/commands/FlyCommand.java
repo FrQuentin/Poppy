@@ -41,6 +41,10 @@ public class FlyCommand extends SafeCommand {
             case ENABLED -> player.sendMessage(messages.get("fly.enabled"));
             case DISABLED -> player.sendMessage(messages.get("fly.disabled"));
             case BLOCKED_END -> player.sendMessage(messages.get("fly.blocked-end"));
+            case NO_BUDGET -> {
+                long time = flyManager.secondsUntilAnyBudget(player.getUniqueId());
+                player.sendMessage(messages.get("fly.no-budget", "time", DurationFormat.format(time)));
+            }
         }
         return true;
     }

@@ -45,46 +45,38 @@ import java.util.logging.Level;
  * <p><b>Only ever acts on flight this class itself granted</b> —
  * {@link #disableFlightAndLock}, {@link #onJoin}, {@link #onGameModeChange}
  * all gate on {@link #activeFly}. {@code fly-force-disable-on-join}
- * (default true) opts out of the one safety net that can't fully avoid
- * touching third-party-granted flight (a VIP rank's flight perk, a staff
- * mode, another plugin).
+ * opts out of the one safety net that can't fully avoid touching
+ * third-party-granted flight.
  *
- * <p><b>Cumulative flight time budget:</b> {@link #flightBudgets} tracks,
- * per player, how much total time they've had /fly enabled, alongside the
- * last moment they were actively tracked. Incremented every second by
- * {@link #tickFlightDuration} for anyone in {@link #activeFly}, whether
- * airborne or not. Deliberately cumulative, not per-session — toggling
- * /fly off and back on does NOT reset it; only actually hitting
- * {@code fly-max-duration-minutes} and paying the real
- * {@code fly-max-duration-cooldown-minutes} cooldown does. Two invariant
- * bypasses were found and closed for this exact rule:
- * <ul>
- *   <li>{@link #disableFlightAndLock} (the short post-damage lockout)
- *   used to clear the budget too — trading the long cap cooldown for the
- *   short damage lockout by taking a trivial hit right before the cap.
- *   It no longer touches the budget at all.</li>
- *   <li>{@link #onQuit} used to clear the budget as an anti-memory-leak
- *   measure — once the above was fixed, that turned a 5-second relog into
- *   the cheapest bypass of all, with not even the 30s lockout the first
- *   exploit cost. {@link #purgeStaleBudgets}, run every 5 minutes, closes
- *   this without reintroducing the leak: each entry is only evicted after
- *   being inactive for at least {@code fly-max-duration-cooldown-minutes}
- *   — a player offline that long has, in effect, already paid the
- *   cooldown, so there's nothing left to protect by keeping the entry.</li>
- * </ul>
+ * <p><b>Regenerating flight budget (a stamina bar, not a hard cooldown):</b>
+ * {@link #flightBudgets} tracks, per player, how much of
+ * {@code fly-max-duration-minutes} is currently used up. Flying (being in
+ * {@link #activeFly}) drains it 1 second per second, exactly, via the
+ * per-tick increments in {@link #tickFlightDuration}. NOT flying
+ * regenerates it — also 1 second per second — computed lazily from wall-clock
+ * time via {@link #computeCurrentUsedMillis} rather than a separate ticking
+ * task, so it keeps regenerating even while the player is offline, exactly
+ * like a stamina bar would. There is no separate fixed "cooldown after
+ * hitting the cap" anymore: once the budget is fully drained, {@code /fly}
+ * is simply blocked until enough of it has regenerated (see
+ * {@link #toggle}'s {@link ToggleResult#NO_BUDGET}) — the wait time is
+ * whatever's left to regenerate, shrinking every second, not a flat timer.
+ *
+ * <p>Two invariants that motivated this design, both closed by earlier
+ * fixes and preserved here: the budget must never reset for free (a
+ * relog, or a short post-damage lockout, must not restore it — see
+ * {@link #disableFlightAndLock} and {@link #onQuit}, which both freeze
+ * the current value rather than clearing it), and it must not leak memory
+ * for players who log out and never return — {@link #purgeStaleBudgets}
+ * removes any entry that's regenerated back to zero, computed the same
+ * wall-clock way whether the player is online or not, so no separate
+ * retention window is needed.
  *
  * <p>{@link #remainingFlightBudgetSeconds} returns 0 whenever
- * {@link #isLocked} is true — a display choice ("you can't fly right
- * now"), not a reflection of the underlying budget, which is preserved
- * under a lockout and becomes visible again once it ends.
- *
- * <p>Registered in {@link CooldownRegistry} via
- * {@code registerCustom("Fly", this::displayRemainingSeconds)} rather
- * than exposing {@link #lockoutStore} directly — {@code displayRemainingSeconds}
- * already combines the lockout with an active combat tag, which
- * {@code /fly}/{@code /flytime} also show; registering the raw store
- * alone would have let {@code /cooldowns} claim "Fly: Ready" while a
- * player was actually blocked purely by their combat tag.
+ * {@link #isLocked} is true (post-damage lockout or an active combat
+ * tag) — a display choice, not a reflection of the underlying budget,
+ * which is preserved under a lockout and becomes visible again once it
+ * ends.
  *
  * <p>Fall damage never triggers a lockout. Flight can't be enabled while
  * in the End, and is force-disabled if an already-flying player ends up
@@ -92,9 +84,14 @@ import java.util.logging.Level;
  */
 public class FlyManager implements Listener {
 
-    public enum ToggleResult { ENABLED, DISABLED, BLOCKED_END }
+    public enum ToggleResult { ENABLED, DISABLED, BLOCKED_END, NO_BUDGET }
 
-    private record FlightBudget(long usedMillis, long lastActiveMillis) {
+    /**
+     * {@code usedMillis} is only guaranteed exact as of
+     * {@code lastUpdateMillis} — see {@link #computeCurrentUsedMillis} for
+     * how it's projected forward/backward from there.
+     */
+    private record FlightBudget(long usedMillis, long lastUpdateMillis) {
     }
 
     private static final long PARTICLE_INTERVAL_TICKS = 4L;
@@ -113,13 +110,12 @@ public class FlyManager implements Listener {
     private final Map<UUID, FlightBudget> flightBudgets = new HashMap<>();
     private final Set<UUID> warnedThisCycle = new HashSet<>();
 
-    public FlyManager(JavaPlugin plugin, Messages messages, PoppyConfig config, CombatManager combatManager, CooldownRegistry registry) {
+    public FlyManager(JavaPlugin plugin, Messages messages, PoppyConfig config, CombatManager combatManager) {
         this.plugin = plugin;
         this.messages = messages;
         this.config = config;
         this.combatManager = combatManager;
         this.lockoutStore = new CooldownStore(plugin);
-        registry.registerCustom("Fly", this::displayRemainingSeconds);
 
         Bukkit.getScheduler().runTaskTimer(plugin, this::tickParticles, PARTICLE_INTERVAL_TICKS, PARTICLE_INTERVAL_TICKS);
         Bukkit.getScheduler().runTaskTimer(plugin, this::tickFlightDuration, DURATION_TICK_INTERVAL_TICKS, DURATION_TICK_INTERVAL_TICKS);
@@ -128,14 +124,22 @@ public class FlyManager implements Listener {
 
     /**
      * Toggles flight for the player. Returns {@link ToggleResult#BLOCKED_END}
-     * without changing anything if they're currently in the End and trying
-     * to turn flight on — turning it off is always allowed regardless of
-     * world.
+     * if they're in the End, or {@link ToggleResult#NO_BUDGET} if their
+     * flight budget is currently fully drained (nothing has regenerated
+     * yet) — turning it off is always allowed regardless of either.
      */
     public ToggleResult toggle(Player player) {
         UUID uuid = player.getUniqueId();
+        long now = System.currentTimeMillis();
 
         if (activeFly.contains(uuid)) {
+            // Freeze the exact budget state at the moment flight stops, so
+            // regeneration starts counting from right now, not from whenever
+            // the last per-second tick happened to run.
+            FlightBudget budget = flightBudgets.get(uuid);
+            if (budget != null) {
+                flightBudgets.put(uuid, new FlightBudget(budget.usedMillis(), now));
+            }
             activeFly.remove(uuid);
             player.setAllowFlight(false);
             player.setFlying(false);
@@ -146,34 +150,40 @@ public class FlyManager implements Listener {
             return ToggleResult.BLOCKED_END;
         }
 
+        long maxMillis = config.flyMaxDurationMillis();
+        if (maxMillis > 0) {
+            long currentUsed = computeCurrentUsedMillis(uuid, now);
+            if (currentUsed >= maxMillis) {
+                return ToggleResult.NO_BUDGET;
+            }
+
+            // Materialize whatever regenerated while not flying, with "now" as
+            // the fresh baseline for the upcoming drain.
+            if (currentUsed <= 0) {
+                flightBudgets.remove(uuid);
+            } else {
+                flightBudgets.put(uuid, new FlightBudget(currentUsed, now));
+            }
+        }
+
         activeFly.add(uuid);
         player.setAllowFlight(true);
         player.setFlying(true);
         return ToggleResult.ENABLED;
     }
 
-    /**
-     * Whether /fly is currently blocked for this player — either their own
-     * post-damage/max-duration lockout, or an active PvP combat tag.
-     */
     public boolean isLocked(UUID uuid) {
         return lockoutStore.isActive(uuid) || combatManager.isInCombat(uuid);
     }
 
-    /**
-     * The longer of the player's own lockout and their remaining PvP
-     * combat-tag time.
-     */
     public long displayRemainingSeconds(UUID uuid) {
         return Math.max(lockoutStore.remainingSeconds(uuid), combatManager.remainingSeconds(uuid));
     }
 
     /**
-     * Seconds remaining in the player's cumulative flight budget. Returns
-     * -1 if {@code fly-max-duration-minutes} is 0 (no limit configured).
-     * Returns 0 whenever {@link #isLocked} is true — see the class-level
-     * doc: this is purely a display choice, the real budget underneath is
-     * preserved and reappears once the lockout ends.
+     * Seconds remaining in the player's flight budget right now. Returns
+     * -1 if {@code fly-max-duration-minutes} is 0 (no limit). Returns 0
+     * whenever {@link #isLocked} is true — see the class-level doc.
      */
     public long remainingFlightBudgetSeconds(UUID uuid) {
         long maxMillis = config.flyMaxDurationMillis();
@@ -185,10 +195,20 @@ public class FlyManager implements Listener {
             return 0;
         }
 
-        FlightBudget budget = flightBudgets.get(uuid);
-        long used = budget != null ? budget.usedMillis() : 0L;
+        long used = computeCurrentUsedMillis(uuid, System.currentTimeMillis());
         long remaining = maxMillis - used;
         return remaining <= 0 ? 0 : (remaining / 1000) + 1;
+    }
+
+    /**
+     * Seconds until the budget is fully drained back to a usable state
+     * again (i.e. any amount above zero) — used for the "you're out of
+     * flight time" message. Since regeneration is exactly 1:1 with real
+     * time, this is just the currently-used amount.
+     */
+    public long secondsUntilAnyBudget(UUID uuid) {
+        long used = computeCurrentUsedMillis(uuid, System.currentTimeMillis());
+        return used <= 0 ? 0 : (used / 1000) + 1;
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -244,6 +264,7 @@ public class FlyManager implements Listener {
                 return;
             }
 
+            freezeBudget(uuid);
             activeFly.remove(uuid);
             player.setAllowFlight(false);
             player.setFlying(false);
@@ -284,6 +305,9 @@ public class FlyManager implements Listener {
             GameMode newMode = event.getNewGameMode();
 
             if (newMode == GameMode.CREATIVE || newMode == GameMode.SPECTATOR) {
+                if (activeFly.contains(uuid)) {
+                    freezeBudget(uuid);
+                }
                 activeFly.remove(uuid);
                 return;
             }
@@ -297,19 +321,34 @@ public class FlyManager implements Listener {
         }
     }
 
-    /**
-     * {@link #flightBudgets} is deliberately NOT cleared here — see the
-     * class-level doc and {@link #purgeStaleBudgets} for why clearing it
-     * on quit made a relog the cheapest bypass of {@code fly-max-duration}.
-     */
     @EventHandler
     public void onQuit(@NonNull PlayerQuitEvent event) {
         Player player = event.getPlayer();
         UUID uuid = player.getUniqueId();
 
         if (activeFly.remove(uuid)) {
+            freezeBudget(uuid);
             player.setAllowFlight(false);
             player.setFlying(false);
+        }
+        // No further budget cleanup here — regeneration is computed lazily
+        // from wall-clock time and correctly continues (or stays put) whether
+        // the player is online or not. purgeStaleBudgets handles eventually
+        // forgetting a fully-regenerated entry.
+    }
+
+    /**
+     * Freezes a player's stored budget at its current exact value with
+     * {@code lastUpdateMillis = now} — used whenever flight stops for a
+     * reason other than the player's own {@link #toggle} call (damage,
+     * quitting, entering the End, switching gamemode), so regeneration
+     * starts counting from this precise moment rather than from
+     * whenever the last per-second tick happened to run.
+     */
+    private void freezeBudget(UUID uuid) {
+        FlightBudget budget = flightBudgets.get(uuid);
+        if (budget != null) {
+            flightBudgets.put(uuid, new FlightBudget(budget.usedMillis(), System.currentTimeMillis()));
         }
     }
 
@@ -330,11 +369,11 @@ public class FlyManager implements Listener {
 
         player.setFlying(false);
         player.setAllowFlight(false);
+        freezeBudget(player.getUniqueId());
         activeFly.remove(player.getUniqueId());
-        // flightBudgets and warnedThisCycle are DELIBERATELY left untouched here
-        // — the cumulative budget only resets by actually paying the real cap
-        // cooldown (see tickFlightDuration), never by this short post-damage
-        // lockout. See the class-level doc.
+        // warnedThisCycle deliberately left as-is: the budget itself wasn't
+        // reset, just frozen, so a warning already shown for this same
+        // remaining amount doesn't need to fire again immediately.
 
         lockoutStore.start(player.getUniqueId(), lockoutMillis);
 
@@ -346,12 +385,11 @@ public class FlyManager implements Listener {
     }
 
     /**
-     * Runs every second, adding one second of usage for every player
-     * currently in {@link #activeFly} and refreshing their
-     * {@link FlightBudget#lastActiveMillis()}. Sends a one-shot warning at
-     * {@code fly-max-duration-warning-seconds} remaining, then forces
-     * flight off and starts the long {@link #lockoutStore} cooldown once
-     * the budget is fully exhausted.
+     * Runs every second: drains 1 second of budget for everyone currently
+     * flying, forcing landing the moment it's fully drained. Regeneration
+     * for everyone NOT flying happens lazily instead (see
+     * {@link #computeCurrentUsedMillis}), not here — there's nothing to do
+     * for them on this tick.
      */
     private void tickFlightDuration() {
         long maxMillis = config.flyMaxDurationMillis();
@@ -360,6 +398,7 @@ public class FlyManager implements Listener {
         }
 
         long warningMillis = config.flyMaxDurationWarningSeconds() * 1000L;
+        long now = System.currentTimeMillis();
 
         for (UUID uuid : new ArrayList<>(activeFly)) {
             Player player = Bukkit.getPlayer(uuid);
@@ -367,27 +406,25 @@ public class FlyManager implements Listener {
                 continue;
             }
 
-            long now = System.currentTimeMillis();
-            FlightBudget budget = flightBudgets.merge(uuid,
-                    new FlightBudget(1000L, now),
-                    (old, add) -> new FlightBudget(old.usedMillis() + 1000L, now));
-            long used = budget.usedMillis();
-            long remaining = maxMillis - used;
+            FlightBudget previous = flightBudgets.get(uuid);
+            long usedBefore = previous != null ? previous.usedMillis() : 0L;
+            long used = usedBefore + 1000L;
 
-            if (remaining <= 0) {
+            if (used >= maxMillis) {
                 player.setFlying(false);
                 player.setAllowFlight(false);
                 activeFly.remove(uuid);
-                flightBudgets.remove(uuid);
+                flightBudgets.put(uuid, new FlightBudget(maxMillis, now));
                 warnedThisCycle.remove(uuid);
 
-                long cooldownMillis = config.flyMaxDurationCooldownMillis();
-                lockoutStore.start(uuid, cooldownMillis);
-
-                player.sendMessage(messages.get("fly.max-duration-reached", "time", DurationFormat.format((cooldownMillis / 1000) + 1)));
+                player.sendMessage(messages.get("fly.max-duration-reached",
+                        "time", DurationFormat.format((maxMillis / 1000))));
                 continue;
             }
 
+            flightBudgets.put(uuid, new FlightBudget(used, now));
+
+            long remaining = maxMillis - used;
             if (warningMillis > 0 && remaining <= warningMillis && warnedThisCycle.add(uuid)) {
                 player.sendMessage(messages.get("fly.max-duration-warning", "time", DurationFormat.format((remaining / 1000) + 1)));
             }
@@ -395,23 +432,45 @@ public class FlyManager implements Listener {
     }
 
     /**
-     * The budget is no longer cleared on quit — that was the anti-memory-leak
-     * measure, but once the post-damage lockout stopped clearing the budget,
-     * a simple relog became the cheapest way to reset fly-max-duration — the
-     * same invariant bypassed through a third door. Instead, each entry
-     * carries its own last-active timestamp and is only purged after an
-     * absence at least as long as the cap's own cooldown: a player who's
-     * been offline that long has, in effect, already paid it.
+     * Projects a player's stored budget forward to "now": unchanged while
+     * they're actively flying (kept exact by {@link #tickFlightDuration}'s
+     * per-second increments), or regenerated 1ms per elapsed real
+     * millisecond since {@code lastUpdateMillis} while not flying — this
+     * is what makes regeneration continue even while the player is
+     * offline, exactly like a stamina bar governed by wall-clock time
+     * rather than only ticking while logged in.
+     */
+    private long computeCurrentUsedMillis(UUID uuid, long now) {
+        FlightBudget budget = flightBudgets.get(uuid);
+        if (budget == null) {
+            return 0L;
+        }
+        if (activeFly.contains(uuid)) {
+            return budget.usedMillis();
+        }
+        long elapsed = Math.max(0L, now - budget.lastUpdateMillis());
+        return Math.max(0L, budget.usedMillis() - elapsed);
+    }
+
+    /**
+     * Removes any budget entry that has fully regenerated back to zero —
+     * computed the same wall-clock way regardless of whether the player
+     * is currently online, so this naturally reclaims memory for a
+     * player who logs out and never returns, without needing a separate
+     * fixed retention window.
      */
     private void purgeStaleBudgets() {
-        long retentionMillis = Math.max(config.flyMaxDurationCooldownMillis(), 60_000L);
-        long cutoff = System.currentTimeMillis() - retentionMillis;
+        long now = System.currentTimeMillis();
         flightBudgets.entrySet().removeIf(entry -> {
-            boolean stale = entry.getValue().lastActiveMillis() < cutoff;
-            if (stale) {
-                warnedThisCycle.remove(entry.getKey());
+            UUID uuid = entry.getKey();
+            if (activeFly.contains(uuid)) {
+                return false;
             }
-            return stale;
+            if (computeCurrentUsedMillis(uuid, now) > 0) {
+                return false;
+            }
+            warnedThisCycle.remove(uuid);
+            return true;
         });
     }
 

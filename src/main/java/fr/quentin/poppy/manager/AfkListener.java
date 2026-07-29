@@ -129,15 +129,20 @@ public class AfkListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void onCommand(@NonNull PlayerCommandPreprocessEvent event) {
         try {
-            // Only records the timestamp here, never clears AFK/broadcasts — a
-            // command is a fine signal that the player isn't idle (pushes back
-            // auto-AFK), but PlayerCommandPreprocessEvent fires BEFORE the command
-            // actually runs. Calling the full onActivity() here would have this
-            // handler clear AFK status (and broadcast "no longer AFK") on /afk
-            // itself, right before AfkCommand.toggle() runs and flips it back —
-            // making /afk impossible to use to leave AFK, and firing two
-            // server-wide broadcasts per press instead of one.
-            recordActivity(event.getPlayer());
+            String root = event.getMessage().split(" ", 2)[0].toLowerCase(java.util.Locale.ROOT);
+            // /afk itself must stay record-only: clearing + broadcasting here
+            // would fire right before AfkCommand re-toggles it, making /afk
+            // unusable to leave AFK (the original bug this whole split was
+            // written to fix). Any other command is a genuine activity signal
+            // and should clear AFK just like a click or a movement — without
+            // this, a player marked AFK who ran /home and kept playing purely
+            // through commands stayed tagged [AFK] forever until they physically
+            // moved or clicked something.
+            if (root.equals("/afk")) {
+                recordActivity(event.getPlayer());
+            } else {
+                onActivity(event.getPlayer());
+            }
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Error in AfkListener#onCommand for " + event.getPlayer().getName(), e);
         }

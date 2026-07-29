@@ -41,7 +41,7 @@ import org.jspecify.annotations.NonNull;
  */
 public class DeathBackCommand extends SafeCommand {
 
-    private static final int SEARCH_RADIUS = 8;
+    private static final int SEARCH_RADIUS = 5;
 
     private final DeathLocationManager deathLocationManager;
     private final TeleportManager teleportManager;
@@ -85,9 +85,21 @@ public class DeathBackCommand extends SafeCommand {
 
     /**
      * Scans a cube of {@link #SEARCH_RADIUS} blocks around the death
-     * location and returns the closest safe spot, or null if none is
-     * found within range. "Closest" uses squared distance so the search
-     * doesn't favor any particular axis.
+     * location and returns the closest safe spot, or null if none is found
+     * within range. "Closest" uses squared distance so the search doesn't
+     * favor any particular axis.
+     *
+     * <p>Bounded to a smaller radius than the original 8 (17^3 = 4,913
+     * candidates, up to 3 block reads each, all on the main thread) — the
+     * death location can be far from the player clicking the link (they may
+     * have moved on, or died somewhere they'd already left), and reading a
+     * block in an unloaded chunk forces a synchronous chunk load. This is the
+     * same class of cost {@code DeathChestManager#findPlacementSpot} was
+     * refactored to avoid; a smaller radius keeps this in line with that
+     * care while still covering the realistic case (landing "near" where you
+     * died, not several blocks underground). {@code dy} bounds are also
+     * checked up front to skip candidates outside the world's height range
+     * entirely rather than reading a block for each of them.
      */
     private Location findNearbySafeSpot(Location deathLocation) {
         World world = deathLocation.getWorld();
@@ -96,6 +108,11 @@ public class DeathBackCommand extends SafeCommand {
 
         for (int dx = -SEARCH_RADIUS; dx <= SEARCH_RADIUS; dx++) {
             for (int dy = -SEARCH_RADIUS; dy <= SEARCH_RADIUS; dy++) {
+                int candidateY = deathLocation.getBlockY() + dy;
+                if (candidateY < world.getMinHeight() || candidateY >= world.getMaxHeight()) {
+                    continue;
+                }
+
                 for (int dz = -SEARCH_RADIUS; dz <= SEARCH_RADIUS; dz++) {
                     if (dx == 0 && dy == 0 && dz == 0) {
                         continue;

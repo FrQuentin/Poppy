@@ -159,13 +159,6 @@ public class SilkSpawnerListener implements Listener {
         }
     }
 
-    /**
-     * Runs after every other plugin's handler has had a chance to cancel
-     * the break — see the class-level doc. Only sends the success message
-     * and materializes the spawner item once both this event is still
-     * uncancelled here, and (a tick later) the block has actually become
-     * air.
-     */
     @EventHandler(priority = EventPriority.MONITOR)
     public void onBreakMonitor(@NonNull BlockBreakEvent event) {
         try {
@@ -185,12 +178,19 @@ public class SilkSpawnerListener implements Listener {
 
             Player player = event.getPlayer();
 
-            if (!pending.alreadyNotified()) {
-                player.sendMessage(messages.get("silkspawner.success", "mob", formatName(pending.entityType())));
-            }
-
+            // The success message now fires only inside the branch where the drop
+            // actually happens, a tick later — not immediately here. Sending it at
+            // this point (before the block-is-air confirmation below) meant a
+            // plugin restoring the block within that tick (a rollback plugin, an
+            // exotic protection) could leave the player reading "You picked up a
+            // X Spawner!" with nothing in hand — the same reasoning that moved
+            // this message from onBreak to onBreakMonitor in the first place,
+            // pushed one tick further.
             Bukkit.getScheduler().runTask(plugin, () -> {
                 if (block.getType() != Material.SPAWNER) {
+                    if (!pending.alreadyNotified()) {
+                        player.sendMessage(messages.get("silkspawner.success", "mob", formatName(pending.entityType())));
+                    }
                     block.getWorld().dropItemNaturally(block.getLocation(), buildSpawnerItem(pending.entityType()));
                 }
             });

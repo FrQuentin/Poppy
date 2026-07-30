@@ -1,0 +1,461 @@
+categories:
+  construction:
+    display-name: "Construction"
+    icon: STONE
+    items:
+      - {material: STONE, buy: 6, sell: 3}
+      - {material: COBBLESTONE, buy: 4, sell: 2}
+      - {material: ANDESITE, buy: 5, sell: 2}
+      - {material: GRANITE, buy: 5, sell: 2}
+      - {material: DIORITE, buy: 5, sell: 2}
+      - {material: BLACKSTONE, buy: 10, sell: 5}
+      - {material: COBBLED_DEEPSLATE, buy: 6, sell: 3}
+      - {material: TUFF, buy: 6, sell: 3}
+      - {material: DIRT, buy: 3, sell: 1}
+      - {material: GRAVEL, buy: 8, sell: 4}
+      - {material: SAND, buy: 8, sell: 4}
+      - {material: RED_SAND, buy: 10, sell: 5}
+      - {material: GLASS, buy: 12, sell: 6}
+      - {material: OAK_PLANKS, buy: 8, sell: 4}
+      - {material: SPRUCE_PLANKS, buy: 8, sell: 4}
+      - {material: BRICKS, buy: 24, sell: 12}
+      - {material: STONE_BRICKS, buy: 10, sell: 5}
+      - {material: PRISMARINE, buy: 30, sell: 15}
+      - {material: QUARTZ_BLOCK, buy: 80, sell: 40}
+      - {material: WHITE_CONCRETE, display-name: "Concrete", buy: 24, sell: 12}
+      - {material: TERRACOTTA, buy: 20, sell: 10}
+      - {material: DEEPSLATE, buy: 10, sell: 5}
+      - {material: END_STONE, buy: 35, sell: 17}
+      - {material: SNOW_BLOCK, buy: 15, sell: 7}
+      - {material: ICE, buy: 12, sell: 6}
+      - {material: PACKED_ICE, buy: 20, sell: 10}
+      - {material: BLUE_ICE, buy: 35, sell: 17}
+      - {material: PURPUR_BLOCK, buy: 40, sell: 20}
+      - {material: NETHER_BRICKS, buy: 25, sell: 12}
+      - {material: RED_NETHER_BRICKS, buy: 28, sell: 14}
+      - {material: BASALT, buy: 8, sell: 4}
+      - {material: SMOOTH_BASALT, buy: 10, sell: 5}
+      - {material: CALCITE, buy: 12, sell: 6}
+      - {material: DRIPSTONE_BLOCK, buy: 14, sell: 7}
+      - {material: MUD_BRICKS, buy: 18, sell: 9}
+      - {material: PACKED_MUD, buy: 8, sell: 4}
+      - {material: RESIN_BRICKS, buy: 20, sell: 10}
+      - {material: RESIN_CLUMP, buy: 15, sell: 7}
+      - {material: TUFF_BRICKS, buy: 14, sell: 7}
+      - {material: CHISELED_TUFF, buy: 20, sell: 10}
+      - {material: CHISELED_STONE_BRICKS, buy: 18, sell: 9}
+      - {material: CHISELED_SANDSTONE, buy: 18, sell: 9}
+      - {material: CHISELED_RED_SANDSTONE, buy: 18, sell: 9}
+      - {material: CHISELED_DEEPSLATE, buy: 20, sell: 10}
+      - {material: CHISELED_POLISHED_BLACKSTONE, buy: 20, sell: 10}
+      - {material: CHISELED_NETHER_BRICKS, buy: 22, sell: 11}
+      - {material: CHISELED_QUARTZ_BLOCK, buy: 90, sell: 45}
+      - {material: SANDSTONE, buy: 10, sell: 5}
+      - {material: RED_SANDSTONE, buy: 10, sell: 5}
+      - {material: MOSS_BLOCK, buy: 16, sell: 8}
+      - {material: PALE_MOSS_BLOCK, buy: 18, sell: 9}
+      - {material: PALE_MOSS_CARPET, buy: 10, sell: 5}
+      - {material: HONEYCOMB_BLOCK, buy: 30, sell: 15}
+
+  sulfur_caves:
+    display-name: "Sulfur Caves"
+    icon: CINNABAR
+    items:
+      - {material: CINNABAR, buy: 15, sell: 7}
+      - {material: CINNABAR_STAIRS, buy: 15, sell: 7}
+      - {material: CINNABAR_SLAB, buy: 15, sell: 7}
+      - {material: CINNABAR_WALL, buy: 15, sell: 7}
+      - {material: POLISHED_CINNABAR, buy: 20, sell: 10}
+      - {material: POLISHED_CINNABAR_STAIRS, buy: 20, sell: 10}
+      - {material: POLISHED_CINNABAR_SLAB, buy: 20, sell: 10}
+      - {material: POLISHED_CINNABAR_WALL, buy: 20, sell: 10}
+      - {material: CINNABAR_BRICKS, buy: 22, sell: 11}
+      - {material: CINNABAR_BRICK_STAIRS, buy: 22, sell: 11}
+      - {material: CINNABAR_BRICK_SLAB, buy: 22, sell: 11}
+      - {material: CINNABAR_BRICK_WALL, buy: 22, sell: 11}
+      - {material: CHISELED_CINNABAR, buy: 35, sell: 17}
+      - {material: SULFUR, buy: 15, sell: 7}
+      - {material: SULFUR_STAIRS, buy: 15, sell: 7}
+      - {material: SULFUR_SLAB, buy: 15, sell: 7}
+      - {material: SULFUR_WALL, buy: 15, sell: 7}
+      - {material: POLISHED_SULFUR, buy: 20, sell: 10}
+      - {material: POLISHED_SULFUR_STAIRS, buy: 20, sell: 10}
+      - {material: POLISHED_SULFUR_SLAB, buy: 20, sell: 10}
+      - {material: POLISHED_SULFUR_WALL, buy: 20, sell: 10}
+      - {material: SULFUR_BRICKS, buy: 22, sell: 11}
+      - {material: SULFUR_BRICK_STAIRS, buy: 22, sell: 11}
+      - {material: SULFUR_BRICK_SLAB, buy: 22, sell: 11}
+      - {material: SULFUR_BRICK_WALL, buy: 22, sell: 11}
+      - {material: CHISELED_SULFUR, buy: 35, sell: 17}
+      - {material: POTENT_SULFUR, buy: 60, sell: 30}
+
+  wood:
+    display-name: "Wood"
+    icon: OAK_LOG
+    items:
+      - {material: OAK_LOG, buy: 12, sell: 6}
+      - {material: SPRUCE_LOG, buy: 12, sell: 6}
+      - {material: BIRCH_LOG, buy: 12, sell: 6}
+      - {material: JUNGLE_LOG, buy: 12, sell: 6}
+      - {material: ACACIA_LOG, buy: 12, sell: 6}
+      - {material: DARK_OAK_LOG, buy: 12, sell: 6}
+      - {material: MANGROVE_LOG, buy: 14, sell: 7}
+      - {material: CHERRY_LOG, buy: 16, sell: 8}
+      - {material: PALE_OAK_LOG, buy: 14, sell: 7}
+      - {material: CRIMSON_STEM, buy: 18, sell: 9}
+      - {material: WARPED_STEM, buy: 18, sell: 9}
+      - {material: OAK_PLANKS, buy: 4, sell: 2}
+      - {material: SPRUCE_PLANKS, buy: 4, sell: 2}
+      - {material: BIRCH_PLANKS, buy: 4, sell: 2}
+      - {material: JUNGLE_PLANKS, buy: 4, sell: 2}
+      - {material: ACACIA_PLANKS, buy: 4, sell: 2}
+      - {material: DARK_OAK_PLANKS, buy: 4, sell: 2}
+      - {material: MANGROVE_PLANKS, buy: 5, sell: 2}
+      - {material: CHERRY_PLANKS, buy: 6, sell: 3}
+      - {material: PALE_OAK_PLANKS, buy: 5, sell: 2}
+      - {material: CRIMSON_PLANKS, buy: 7, sell: 3}
+      - {material: WARPED_PLANKS, buy: 7, sell: 3}
+      - {material: BAMBOO_PLANKS, buy: 4, sell: 2}
+      - {material: OAK_LEAVES, buy: 6, sell: 3}
+      - {material: SPRUCE_LEAVES, buy: 6, sell: 3}
+      - {material: BIRCH_LEAVES, buy: 6, sell: 3}
+      - {material: JUNGLE_LEAVES, buy: 6, sell: 3}
+      - {material: ACACIA_LEAVES, buy: 6, sell: 3}
+      - {material: DARK_OAK_LEAVES, buy: 6, sell: 3}
+      - {material: MANGROVE_LEAVES, buy: 7, sell: 3}
+      - {material: CHERRY_LEAVES, buy: 8, sell: 4}
+      - {material: PALE_OAK_LEAVES, buy: 8, sell: 4}
+      - {material: AZALEA_LEAVES, buy: 8, sell: 4}
+      - {material: FLOWERING_AZALEA_LEAVES, buy: 12, sell: 6}
+      - {material: OAK_SAPLING, buy: 15, sell: 7}
+      - {material: SPRUCE_SAPLING, buy: 15, sell: 7}
+      - {material: BIRCH_SAPLING, buy: 15, sell: 7}
+      - {material: JUNGLE_SAPLING, buy: 15, sell: 7}
+      - {material: ACACIA_SAPLING, buy: 15, sell: 7}
+      - {material: DARK_OAK_SAPLING, buy: 15, sell: 7}
+      - {material: CHERRY_SAPLING, buy: 25, sell: 12}
+      - {material: PALE_OAK_SAPLING, buy: 20, sell: 10}
+      - {material: MANGROVE_PROPAGULE, buy: 25, sell: 12}
+
+  corals:
+    display-name: "Corals"
+    icon: TUBE_CORAL_BLOCK
+    items:
+      - {material: TUBE_CORAL_BLOCK, buy: 40, sell: 20}
+      - {material: BRAIN_CORAL_BLOCK, buy: 40, sell: 20}
+      - {material: BUBBLE_CORAL_BLOCK, buy: 40, sell: 20}
+      - {material: FIRE_CORAL_BLOCK, buy: 40, sell: 20}
+      - {material: HORN_CORAL_BLOCK, buy: 40, sell: 20}
+      - {material: DEAD_TUBE_CORAL_BLOCK, buy: 15, sell: 7}
+      - {material: DEAD_BRAIN_CORAL_BLOCK, buy: 15, sell: 7}
+      - {material: DEAD_BUBBLE_CORAL_BLOCK, buy: 15, sell: 7}
+      - {material: DEAD_FIRE_CORAL_BLOCK, buy: 15, sell: 7}
+      - {material: DEAD_HORN_CORAL_BLOCK, buy: 15, sell: 7}
+      - {material: TUBE_CORAL, buy: 25, sell: 12}
+      - {material: BRAIN_CORAL, buy: 25, sell: 12}
+      - {material: BUBBLE_CORAL, buy: 25, sell: 12}
+      - {material: FIRE_CORAL, buy: 25, sell: 12}
+      - {material: HORN_CORAL, buy: 25, sell: 12}
+      - {material: TUBE_CORAL_FAN, buy: 18, sell: 9}
+      - {material: BRAIN_CORAL_FAN, buy: 18, sell: 9}
+      - {material: BUBBLE_CORAL_FAN, buy: 18, sell: 9}
+      - {material: FIRE_CORAL_FAN, buy: 18, sell: 9}
+      - {material: HORN_CORAL_FAN, buy: 18, sell: 9}
+      - {material: SEA_PICKLE, buy: 20, sell: 10}
+
+  mob_drops:
+    display-name: "Mob Drops"
+    icon: BONE
+    items:
+      - {material: GUNPOWDER, buy: 20, sell: 10}
+      - {material: FEATHER, buy: 15, sell: 7}
+      - {material: STRING, buy: 15, sell: 7}
+      - {material: ENDER_PEARL, buy: 90, sell: 45}
+      - {material: BONE, buy: 18, sell: 9}
+      - {material: ROTTEN_FLESH, buy: 10, sell: 5}
+      - {material: INK_SAC, buy: 16, sell: 8}
+      - {material: LEATHER, buy: 25, sell: 12}
+      - {material: SPIDER_EYE, buy: 20, sell: 10}
+      - {material: SLIME_BALL, buy: 40, sell: 20}
+      - {material: RABBIT_HIDE, buy: 15, sell: 7}
+      - {material: RABBIT_FOOT, buy: 60, sell: 30}
+      - {material: PHANTOM_MEMBRANE, buy: 350, sell: 0}
+      - {material: SHULKER_SHELL, buy: 600, sell: 300}
+      - {material: MAGMA_CREAM, buy: 45, sell: 22}
+      - {material: NAUTILUS_SHELL, buy: 150, sell: 75}
+      - {material: ARMADILLO_SCUTE, buy: 130, sell: 65}
+      - {material: TURTLE_SCUTE, buy: 130, sell: 65 }
+      - {material: HONEYCOMB, buy: 20, sell: 10}
+      - {material: SNIFFER_EGG, buy: 800, sell: 400}
+
+  ores:
+    display-name: "Ores"
+    icon: IRON_INGOT
+    items:
+      - {material: COAL, buy: 20, sell: 10}
+      - {material: IRON_INGOT, buy: 60, sell: 30}
+      - {material: COPPER_INGOT, buy: 35, sell: 18}
+      - {material: GOLD_INGOT, buy: 90, sell: 45}
+      - {material: REDSTONE, buy: 18, sell: 9}
+      - {material: LAPIS_LAZULI, buy: 22, sell: 11}
+      - {material: EMERALD, buy: 180, sell: 90}
+      - {material: DIAMOND, buy: 450, sell: 225}
+      - {material: NETHERITE_SCRAP, buy: 3500, sell: 1700}
+      - {material: NETHERITE_INGOT, buy: 8000, sell: 4000}
+      - {material: RAW_IRON, buy: 45, sell: 22}
+      - {material: RAW_COPPER, buy: 25, sell: 12}
+      - {material: RAW_GOLD, buy: 65, sell: 32}
+      - {material: AMETHYST_SHARD, buy: 35, sell: 17}
+
+  redstone:
+    display-name: "Redstone"
+    icon: REDSTONE
+    items:
+      - {material: REDSTONE, display-name: "Redstone Dust", buy: 18, sell: 9}
+      - {material: REPEATER, buy: 80, sell: 40}
+      - {material: COMPARATOR, buy: 160, sell: 80}
+      - {material: OBSERVER, buy: 150, sell: 75}
+      - {material: PISTON, buy: 120, sell: 60}
+      - {material: STICKY_PISTON, buy: 220, sell: 110}
+      - {material: HOPPER, buy: 300, sell: 150}
+      - {material: DISPENSER, buy: 140, sell: 70}
+      - {material: DROPPER, buy: 90, sell: 45}
+      - {material: TARGET, display-name: "Target Block", buy: 180, sell: 90}
+      - {material: REDSTONE_LAMP, buy: 60, sell: 30}
+      - {material: REDSTONE_TORCH, buy: 15, sell: 7}
+      - {material: REDSTONE_BLOCK, buy: 160, sell: 80}
+      - {material: TRIPWIRE_HOOK, buy: 30, sell: 15}
+      - {material: DAYLIGHT_DETECTOR, buy: 100, sell: 50}
+      - {material: LEVER, buy: 10, sell: 5}
+      - {material: NOTE_BLOCK, buy: 20, sell: 10}
+      - {material: TNT, buy: 200, sell: 100}
+      - {material: RAIL, buy: 10, sell: 5}
+      - {material: POWERED_RAIL, buy: 45, sell: 22}
+      - {material: DETECTOR_RAIL, buy: 40, sell: 20}
+      - {material: ACTIVATOR_RAIL, buy: 40, sell: 20}
+
+  farming:
+    display-name: "Farming"
+    icon: WHEAT
+    items:
+      - {material: WHEAT, buy: 8, sell: 4}
+      - {material: WHEAT_SEEDS, buy: 4, sell: 2}
+      - {material: CARROT, buy: 10, sell: 5}
+      - {material: POTATO, buy: 10, sell: 5}
+      - {material: BEETROOT, buy: 10, sell: 5}
+      - {material: BEETROOT_SEEDS, buy: 5, sell: 2}
+      - {material: PUMPKIN, buy: 18, sell: 9}
+      - {material: PUMPKIN_SEEDS, buy: 6, sell: 3}
+      - {material: MELON_SLICE, display-name: "Melon", buy: 15, sell: 7}
+      - {material: MELON_SEEDS, buy: 6, sell: 3}
+      - {material: SUGAR_CANE, buy: 12, sell: 6}
+      - {material: CACTUS, buy: 10, sell: 5}
+      - {material: BAMBOO, buy: 8, sell: 4}
+      - {material: COCOA_BEANS, buy: 16, sell: 8}
+      - {material: SWEET_BERRIES, buy: 14, sell: 7}
+      - {material: GLOW_BERRIES, buy: 18, sell: 9}
+      - {material: NETHER_WART, buy: 80, sell: 0}
+      - {material: KELP, buy: 6, sell: 3}
+      - {material: HAY_BLOCK, buy: 40, sell: 20}
+
+  food:
+    display-name: "Food"
+    icon: COOKED_BEEF
+    items:
+      - {material: BREAD, buy: 30, sell: 15}
+      - {material: COOKED_BEEF, buy: 55, sell: 27}
+      - {material: COOKED_CHICKEN, buy: 45, sell: 22}
+      - {material: COOKED_PORKCHOP, buy: 55, sell: 27}
+      - {material: COOKED_MUTTON, buy: 50, sell: 25}
+      - {material: COOKED_RABBIT, buy: 45, sell: 22}
+      - {material: COOKED_COD, buy: 35, sell: 17}
+      - {material: COOKED_SALMON, buy: 40, sell: 20}
+      - {material: GOLDEN_CARROT, buy: 150, sell: 75}
+      - {material: GOLDEN_APPLE, buy: 400, sell: 200}
+      - {material: APPLE, buy: 25, sell: 12}
+      - {material: HONEY_BOTTLE, buy: 45, sell: 22}
+      - {material: MUSHROOM_STEW, buy: 30, sell: 15}
+      - {material: PUMPKIN_PIE, buy: 60, sell: 30}
+      - {material: CAKE, buy: 90, sell: 45}
+      - {material: SUSPICIOUS_STEW, buy: 50, sell: 0}
+
+  combat:
+    display-name: "Combat"
+    icon: IRON_SWORD
+    items:
+      - {material: ARROW, buy: 8}
+      - {material: SPECTRAL_ARROW, buy: 20}
+      - {material: BOW, buy: 180}
+      - {material: CROSSBOW, buy: 220}
+      - {material: TRIDENT, buy: 1200}
+      - {material: WOODEN_SWORD, buy: 30}
+      - {material: STONE_SWORD, buy: 60}
+      - {material: IRON_SWORD, buy: 350}
+      - {material: GOLDEN_SWORD, buy: 250}
+      - {material: DIAMOND_SWORD, buy: 1800}
+      - {material: IRON_AXE, buy: 350}
+      - {material: SHIELD, buy: 200}
+
+  armor:
+    display-name: "Armor"
+    icon: DIAMOND_CHESTPLATE
+    items:
+      - {material: LEATHER_HELMET, buy: 40}
+      - {material: LEATHER_CHESTPLATE, buy: 60}
+      - {material: LEATHER_LEGGINGS, buy: 55}
+      - {material: LEATHER_BOOTS, buy: 35}
+      - {material: GOLDEN_HELMET, buy: 200}
+      - {material: GOLDEN_CHESTPLATE, buy: 300}
+      - {material: GOLDEN_LEGGINGS, buy: 280}
+      - {material: GOLDEN_BOOTS, buy: 150}
+      - {material: CHAINMAIL_HELMET, buy: 400}
+      - {material: CHAINMAIL_CHESTPLATE, buy: 700}
+      - {material: CHAINMAIL_LEGGINGS, buy: 600}
+      - {material: CHAINMAIL_BOOTS, buy: 350}
+      - {material: IRON_HELMET, buy: 300}
+      - {material: IRON_CHESTPLATE, buy: 700}
+      - {material: IRON_LEGGINGS, buy: 600}
+      - {material: IRON_BOOTS, buy: 300}
+      - {material: DIAMOND_HELMET, buy: 900}
+      - {material: DIAMOND_CHESTPLATE, buy: 2000}
+      - {material: DIAMOND_LEGGINGS, buy: 1700}
+      - {material: DIAMOND_BOOTS, buy: 900}
+      - {material: TURTLE_HELMET, buy: 350}
+      - {material: ELYTRA, buy: 5000}
+      - {material: TOTEM_OF_UNDYING, buy: 5000}
+
+  alchemy:
+    display-name: "Alchemy"
+    icon: BLAZE_POWDER
+    items:
+      - {material: BLAZE_ROD, buy: 250}
+      - {material: BLAZE_POWDER, buy: 130}
+      - {material: NETHER_WART, buy: 80}
+      - {material: GLASS_BOTTLE, buy: 10}
+      - {material: GLOWSTONE_DUST, buy: 70}
+      - {material: FERMENTED_SPIDER_EYE, buy: 120}
+      - {material: GHAST_TEAR, buy: 450}
+      - {material: DRAGON_BREATH, buy: 600}
+      - {material: PUFFERFISH, buy: 40}
+      - {material: BREEZE_ROD, buy: 700}
+
+  nether:
+    display-name: "Nether / End"
+    icon: ENDER_PEARL
+    items:
+      - {material: OBSIDIAN, buy: 70, sell: 35}
+      - {material: CRYING_OBSIDIAN, buy: 220, sell: 110}
+      - {material: GLOWSTONE, buy: 70, sell: 35}
+      - {material: SOUL_SAND, buy: 30, sell: 15}
+      - {material: SOUL_SOIL, buy: 20, sell: 10}
+      - {material: CHORUS_FRUIT, buy: 45, sell: 22}
+      - {material: CHORUS_FLOWER, buy: 60, sell: 30}
+      - {material: SHROOMLIGHT, buy: 90, sell: 45}
+      - {material: WARPED_WART_BLOCK, buy: 40, sell: 20}
+      - {material: NETHER_QUARTZ_ORE, buy: 50, sell: 25}
+      - {material: NETHERRACK, buy: 5, sell: 2}
+      - {material: MAGMA_BLOCK, buy: 25, sell: 12}
+      - {material: END_ROD, buy: 55, sell: 27}
+      - {material: PURPUR_PILLAR, buy: 45, sell: 22}
+
+  colored_blocks:
+    display-name: "Colored Blocks"
+    icon: LIME_CONCRETE
+    items:
+      - {material: WHITE_WOOL, buy: 10, sell: 5}
+      - {material: ORANGE_WOOL, buy: 10, sell: 5}
+      - {material: MAGENTA_WOOL, buy: 10, sell: 5}
+      - {material: LIGHT_BLUE_WOOL, buy: 10, sell: 5}
+      - {material: YELLOW_WOOL, buy: 10, sell: 5}
+      - {material: LIME_WOOL, buy: 10, sell: 5}
+      - {material: PINK_WOOL, buy: 10, sell: 5}
+      - {material: GRAY_WOOL, buy: 10, sell: 5}
+      - {material: LIGHT_GRAY_WOOL, buy: 10, sell: 5}
+      - {material: CYAN_WOOL, buy: 10, sell: 5}
+      - {material: PURPLE_WOOL, buy: 10, sell: 5}
+      - {material: BLUE_WOOL, buy: 10, sell: 5}
+      - {material: BROWN_WOOL, buy: 10, sell: 5}
+      - {material: GREEN_WOOL, buy: 10, sell: 5}
+      - {material: RED_WOOL, buy: 10, sell: 5}
+      - {material: BLACK_WOOL, buy: 10, sell: 5}
+      - {material: WHITE_CONCRETE, buy: 18, sell: 9}
+      - {material: ORANGE_CONCRETE, buy: 18, sell: 9}
+      - {material: MAGENTA_CONCRETE, buy: 18, sell: 9}
+      - {material: LIGHT_BLUE_CONCRETE, buy: 18, sell: 9}
+      - {material: YELLOW_CONCRETE, buy: 18, sell: 9}
+      - {material: LIME_CONCRETE, buy: 18, sell: 9}
+      - {material: PINK_CONCRETE, buy: 18, sell: 9}
+      - {material: GRAY_CONCRETE, buy: 18, sell: 9}
+      - {material: LIGHT_GRAY_CONCRETE, buy: 18, sell: 9}
+      - {material: CYAN_CONCRETE, buy: 18, sell: 9}
+      - {material: PURPLE_CONCRETE, buy: 18, sell: 9}
+      - {material: BLUE_CONCRETE, buy: 18, sell: 9}
+      - {material: BROWN_CONCRETE, buy: 18, sell: 9}
+      - {material: GREEN_CONCRETE, buy: 18, sell: 9}
+      - {material: RED_CONCRETE, buy: 18, sell: 9}
+      - {material: BLACK_CONCRETE, buy: 18, sell: 9}
+      - {material: WHITE_STAINED_GLASS, buy: 16, sell: 8}
+      - {material: ORANGE_STAINED_GLASS, buy: 16, sell: 8}
+      - {material: MAGENTA_STAINED_GLASS, buy: 16, sell: 8}
+      - {material: LIGHT_BLUE_STAINED_GLASS, buy: 16, sell: 8}
+      - {material: YELLOW_STAINED_GLASS, buy: 16, sell: 8}
+      - {material: LIME_STAINED_GLASS, buy: 16, sell: 8}
+      - {material: PINK_STAINED_GLASS, buy: 16, sell: 8}
+      - {material: GRAY_STAINED_GLASS, buy: 16, sell: 8}
+      - {material: LIGHT_GRAY_STAINED_GLASS, buy: 16, sell: 8}
+      - {material: CYAN_STAINED_GLASS, buy: 16, sell: 8}
+      - {material: PURPLE_STAINED_GLASS, buy: 16, sell: 8}
+      - {material: BLUE_STAINED_GLASS, buy: 16, sell: 8}
+      - {material: BROWN_STAINED_GLASS, buy: 16, sell: 8}
+      - {material: GREEN_STAINED_GLASS, buy: 16, sell: 8}
+      - {material: RED_STAINED_GLASS, buy: 16, sell: 8}
+      - {material: BLACK_STAINED_GLASS, buy: 16, sell: 8}
+
+  flowers:
+    display-name: "Flowers"
+    icon: POPPY
+    items:
+      - {material: DANDELION, buy: 8, sell: 4}
+      - {material: POPPY, buy: 8, sell: 4}
+      - {material: BLUE_ORCHID, buy: 12, sell: 6}
+      - {material: ALLIUM, buy: 10, sell: 5}
+      - {material: AZURE_BLUET, buy: 8, sell: 4}
+      - {material: RED_TULIP, buy: 8, sell: 4}
+      - {material: ORANGE_TULIP, buy: 8, sell: 4}
+      - {material: WHITE_TULIP, buy: 8, sell: 4}
+      - {material: PINK_TULIP, buy: 8, sell: 4}
+      - {material: OXEYE_DAISY, buy: 8, sell: 4}
+      - {material: CORNFLOWER, buy: 10, sell: 5}
+      - {material: LILY_OF_THE_VALLEY, buy: 12, sell: 6}
+      - {material: TORCHFLOWER, buy: 40, sell: 20}
+      - {material: PITCHER_PLANT, buy: 40, sell: 20}
+      - {material: GOLDEN_DANDELION, buy: 40, sell: 20}
+      - {material: OPEN_EYEBLOSSOM, buy: 40, sell: 20}
+      - {material: CLOSED_EYEBLOSSOM, buy: 40, sell: 20}
+      - {material: SUNFLOWER, buy: 14, sell: 7}
+      - {material: LILAC, buy: 14, sell: 7}
+      - {material: ROSE_BUSH, buy: 14, sell: 7}
+      - {material: PEONY, buy: 14, sell: 7}
+      - {material: LILY_PAD, buy: 10, sell: 5}
+      - {material: WITHER_ROSE, buy: 60}
+
+  dyes:
+    display-name: "Dyes"
+    icon: LIME_DYE
+    items:
+      - {material: WHITE_DYE, buy: 25, sell: 12}
+      - {material: ORANGE_DYE, buy: 25, sell: 12}
+      - {material: MAGENTA_DYE, buy: 25, sell: 12}
+      - {material: LIGHT_BLUE_DYE, buy: 25, sell: 12}
+      - {material: YELLOW_DYE, buy: 25, sell: 12}
+      - {material: LIME_DYE, buy: 25, sell: 12}
+      - {material: PINK_DYE, buy: 25, sell: 12}
+      - {material: GRAY_DYE, buy: 25, sell: 12}
+      - {material: LIGHT_GRAY_DYE, buy: 25, sell: 12}
+      - {material: CYAN_DYE, buy: 25, sell: 12}
+      - {material: PURPLE_DYE, buy: 25, sell: 12}
+      - {material: BLUE_DYE, buy: 25, sell: 12}
+      - {material: BROWN_DYE, buy: 25, sell: 12}
+      - {material: GREEN_DYE, buy: 25, sell: 12}
+      - {material: RED_DYE, buy: 25, sell: 12}
+      - {material: BLACK_DYE, buy: 25, sell: 12}

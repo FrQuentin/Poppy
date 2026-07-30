@@ -1,12 +1,7 @@
 package fr.quentin.poppy;
 
 import fr.quentin.poppy.commands.*;
-import fr.quentin.poppy.gui.ConfirmDeleteGUI;
-import fr.quentin.poppy.gui.ConfirmOverwriteGUI;
-import fr.quentin.poppy.gui.HomesGUI;
-import fr.quentin.poppy.gui.HomesGUIListener;
-import fr.quentin.poppy.gui.TrashGUI;
-import fr.quentin.poppy.gui.TrashListener;
+import fr.quentin.poppy.gui.*;
 import fr.quentin.poppy.listeners.*;
 import fr.quentin.poppy.manager.*;
 import fr.quentin.poppy.util.*;
@@ -57,6 +52,9 @@ public final class Poppy extends JavaPlugin {
         DeathLocationManager deathLocationManager = new DeathLocationManager();
         deathChestManager = new DeathChestManager(this, messages, config, poppyLogger);
         FlyManager flyManager = new FlyManager(this, messages, config, combatManager);
+
+        ShopManager shopManager = new ShopManager(this, economyManager);
+        ShopGUI shopGUI = new ShopGUI(this, messages);
 
         // Both created here (not inline at registerEvents time) since PoppyCommand
         // needs a reference to each to call reapply() from /poppy reload.
@@ -120,7 +118,7 @@ public final class Poppy extends JavaPlugin {
         TpaToggleCommand tpaToggleCommand = new TpaToggleCommand(this, tpaManager, messages, config);
         Objects.requireNonNull(getCommand("tpatoggle")).setExecutor(tpaToggleCommand);
 
-        PoppyCommand poppyCommand = new PoppyCommand(this, messages, config, poppyLogger, sleepPercentageListener, tabHealthListener);
+        PoppyCommand poppyCommand = new PoppyCommand(this, messages, config, poppyLogger, sleepPercentageListener, tabHealthListener, shopManager);
         Objects.requireNonNull(getCommand("poppy")).setExecutor(poppyCommand);
         Objects.requireNonNull(getCommand("poppy")).setTabCompleter(poppyCommand);
 
@@ -144,6 +142,8 @@ public final class Poppy extends JavaPlugin {
 
         Objects.requireNonNull(getCommand("baltop")).setExecutor(new BalTopCommand(this, economyManager, messages, config.economyBaltopSize()));
 
+        Objects.requireNonNull(getCommand("shop")).setExecutor(new ShopCommand(this, shopManager, shopGUI, messages));
+
         getServer().getPluginManager().registerEvents(
                 new HomesGUIListener(this, homeManager, homesGUI, confirmDeleteGUI, confirmOverwriteGUI, teleportManager, messages, stats, poppyLogger), this);
         getServer().getPluginManager().registerEvents(teleportManager, this);
@@ -164,6 +164,7 @@ public final class Poppy extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new SilkSpawnerListener(this, messages, config), this);
         getServer().getPluginManager().registerEvents(flyManager, this);
         getServer().getPluginManager().registerEvents(economyManager, this);
+        getServer().getPluginManager().registerEvents(new ShopListener(this, shopManager, shopGUI, messages), this);
 
         // Always scheduled now (rather than only if afk-auto-enabled at startup) —
         // AutoAfkTask checks the setting live each run, so it can be toggled via

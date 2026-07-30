@@ -152,6 +152,11 @@ commands:
     usage: /baltop
     permission: poppy.baltop
     permission-message: "&4[!] You don't have permission to do this."
+  shop:
+    description: Open the server shop.
+    usage: /shop
+    permission: poppy.shop
+    permission-message: "&4[!] You don't have permission to do this."
 
 permissions:
   poppy.*:
@@ -186,6 +191,7 @@ permissions:
       poppy.pay: true
       poppy.money.admin: true
       poppy.baltop: true
+      poppy.shop: true
 
   poppy.sethome:
     description: Allows creating homes with /sethome.
@@ -282,4 +288,7 @@ permissions:
     default: op
   poppy.baltop:
     description: Allows viewing the richest players with /baltop.
+    default: true
+  poppy.shop:
+    description: Allows using the server shop with /shop.
     default: true

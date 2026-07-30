@@ -1,5 +1,6 @@
 package fr.quentin.poppy.commands;
 
+import fr.quentin.poppy.manager.ShopManager;
 import fr.quentin.poppy.manager.SleepPercentageListener;
 import fr.quentin.poppy.listeners.TabHealthListener;
 import fr.quentin.poppy.util.CooldownStore;
@@ -33,8 +34,11 @@ import java.util.List;
  * and re-applies every setting that can't be picked up automatically by
  * {@link PoppyConfig}'s own live reads alone — the sleep gamerule
  * ({@link SleepPercentageListener#reapply}), the tab-health refresh
- * interval ({@link TabHealthListener#reapply}), and the Poppy log file's
- * flush interval ({@link PoppyLogger#reapply}).
+ * interval ({@link TabHealthListener#reapply}), the Poppy log file's
+ * flush interval ({@link PoppyLogger#reapply}), and the shop's prices
+ * ({@link ShopManager#reapply}) — so an admin editing {@code shop.yml}
+ * sees the change take effect immediately, the same as every other
+ * config file this plugin reads.
  *
  * <p>The easter egg is rate-limited via
  * {@code poppy-easteregg-cooldown-seconds} in config.yml, tracked in a
@@ -46,15 +50,18 @@ public class PoppyCommand extends SafeCommand implements TabCompleter {
     private final PoppyLogger logger;
     private final SleepPercentageListener sleepPercentageListener;
     private final TabHealthListener tabHealthListener;
+    private final ShopManager shopManager;
     private final CooldownStore easterEggCooldown;
 
     public PoppyCommand(JavaPlugin plugin, Messages messages, PoppyConfig config, PoppyLogger logger,
-                        SleepPercentageListener sleepPercentageListener, TabHealthListener tabHealthListener) {
+                        SleepPercentageListener sleepPercentageListener, TabHealthListener tabHealthListener,
+                        ShopManager shopManager) {
         super(plugin, messages);
         this.config = config;
         this.logger = logger;
         this.sleepPercentageListener = sleepPercentageListener;
         this.tabHealthListener = tabHealthListener;
+        this.shopManager = shopManager;
         this.easterEggCooldown = new CooldownStore(plugin);
     }
 
@@ -94,9 +101,10 @@ public class PoppyCommand extends SafeCommand implements TabCompleter {
         sleepPercentageListener.reapply();
         tabHealthListener.reapply();
         logger.reapply();
+        shopManager.reapply();
 
         String actorName = sender instanceof Player player ? player.getName() : "CONSOLE";
-        logger.log(PoppyLogger.Category.ADMIN, actorName, "reloaded config.yml and messages.yml");
+        logger.log(PoppyLogger.Category.ADMIN, actorName, "reloaded config.yml, messages.yml, and shop.yml");
 
         sender.sendMessage(messages.get("poppy.reload-success"));
     }

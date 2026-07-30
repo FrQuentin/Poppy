@@ -27,6 +27,7 @@ public final class Poppy extends JavaPlugin {
     private PoppyStats stats;
     private PoppyLogger poppyLogger;
     private DeathChestManager deathChestManager;
+    private EconomyManager economyManager;
 
     @Override
     public void onEnable() {
@@ -35,6 +36,7 @@ public final class Poppy extends JavaPlugin {
         PoppyConfig config = new PoppyConfig(this);
         homeManager = new HomeManager(this, config);
         spawnManager = new SpawnManager(this);
+        economyManager = new EconomyManager(this, config);
         stats = new PoppyStats();
 
         Messages messages = new Messages(this);
@@ -132,6 +134,16 @@ public final class Poppy extends JavaPlugin {
 
         Objects.requireNonNull(getCommand("cooldowns")).setExecutor(new CooldownsCommand(this, messages, cooldownRegistry));
 
+        MoneyCommand moneyCommand = new MoneyCommand(this, economyManager, messages);
+        Objects.requireNonNull(getCommand("money")).setExecutor(moneyCommand);
+        Objects.requireNonNull(getCommand("money")).setTabCompleter(moneyCommand);
+
+        PayCommand payCommand = new PayCommand(this, economyManager, messages);
+        Objects.requireNonNull(getCommand("pay")).setExecutor(payCommand);
+        Objects.requireNonNull(getCommand("pay")).setTabCompleter(payCommand);
+
+        Objects.requireNonNull(getCommand("baltop")).setExecutor(new BalTopCommand(this, economyManager, messages, config.economyBaltopSize()));
+
         getServer().getPluginManager().registerEvents(
                 new HomesGUIListener(this, homeManager, homesGUI, confirmDeleteGUI, confirmOverwriteGUI, teleportManager, messages, stats, poppyLogger), this);
         getServer().getPluginManager().registerEvents(teleportManager, this);
@@ -151,6 +163,7 @@ public final class Poppy extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new SleepStatusListener(this, messages, config, poppyLogger), this);
         getServer().getPluginManager().registerEvents(new SilkSpawnerListener(this, messages, config), this);
         getServer().getPluginManager().registerEvents(flyManager, this);
+        getServer().getPluginManager().registerEvents(economyManager, this);
 
         // Always scheduled now (rather than only if afk-auto-enabled at startup) —
         // AutoAfkTask checks the setting live each run, so it can be toggled via
@@ -170,6 +183,9 @@ public final class Poppy extends JavaPlugin {
         }
         if (deathChestManager != null) {
             deathChestManager.shutdown();
+        }
+        if (economyManager != null) {
+            economyManager.shutdown();
         }
 
         logShutdownSummary();

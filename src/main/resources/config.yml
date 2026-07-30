@@ -242,3 +242,11 @@ tpa-toggle-cooldown-seconds: 3
 # chest for the duration of death-chest-expiry-minutes. Set to false to
 # allow deposits like a normal chest.
 death-chest-read-only: true
+
+# Simple built-in economy backing /money and /pay.
+max-money: 10000000000000
+min-money: 0
+starting-money: 0
+
+# How many players to show in /baltop.
+baltop-size: 10

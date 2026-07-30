@@ -121,6 +121,11 @@ public final class PoppyConfig {
 
     private volatile boolean combatLogPunishOnKick;
 
+    private volatile long economyMaxMoney;
+    private volatile long economyMinMoney;
+    private volatile long economyStartingMoney;
+    private volatile int economyBaltopSize;
+
     public PoppyConfig(JavaPlugin plugin) {
         this.plugin = plugin;
         reload();
@@ -212,6 +217,11 @@ public final class PoppyConfig {
         healCooldownMillis = Math.max(0, c.getInt("heal-cooldown-seconds", 180)) * 1000L;
 
         combatLogPunishOnKick = c.getBoolean("combat-log-punish-on-kick", false);
+
+        economyMaxMoney = c.getLong("max-money", 10_000_000_000_000L);
+        economyMinMoney = c.getLong("min-money", 0L);
+        economyStartingMoney = c.getLong("starting-money", 0L);
+        economyBaltopSize = Math.max(1, c.getInt("baltop-size", 10));
     }
 
     private int computeTrashSize(int configured) {
@@ -478,5 +488,21 @@ public final class PoppyConfig {
 
     public boolean deathChestReadOnly() {
         return deathChestReadOnly;
+    }
+
+    public long economyMaxMoney() {
+        return economyMaxMoney;
+    }
+
+    public long economyMinMoney() {
+        return economyMinMoney;
+    }
+
+    public long economyStartingMoney() {
+        return economyStartingMoney;
+    }
+
+    public int economyBaltopSize() {
+        return economyBaltopSize;
     }
 }

@@ -240,3 +240,6 @@ shop:
   not-sellable: "&4[!] This item can't be sold here!"
   balance-full: "&4[!] Your balance can't hold that much more money!"
   back-button: "&c« Back to categories"
+  prev-page: "&e« Previous Page"
+  next-page: "&eNext Page »"
+  page-indicator: "&7Page {page}/{total}"

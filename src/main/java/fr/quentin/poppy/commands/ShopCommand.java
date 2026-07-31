@@ -28,7 +28,7 @@ public class ShopCommand extends SafeCommand {
             return true;
         }
 
-        shopGUI.openMain(player, shopManager.getCategories());
+        shopGUI.openMain(player, shopManager.getCategories(), 0);
         return true;
     }
 }

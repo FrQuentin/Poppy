@@ -5,13 +5,22 @@ import org.bukkit.inventory.InventoryHolder;
 import org.jspecify.annotations.NonNull;
 
 /**
- * Marker holder for the /shop main category menu. Two-step construction
- * (the {@link Inventory} is set after this holder already exists,
- * since Bukkit requires the holder to build the inventory).
+ * Marker holder for one page of the /shop main category menu — carries
+ * which page it's showing so {@code ShopListener} can compute the
+ * previous/next page to open on a navigation click.
  */
 public class ShopMainHolder implements InventoryHolder {
 
+    private final int page;
     private Inventory inventory;
+
+    public ShopMainHolder(int page) {
+        this.page = page;
+    }
+
+    public int getPage() {
+        return page;
+    }
 
     public void setInventory(Inventory inventory) {
         this.inventory = inventory;

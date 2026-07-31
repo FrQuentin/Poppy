@@ -18,13 +18,12 @@ import org.bukkit.plugin.java.JavaPlugin;
 import java.util.logging.Level;
 
 /**
- * Handles clicks in the /shop GUIs. Every click is cancelled outright —
- * neither GUI is a real inventory to move items into, only a listing to
- * trigger a buy/sell transaction from — and opening the category GUI
- * from the main menu is deferred a tick, same reasoning as
- * {@code HomesGUIListener}: opening an inventory synchronously from
- * inside an {@link InventoryClickEvent} handler risks a client/server
- * desync.
+ * Handles clicks in the /shop GUIs, including pagination (previous/next
+ * page, back to categories) and the actual buy/sell transactions. Every
+ * click is cancelled outright, and opening a different page/category is
+ * deferred a tick — same reasoning as {@code HomesGUIListener}: opening
+ * an inventory synchronously from inside an {@link InventoryClickEvent}
+ * handler risks a client/server desync.
  */
 public class ShopListener implements Listener {
 
@@ -55,8 +54,8 @@ public class ShopListener implements Listener {
         }
 
         try {
-            if (holder instanceof ShopMainHolder) {
-                handleMainClick(event, player);
+            if (holder instanceof ShopMainHolder mainHolder) {
+                handleMainClick(event, player, mainHolder);
             } else if (holder instanceof ShopCategoryHolder categoryHolder) {
                 handleCategoryClick(event, player, categoryHolder);
             }
@@ -74,14 +73,23 @@ public class ShopListener implements Listener {
         }
     }
 
-    private void handleMainClick(InventoryClickEvent event, Player player) {
+    private void handleMainClick(InventoryClickEvent event, Player player, ShopMainHolder holder) {
         ItemStack clicked = event.getCurrentItem();
         if (clicked == null || clicked.getItemMeta() == null) {
             return;
         }
+        ItemMeta meta = clicked.getItemMeta();
 
-        String categoryId = clicked.getItemMeta().getPersistentDataContainer()
-                .get(shopGUI.getCategoryKey(), PersistentDataType.STRING);
+        if (meta.getPersistentDataContainer().has(shopGUI.getPrevPageKey(), PersistentDataType.INTEGER)) {
+            openMainPage(player, holder.getPage() - 1);
+            return;
+        }
+        if (meta.getPersistentDataContainer().has(shopGUI.getNextPageKey(), PersistentDataType.INTEGER)) {
+            openMainPage(player, holder.getPage() + 1);
+            return;
+        }
+
+        String categoryId = meta.getPersistentDataContainer().get(shopGUI.getCategoryKey(), PersistentDataType.STRING);
         if (categoryId == null) {
             return;
         }
@@ -91,11 +99,7 @@ public class ShopListener implements Listener {
             return;
         }
 
-        Bukkit.getScheduler().runTask(plugin, () -> {
-            if (player.isOnline()) {
-                shopGUI.openCategory(player, category);
-            }
-        });
+        openCategoryPage(player, category, 0);
     }
 
     private void handleCategoryClick(InventoryClickEvent event, Player player, ShopCategoryHolder holder) {
@@ -103,26 +107,29 @@ public class ShopListener implements Listener {
         if (clicked == null || clicked.getItemMeta() == null) {
             return;
         }
-
         ItemMeta meta = clicked.getItemMeta();
 
-        Integer backFlag = meta.getPersistentDataContainer().get(shopGUI.getBackButtonKey(), PersistentDataType.INTEGER);
-        if (backFlag != null) {
-            Bukkit.getScheduler().runTask(plugin, () -> {
-                if (player.isOnline()) {
-                    shopGUI.openMain(player, shopManager.getCategories());
-                }
-            });
+        ShopManager.ShopCategory category = shopManager.findCategory(holder.getCategoryId());
+
+        if (meta.getPersistentDataContainer().has(shopGUI.getPrevPageKey(), PersistentDataType.INTEGER)) {
+            if (holder.getPage() == 0) {
+                // On the first page, this same button doubles as "back to the
+                // category menu" — the only way out of a category view otherwise.
+                openMainPage(player, 0);
+            } else if (category != null) {
+                openCategoryPage(player, category, holder.getPage() - 1);
+            }
+            return;
+        }
+        if (meta.getPersistentDataContainer().has(shopGUI.getNextPageKey(), PersistentDataType.INTEGER)) {
+            if (category != null) {
+                openCategoryPage(player, category, holder.getPage() + 1);
+            }
             return;
         }
 
         Integer index = meta.getPersistentDataContainer().get(shopGUI.getItemIndexKey(), PersistentDataType.INTEGER);
-        if (index == null) {
-            return;
-        }
-
-        ShopManager.ShopCategory category = shopManager.findCategory(holder.getCategoryId());
-        if (category == null || index < 0 || index >= category.items().size()) {
+        if (index == null || category == null || index < 0 || index >= category.items().size()) {
             return;
         }
 
@@ -134,6 +141,22 @@ public class ShopListener implements Listener {
         } else if (event.isLeftClick()) {
             handleBuy(player, item, amount);
         }
+    }
+
+    private void openMainPage(Player player, int page) {
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (player.isOnline()) {
+                shopGUI.openMain(player, shopManager.getCategories(), page);
+            }
+        });
+    }
+
+    private void openCategoryPage(Player player, ShopManager.ShopCategory category, int page) {
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (player.isOnline()) {
+                shopGUI.openCategory(player, category, page);
+            }
+        });
     }
 
     private void handleBuy(Player player, ShopManager.ShopItem item, int amount) {

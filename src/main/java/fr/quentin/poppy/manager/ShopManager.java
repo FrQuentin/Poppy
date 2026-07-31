@@ -45,7 +45,7 @@ public class ShopManager {
         }
     }
 
-    public record ShopCategory(String id, String displayName, Material icon, List<ShopItem> items) {
+    public record ShopCategory(String id, String displayName, Material icon, String headTexture, List<ShopItem> items) {
     }
 
     private final JavaPlugin plugin;
@@ -107,6 +107,7 @@ public class ShopManager {
             if (icon == null) {
                 icon = Material.CHEST;
             }
+            String headTexture = categorySection.getString("head-texture");
 
             List<ShopItem> items = new ArrayList<>();
             for (Map<?, ?> raw : categorySection.getMapList("items")) {
@@ -123,7 +124,7 @@ public class ShopManager {
                 items.add(new ShopItem(material, itemName, buy, sell));
             }
 
-            categories.add(new ShopCategory(categoryId, displayName, icon, items));
+            categories.add(new ShopCategory(categoryId, displayName, icon, headTexture, items));
         }
     }
 

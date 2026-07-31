@@ -1,5 +1,7 @@
 package fr.quentin.poppy.gui;
 
+import com.destroystokyo.paper.profile.PlayerProfile;
+import com.destroystokyo.paper.profile.ProfileProperty;
 import fr.quentin.poppy.manager.ShopManager;
 import fr.quentin.poppy.util.Messages;
 import fr.quentin.poppy.util.MoneyFormat;
@@ -11,11 +13,13 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.SkullMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.Plugin;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Builds the /shop GUIs: the main category menu and each category's item
@@ -150,13 +154,43 @@ public final class ShopGUI {
         return Math.max(0, Math.min(page, totalPages - 1));
     }
 
+    /**
+     * Uses a real villager-profession skin (a PLAYER_HEAD with a custom
+     * texture) when {@code head-texture} is set in shop.yml for this
+     * category, otherwise falls back to the plain material icon — so a
+     * category never breaks visually just because an admin hasn't filled in
+     * a head texture yet.
+     */
     private ItemStack buildCategoryIcon(ShopManager.ShopCategory category) {
-        ItemStack icon = new ItemStack(category.icon());
+        ItemStack icon = category.headTexture() != null
+                ? buildHeadIcon(category.headTexture())
+                : new ItemStack(category.icon());
+
         ItemMeta meta = icon.getItemMeta();
         meta.displayName(messages.get("shop.category-name", "category", category.displayName()));
         meta.getPersistentDataContainer().set(categoryKey, PersistentDataType.STRING, category.id());
         icon.setItemMeta(meta);
         return icon;
+    }
+
+    /**
+     * Builds a PLAYER_HEAD carrying a custom skin texture directly from a
+     * minecraft-heads.com "Value" string — no network lookup needed, the
+     * base64 already embeds the skin URL. Uses
+     * {@link PlayerProfile#setProperty} with the raw {@code "textures"}
+     * property rather than resolving a real player name, so this works
+     * fully offline and isn't tied to any actual Mojang account.
+     */
+    private ItemStack buildHeadIcon(String headTexture) {
+        ItemStack item = new ItemStack(Material.PLAYER_HEAD);
+        SkullMeta meta = (SkullMeta) item.getItemMeta();
+
+        PlayerProfile profile = Bukkit.createProfile(UUID.randomUUID());
+        profile.setProperty(new ProfileProperty("textures", headTexture));
+        meta.setPlayerProfile(profile);
+
+        item.setItemMeta(meta);
+        return item;
     }
 
     private ItemStack buildItemIcon(ShopManager.ShopItem item, int index) {

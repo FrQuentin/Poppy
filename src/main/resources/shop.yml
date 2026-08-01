@@ -4,91 +4,90 @@ categories:
     icon: STONE
     head-texture: "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMmMwMmMzZmZkNTcwNWFiNDg4YjMwNWQ1N2ZmMDE2OGUyNmRlNzBmZDNmNzM5ZTgzOTY2MWFiOTQ3ZGZmMzdiMSJ9fX0="
     items:
-      - {material: STONE, buy: 6, sell: 3}
-      - {material: COBBLESTONE, buy: 4, sell: 2}
-      - {material: ANDESITE, buy: 5, sell: 2}
-      - {material: GRANITE, buy: 5, sell: 2}
-      - {material: DIORITE, buy: 5, sell: 2}
-      - {material: BLACKSTONE, buy: 10, sell: 5}
-      - {material: COBBLED_DEEPSLATE, buy: 6, sell: 3}
+      - {material: DIRT, buy: 2, sell: 1}
+      - {material: COBBLESTONE, buy: 3, sell: 1}
+      - {material: STONE, buy: 5, sell: 2}
+      - {material: ANDESITE, buy: 6, sell: 3}
+      - {material: DIORITE, buy: 6, sell: 3}
+      - {material: GRANITE, buy: 6, sell: 3}
       - {material: TUFF, buy: 6, sell: 3}
-      - {material: DIRT, buy: 3, sell: 1}
-      - {material: GRAVEL, buy: 8, sell: 4}
+      - {material: DEEPSLATE, buy: 8, sell: 4}
       - {material: SAND, buy: 8, sell: 4}
       - {material: RED_SAND, buy: 10, sell: 5}
-      - {material: GLASS, buy: 12, sell: 6}
-      - {material: OAK_PLANKS, buy: 8, sell: 4}
-      - {material: SPRUCE_PLANKS, buy: 8, sell: 4}
+      - {material: GRAVEL, buy: 8, sell: 4}
+      - {material: GLASS, buy: 14, sell: 7}
+      - {material: OBSIDIAN, buy: 80, sell: 40}
+      - {material: COBBLED_DEEPSLATE, buy: 5, sell: 2}
+      - {material: BLACKSTONE, buy: 10, sell: 5}
       - {material: BRICKS, buy: 24, sell: 12}
-      - {material: STONE_BRICKS, buy: 10, sell: 5}
+      - {material: STONE_BRICKS, buy: 8, sell: 4}
+      - {material: SANDSTONE, buy: 9, sell: 4}
+      - {material: RED_SANDSTONE, buy: 9, sell: 4}
       - {material: PRISMARINE, buy: 30, sell: 15}
-      - {material: QUARTZ_BLOCK, buy: 80, sell: 40}
-      - {material: WHITE_CONCRETE, display-name: "Concrete", buy: 24, sell: 12}
-      - {material: TERRACOTTA, buy: 20, sell: 10}
-      - {material: DEEPSLATE, buy: 10, sell: 5}
+      - {material: QUARTZ_BLOCK, buy: 55, sell: 27}
+      - {material: WHITE_CONCRETE, display-name: "Concrete", buy: 25, sell: 12}
+      - {material: TERRACOTTA, buy: 22, sell: 11}
       - {material: END_STONE, buy: 35, sell: 17}
-      - {material: SNOW_BLOCK, buy: 15, sell: 7}
-      - {material: ICE, buy: 12, sell: 6}
-      - {material: PACKED_ICE, buy: 20, sell: 10}
-      - {material: BLUE_ICE, buy: 35, sell: 17}
-      - {material: PURPUR_BLOCK, buy: 40, sell: 20}
+      - {material: SNOW_BLOCK, buy: 12, sell: 6}
+      - {material: ROOTED_DIRT, buy: 6, sell: 3}
+      - {material: ICE, buy: 14, sell: 7}
+      - {material: PACKED_ICE, buy: 24, sell: 12}
+      - {material: BLUE_ICE, buy: 40, sell: 20}
+      - {material: PURPUR_BLOCK, buy: 60, sell: 30}
       - {material: NETHER_BRICKS, buy: 25, sell: 12}
       - {material: RED_NETHER_BRICKS, buy: 28, sell: 14}
       - {material: BASALT, buy: 8, sell: 4}
       - {material: SMOOTH_BASALT, buy: 10, sell: 5}
-      - {material: CALCITE, buy: 12, sell: 6}
+      - {material: CALCITE, buy: 10, sell: 5}
       - {material: DRIPSTONE_BLOCK, buy: 14, sell: 7}
       - {material: MUD_BRICKS, buy: 18, sell: 9}
       - {material: PACKED_MUD, buy: 8, sell: 4}
       - {material: RESIN_BRICKS, buy: 20, sell: 10}
-      - {material: RESIN_CLUMP, buy: 15, sell: 7}
-      - {material: TUFF_BRICKS, buy: 14, sell: 7}
-      - {material: CHISELED_TUFF, buy: 20, sell: 10}
-      - {material: CHISELED_STONE_BRICKS, buy: 18, sell: 9}
-      - {material: CHISELED_SANDSTONE, buy: 18, sell: 9}
-      - {material: CHISELED_RED_SANDSTONE, buy: 18, sell: 9}
-      - {material: CHISELED_DEEPSLATE, buy: 20, sell: 10}
-      - {material: CHISELED_POLISHED_BLACKSTONE, buy: 20, sell: 10}
-      - {material: CHISELED_NETHER_BRICKS, buy: 22, sell: 11}
-      - {material: CHISELED_QUARTZ_BLOCK, buy: 90, sell: 45}
-      - {material: SANDSTONE, buy: 10, sell: 5}
-      - {material: RED_SANDSTONE, buy: 10, sell: 5}
-      - {material: MOSS_BLOCK, buy: 16, sell: 8}
-      - {material: PALE_MOSS_BLOCK, buy: 18, sell: 9}
-      - {material: PALE_MOSS_CARPET, buy: 10, sell: 5}
+      - {material: RESIN_CLUMP, buy: 14, sell: 7}
+      - {material: TUFF_BRICKS, buy: 12, sell: 6}
+      - {material: CHISELED_TUFF, buy: 18, sell: 9}
+      - {material: CHISELED_STONE_BRICKS, buy: 16, sell: 8}
+      - {material: CHISELED_SANDSTONE, buy: 16, sell: 8}
+      - {material: CHISELED_RED_SANDSTONE, buy: 16, sell: 8}
+      - {material: CHISELED_DEEPSLATE, buy: 18, sell: 9}
+      - {material: CHISELED_POLISHED_BLACKSTONE, buy: 18, sell: 9}
+      - {material: CHISELED_NETHER_BRICKS, buy: 20, sell: 10}
+      - {material: CHISELED_QUARTZ_BLOCK, buy: 80, sell: 40}
+      - {material: MOSS_BLOCK, buy: 14, sell: 7}
+      - {material: PALE_MOSS_BLOCK, buy: 16, sell: 8}
       - {material: HONEYCOMB_BLOCK, buy: 30, sell: 15}
-      - {material: CINNABAR, buy: 15, sell: 7}
-      - {material: CINNABAR_STAIRS, buy: 15, sell: 7}
-      - {material: CINNABAR_SLAB, buy: 15, sell: 7}
-      - {material: CINNABAR_WALL, buy: 15, sell: 7}
-      - {material: POLISHED_CINNABAR, buy: 20, sell: 10}
-      - {material: POLISHED_CINNABAR_STAIRS, buy: 20, sell: 10}
-      - {material: POLISHED_CINNABAR_SLAB, buy: 20, sell: 10}
-      - {material: POLISHED_CINNABAR_WALL, buy: 20, sell: 10}
-      - {material: CINNABAR_BRICKS, buy: 22, sell: 11}
-      - {material: CINNABAR_BRICK_STAIRS, buy: 22, sell: 11}
-      - {material: CINNABAR_BRICK_SLAB, buy: 22, sell: 11}
-      - {material: CINNABAR_BRICK_WALL, buy: 22, sell: 11}
-      - {material: CHISELED_CINNABAR, buy: 35, sell: 17}
-      - {material: SULFUR, buy: 15, sell: 7}
-      - {material: SULFUR_STAIRS, buy: 15, sell: 7}
-      - {material: SULFUR_SLAB, buy: 15, sell: 7}
-      - {material: SULFUR_WALL, buy: 15, sell: 7}
-      - {material: POLISHED_SULFUR, buy: 20, sell: 10}
-      - {material: POLISHED_SULFUR_STAIRS, buy: 20, sell: 10}
-      - {material: POLISHED_SULFUR_SLAB, buy: 20, sell: 10}
-      - {material: POLISHED_SULFUR_WALL, buy: 20, sell: 10}
-      - {material: SULFUR_BRICKS, buy: 22, sell: 11}
-      - {material: SULFUR_BRICK_STAIRS, buy: 22, sell: 11}
-      - {material: SULFUR_BRICK_SLAB, buy: 22, sell: 11}
-      - {material: SULFUR_BRICK_WALL, buy: 22, sell: 11}
-      - {material: CHISELED_SULFUR, buy: 35, sell: 17}
-      - {material: POTENT_SULFUR, buy: 60, sell: 30}
+      - {material: CINNABAR, buy: 14, sell: 7}
+      - {material: CINNABAR_STAIRS, buy: 14, sell: 7}
+      - {material: CINNABAR_SLAB, buy: 14, sell: 7}
+      - {material: CINNABAR_WALL, buy: 14, sell: 7}
+      - {material: POLISHED_CINNABAR, buy: 18, sell: 9}
+      - {material: POLISHED_CINNABAR_STAIRS, buy: 18, sell: 9}
+      - {material: POLISHED_CINNABAR_SLAB, buy: 18, sell: 9}
+      - {material: POLISHED_CINNABAR_WALL, buy: 18, sell: 9}
+      - {material: CINNABAR_BRICKS, buy: 20, sell: 10}
+      - {material: CINNABAR_BRICK_STAIRS, buy: 20, sell: 10}
+      - {material: CINNABAR_BRICK_SLAB, buy: 20, sell: 10}
+      - {material: CINNABAR_BRICK_WALL, buy: 20, sell: 10}
+      - {material: CHISELED_CINNABAR, buy: 32, sell: 16}
+      - {material: SULFUR, buy: 14, sell: 7}
+      - {material: SULFUR_STAIRS, buy: 14, sell: 7}
+      - {material: SULFUR_SLAB, buy: 14, sell: 7}
+      - {material: SULFUR_WALL, buy: 14, sell: 7}
+      - {material: POLISHED_SULFUR, buy: 18, sell: 9}
+      - {material: POLISHED_SULFUR_STAIRS, buy: 18, sell: 9}
+      - {material: POLISHED_SULFUR_SLAB, buy: 18, sell: 9}
+      - {material: POLISHED_SULFUR_WALL, buy: 18, sell: 9}
+      - {material: SULFUR_BRICKS, buy: 20, sell: 10}
+      - {material: SULFUR_BRICK_STAIRS, buy: 20, sell: 10}
+      - {material: SULFUR_BRICK_SLAB, buy: 20, sell: 10}
+      - {material: SULFUR_BRICK_WALL, buy: 20, sell: 10}
+      - {material: CHISELED_SULFUR, buy: 32, sell: 16}
+      - {material: POTENT_SULFUR, buy: 55, sell: 27}
 
   wood:
     display-name: "Owen Carter"
-    icon: STONE
-    head-texture: "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMmMwMmMzZmZkNTcwNWFiNDg4YjMwNWQ1N2ZmMDE2OGUyNmRlNzBmZDNmNzM5ZTgzOTY2MWFiOTQ3ZGZmMzdiMSJ9fX0="
+    icon: OAK_LOG
+    head-texture: "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMTc1MzJlOTBjNTczYTM5NGM3ODAyYWE0MTU4MzA1ODAyYjU5ZTY3ZjJhMmI3ZTNmZDAzNjNhYTZlYTQyYjg0MSJ9fX0="
     items:
       - {material: OAK_LOG, buy: 12, sell: 6}
       - {material: SPRUCE_LOG, buy: 12, sell: 6}
@@ -96,75 +95,67 @@ categories:
       - {material: JUNGLE_LOG, buy: 12, sell: 6}
       - {material: ACACIA_LOG, buy: 12, sell: 6}
       - {material: DARK_OAK_LOG, buy: 12, sell: 6}
-      - {material: MANGROVE_LOG, buy: 14, sell: 7}
-      - {material: CHERRY_LOG, buy: 16, sell: 8}
-      - {material: PALE_OAK_LOG, buy: 14, sell: 7}
-      - {material: CRIMSON_STEM, buy: 18, sell: 9}
-      - {material: WARPED_STEM, buy: 18, sell: 9}
-      - {material: OAK_PLANKS, buy: 4, sell: 2}
-      - {material: SPRUCE_PLANKS, buy: 4, sell: 2}
-      - {material: BIRCH_PLANKS, buy: 4, sell: 2}
-      - {material: JUNGLE_PLANKS, buy: 4, sell: 2}
-      - {material: ACACIA_PLANKS, buy: 4, sell: 2}
-      - {material: DARK_OAK_PLANKS, buy: 4, sell: 2}
-      - {material: MANGROVE_PLANKS, buy: 5, sell: 2}
-      - {material: CHERRY_PLANKS, buy: 6, sell: 3}
-      - {material: PALE_OAK_PLANKS, buy: 5, sell: 2}
-      - {material: CRIMSON_PLANKS, buy: 7, sell: 3}
-      - {material: WARPED_PLANKS, buy: 7, sell: 3}
-      - {material: BAMBOO_PLANKS, buy: 4, sell: 2}
-      - {material: OAK_LEAVES, buy: 6, sell: 3}
-      - {material: SPRUCE_LEAVES, buy: 6, sell: 3}
-      - {material: BIRCH_LEAVES, buy: 6, sell: 3}
-      - {material: JUNGLE_LEAVES, buy: 6, sell: 3}
-      - {material: ACACIA_LEAVES, buy: 6, sell: 3}
-      - {material: DARK_OAK_LEAVES, buy: 6, sell: 3}
-      - {material: MANGROVE_LEAVES, buy: 7, sell: 3}
-      - {material: CHERRY_LEAVES, buy: 8, sell: 4}
-      - {material: PALE_OAK_LEAVES, buy: 8, sell: 4}
-      - {material: AZALEA_LEAVES, buy: 8, sell: 4}
-      - {material: FLOWERING_AZALEA_LEAVES, buy: 12, sell: 6}
-      - {material: OAK_SAPLING, buy: 15, sell: 7}
-      - {material: SPRUCE_SAPLING, buy: 15, sell: 7}
-      - {material: BIRCH_SAPLING, buy: 15, sell: 7}
-      - {material: JUNGLE_SAPLING, buy: 15, sell: 7}
-      - {material: ACACIA_SAPLING, buy: 15, sell: 7}
-      - {material: DARK_OAK_SAPLING, buy: 15, sell: 7}
-      - {material: CHERRY_SAPLING, buy: 25, sell: 12}
-      - {material: PALE_OAK_SAPLING, buy: 20, sell: 10}
-      - {material: MANGROVE_PROPAGULE, buy: 25, sell: 12}
-      - {material: VINE, buy: 6, sell: 3}
-      - {material: TWISTING_VINES, buy: 8, sell: 4}
-      - {material: WEEPING_VINES, buy: 8, sell: 4}
-      - {material: BIG_DRIPLEAF, buy: 12, sell: 6}
-      - {material: SMALL_DRIPLEAF, buy: 10, sell: 5}
-      - {material: ROOTED_DIRT, buy: 8, sell: 4}
-      - {material: HANGING_ROOTS, buy: 10, sell: 5}
-      - {material: MOSS_CARPET, buy: 8, sell: 4}
-      - {material: SHORT_GRASS, buy: 4, sell: 2}
-      - {material: FERN, buy: 6, sell: 3}
-      - {material: LARGE_FERN, buy: 10, sell: 5}
+      - {material: MANGROVE_LOG, buy: 13, sell: 6}
+      - {material: CHERRY_LOG, buy: 15, sell: 7}
+      - {material: PALE_OAK_LOG, buy: 13, sell: 6}
+      - {material: CRIMSON_STEM, buy: 16, sell: 8}
+      - {material: WARPED_STEM, buy: 16, sell: 8}
+      - {material: OAK_PLANKS, buy: 8, sell: 4}
+      - {material: SPRUCE_PLANKS, buy: 8, sell: 4}
+      - {material: BIRCH_PLANKS, buy: 8, sell: 4}
+      - {material: JUNGLE_PLANKS, buy: 8, sell: 4}
+      - {material: ACACIA_PLANKS, buy: 8, sell: 4}
+      - {material: DARK_OAK_PLANKS, buy: 8, sell: 4}
+      - {material: MANGROVE_PLANKS, buy: 8, sell: 4}
+      - {material: CHERRY_PLANKS, buy: 9, sell: 4}
+      - {material: PALE_OAK_PLANKS, buy: 8, sell: 4}
+      - {material: CRIMSON_PLANKS, buy: 9, sell: 4}
+      - {material: WARPED_PLANKS, buy: 9, sell: 4}
+      - {material: BAMBOO_PLANKS, buy: 8, sell: 4}
+      - {material: OAK_LEAVES, buy: 4, sell: 2}
+      - {material: SPRUCE_LEAVES, buy: 4, sell: 2}
+      - {material: BIRCH_LEAVES, buy: 4, sell: 2}
+      - {material: JUNGLE_LEAVES, buy: 4, sell: 2}
+      - {material: ACACIA_LEAVES, buy: 4, sell: 2}
+      - {material: DARK_OAK_LEAVES, buy: 4, sell: 2}
+      - {material: MANGROVE_LEAVES, buy: 4, sell: 2}
+      - {material: CHERRY_LEAVES, buy: 5, sell: 2}
+      - {material: PALE_OAK_LEAVES, buy: 5, sell: 2}
+      - {material: AZALEA_LEAVES, buy: 5, sell: 2}
+      - {material: FLOWERING_AZALEA_LEAVES, buy: 10, sell: 5}
+      - {material: OAK_SAPLING, buy: 30, sell: 15}
+      - {material: SPRUCE_SAPLING, buy: 30, sell: 15}
+      - {material: BIRCH_SAPLING, buy: 30, sell: 15}
+      - {material: JUNGLE_SAPLING, buy: 30, sell: 15}
+      - {material: ACACIA_SAPLING, buy: 30, sell: 15}
+      - {material: DARK_OAK_SAPLING, buy: 30, sell: 15}
+      - {material: CHERRY_SAPLING, buy: 35, sell: 17}
+      - {material: PALE_OAK_SAPLING, buy: 32, sell: 16}
+      - {material: MANGROVE_PROPAGULE, buy: 32, sell: 16}
+      - {material: BAMBOO, buy: 5, sell: 2}
+      - {material: MANGROVE_ROOTS, buy: 15, sell: 7}
+      - {material: MUDDY_MANGROVE_ROOTS, buy: 15, sell: 7}
 
   corals:
     display-name: "Finn Walker"
-    icon: STONE
-    head-texture: "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMmMwMmMzZmZkNTcwNWFiNDg4YjMwNWQ1N2ZmMDE2OGUyNmRlNzBmZDNmNzM5ZTgzOTY2MWFiOTQ3ZGZmMzdiMSJ9fX0="
+    icon: TUBE_CORAL_BLOCK
+    head-texture: "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvYWMxNWU1ZmI1NmZhMTZiMDc0N2IxYmNiMDUzMzVmNTVkMWZhMzE1NjFjMDgyYjVlMzY0M2RiNTU2NTQxMDg1MiJ9fX0="
     items:
-      - {material: TUBE_CORAL_BLOCK, buy: 40, sell: 20}
-      - {material: BRAIN_CORAL_BLOCK, buy: 40, sell: 20}
-      - {material: BUBBLE_CORAL_BLOCK, buy: 40, sell: 20}
-      - {material: FIRE_CORAL_BLOCK, buy: 40, sell: 20}
-      - {material: HORN_CORAL_BLOCK, buy: 40, sell: 20}
-      - {material: DEAD_TUBE_CORAL_BLOCK, buy: 15, sell: 7}
-      - {material: DEAD_BRAIN_CORAL_BLOCK, buy: 15, sell: 7}
-      - {material: DEAD_BUBBLE_CORAL_BLOCK, buy: 15, sell: 7}
-      - {material: DEAD_FIRE_CORAL_BLOCK, buy: 15, sell: 7}
-      - {material: DEAD_HORN_CORAL_BLOCK, buy: 15, sell: 7}
-      - {material: TUBE_CORAL, buy: 25, sell: 12}
-      - {material: BRAIN_CORAL, buy: 25, sell: 12}
-      - {material: BUBBLE_CORAL, buy: 25, sell: 12}
-      - {material: FIRE_CORAL, buy: 25, sell: 12}
-      - {material: HORN_CORAL, buy: 25, sell: 12}
+      - {material: TUBE_CORAL_BLOCK, buy: 45, sell: 22}
+      - {material: BRAIN_CORAL_BLOCK, buy: 45, sell: 22}
+      - {material: BUBBLE_CORAL_BLOCK, buy: 45, sell: 22}
+      - {material: FIRE_CORAL_BLOCK, buy: 45, sell: 22}
+      - {material: HORN_CORAL_BLOCK, buy: 45, sell: 22}
+      - {material: DEAD_TUBE_CORAL_BLOCK, buy: 14, sell: 7}
+      - {material: DEAD_BRAIN_CORAL_BLOCK, buy: 14, sell: 7}
+      - {material: DEAD_BUBBLE_CORAL_BLOCK, buy: 14, sell: 7}
+      - {material: DEAD_FIRE_CORAL_BLOCK, buy: 14, sell: 7}
+      - {material: DEAD_HORN_CORAL_BLOCK, buy: 14, sell: 7}
+      - {material: TUBE_CORAL, buy: 28, sell: 14}
+      - {material: BRAIN_CORAL, buy: 28, sell: 14}
+      - {material: BUBBLE_CORAL, buy: 28, sell: 14}
+      - {material: FIRE_CORAL, buy: 28, sell: 14}
+      - {material: HORN_CORAL, buy: 28, sell: 14}
       - {material: TUBE_CORAL_FAN, buy: 18, sell: 9}
       - {material: BRAIN_CORAL_FAN, buy: 18, sell: 9}
       - {material: BUBBLE_CORAL_FAN, buy: 18, sell: 9}
@@ -174,84 +165,91 @@ categories:
 
   mob_drops:
     display-name: "Dorian Voss"
-    icon: STONE
-    head-texture: "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMmMwMmMzZmZkNTcwNWFiNDg4YjMwNWQ1N2ZmMDE2OGUyNmRlNzBmZDNmNzM5ZTgzOTY2MWFiOTQ3ZGZmMzdiMSJ9fX0="
+    icon: BONE
+    head-texture: "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvZjc2Y2Y4YjczNzhlODg5Mzk1ZDUzOGU2MzU0YTE3YTNkZTZiMjk0YmI2YmY4ZGI5YzcwMTk1MWM2OGQzYzBlNiJ9fX0="
     items:
       - {material: GUNPOWDER, buy: 20, sell: 10}
-      - {material: FEATHER, buy: 15, sell: 7}
-      - {material: STRING, buy: 15, sell: 7}
-      - {material: ENDER_PEARL, buy: 90, sell: 45}
-      - {material: BONE, buy: 18, sell: 9}
-      - {material: ROTTEN_FLESH, buy: 10, sell: 5}
-      - {material: INK_SAC, buy: 16, sell: 8}
-      - {material: LEATHER, buy: 25, sell: 12}
-      - {material: SPIDER_EYE, buy: 20, sell: 10}
-      - {material: SLIME_BALL, buy: 40, sell: 20}
-      - {material: RABBIT_HIDE, buy: 15, sell: 7}
+      - {material: FEATHER, buy: 14, sell: 7}
+      - {material: STRING, buy: 16, sell: 8}
+      - {material: ENDER_PEARL, buy: 100, sell: 50}
+      - {material: BONE, buy: 16, sell: 8}
+      - {material: ROTTEN_FLESH, buy: 8, sell: 4}
+      - {material: INK_SAC, buy: 15, sell: 7}
+      - {material: LEATHER, buy: 28, sell: 14}
+      - {material: SPIDER_EYE, buy: 18, sell: 9}
+      - {material: SLIME_BALL, buy: 50, sell: 25}
+      - {material: RABBIT_HIDE, buy: 14, sell: 7}
       - {material: RABBIT_FOOT, buy: 60, sell: 30}
-      - {material: PHANTOM_MEMBRANE, buy: 350, sell: 0}
-      - {material: SHULKER_SHELL, buy: 600, sell: 300}
+      - {material: PHANTOM_MEMBRANE, buy: 450, sell: 225}
+      - {material: SHULKER_SHELL, buy: 1200, sell: 600}
       - {material: MAGMA_CREAM, buy: 45, sell: 22}
-      - {material: NAUTILUS_SHELL, buy: 150, sell: 75}
-      - {material: TURTLE_SCUTE, buy: 130, sell: 65}
-      - {material: ARMADILLO_SCUTE, buy: 90, sell: 45}
-      - {material: HONEYCOMB, buy: 20, sell: 10}
-      - {material: SNIFFER_EGG, buy: 800, sell: 400}
+      - {material: NAUTILUS_SHELL, buy: 160, sell: 80}
+      - {material: TURTLE_SCUTE, buy: 140, sell: 70}
+      - {material: ARMADILLO_SCUTE, buy: 100, sell: 50}
+      - {material: HONEYCOMB, buy: 18, sell: 9}
+      - {material: SNIFFER_EGG, buy: 900, sell: 450}
 
   ores:
     display-name: "Silas Kane"
-    icon: STONE
-    head-texture: "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMmMwMmMzZmZkNTcwNWFiNDg4YjMwNWQ1N2ZmMDE2OGUyNmRlNzBmZDNmNzM5ZTgzOTY2MWFiOTQ3ZGZmMzdiMSJ9fX0="
+    icon: IRON_INGOT
+    head-texture: "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvN2RmYTA3ZmQxMjQ0ZWI4OTQ1ZjRlZGVkZDAwNDI2NzUwYjc3ZWY1ZGZiYWYwM2VkNzc1NjMzNDU5ZWNlNDE1YSJ9fX0="
     items:
       - {material: COAL, buy: 20, sell: 10}
       - {material: IRON_INGOT, buy: 60, sell: 30}
-      - {material: COPPER_INGOT, buy: 35, sell: 18}
+      - {material: COPPER_INGOT, buy: 40, sell: 20}
       - {material: GOLD_INGOT, buy: 90, sell: 45}
-      - {material: REDSTONE, buy: 18, sell: 9}
-      - {material: LAPIS_LAZULI, buy: 22, sell: 11}
-      - {material: EMERALD, buy: 180, sell: 90}
-      - {material: DIAMOND, buy: 450, sell: 225}
+      - {material: REDSTONE, buy: 20, sell: 10}
+      - {material: LAPIS_LAZULI, buy: 25, sell: 12}
+      - {material: QUARTZ, buy: 35, sell: 17}
+      - {material: EMERALD, buy: 200, sell: 100}
+      - {material: DIAMOND, buy: 500, sell: 250}
       - {material: NETHERITE_SCRAP, buy: 3500, sell: 1700}
-      - {material: NETHERITE_INGOT, buy: 8000, sell: 4000}
+      - {material: NETHERITE_INGOT, buy: 16000, sell: 8000}
       - {material: RAW_IRON, buy: 45, sell: 22}
-      - {material: RAW_COPPER, buy: 25, sell: 12}
+      - {material: RAW_COPPER, buy: 28, sell: 14}
       - {material: RAW_GOLD, buy: 65, sell: 32}
-      - {material: AMETHYST_SHARD, buy: 35, sell: 17}
+      - {material: AMETHYST_SHARD, buy: 40, sell: 20}
+      - {material: AMETHYST_SHARD, buy: 40, sell: 20}
 
   redstone:
     display-name: "Eli Brandt"
-    icon: STONE
-    head-texture: "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMmMwMmMzZmZkNTcwNWFiNDg4YjMwNWQ1N2ZmMDE2OGUyNmRlNzBmZDNmNzM5ZTgzOTY2MWFiOTQ3ZGZmMzdiMSJ9fX0="
+    icon: REDSTONE
+    head-texture: "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvZTY2YTUzZmM3MDdjZTFmZjg4YTU3NmVmNDAyMDBjZThkNDlmYWU0YWNhZDFlM2IzNzg5YzdkMWNjMWNjNTQxYSJ9fX0="
     items:
-      - {material: REDSTONE, display-name: "Redstone Dust", buy: 18, sell: 9}
-      - {material: REPEATER, buy: 80, sell: 40}
-      - {material: COMPARATOR, buy: 160, sell: 80}
-      - {material: OBSERVER, buy: 150, sell: 75}
-      - {material: PISTON, buy: 120, sell: 60}
-      - {material: STICKY_PISTON, buy: 220, sell: 110}
-      - {material: HOPPER, buy: 300, sell: 150}
-      - {material: DISPENSER, buy: 140, sell: 70}
-      - {material: DROPPER, buy: 90, sell: 45}
-      - {material: TARGET, display-name: "Target Block", buy: 180, sell: 90}
-      - {material: REDSTONE_LAMP, buy: 60, sell: 30}
-      - {material: REDSTONE_TORCH, buy: 15, sell: 7}
-      - {material: REDSTONE_BLOCK, buy: 160, sell: 80}
-      - {material: TRIPWIRE_HOOK, buy: 30, sell: 15}
-      - {material: DAYLIGHT_DETECTOR, buy: 100, sell: 50}
-      - {material: LEVER, buy: 10, sell: 5}
-      - {material: NOTE_BLOCK, buy: 20, sell: 10}
-      - {material: TNT, buy: 200, sell: 100}
+      - {material: REDSTONE, display-name: "Redstone Dust", buy: 20, sell: 10}
+      - {material: REPEATER, buy: 120, sell: 60}
+      - {material: COMPARATOR, buy: 220, sell: 110}
+      - {material: OBSERVER, buy: 180, sell: 90}
+      - {material: PISTON, buy: 140, sell: 70}
+      - {material: STICKY_PISTON, buy: 260, sell: 130}
+      - {material: HOPPER, buy: 400, sell: 200}
+      - {material: DISPENSER, buy: 160, sell: 80}
+      - {material: DROPPER, buy: 100, sell: 50}
+      - {material: TARGET, display-name: "Target Block", buy: 200, sell: 100}
+      - {material: REDSTONE_LAMP, buy: 70, sell: 35}
+      - {material: REDSTONE_TORCH, buy: 14, sell: 7}
+      - {material: REDSTONE_BLOCK, buy: 180, sell: 90}
+      - {material: TRIPWIRE_HOOK, buy: 25, sell: 12}
+      - {material: DAYLIGHT_DETECTOR, buy: 110, sell: 55}
+      - {material: LEVER, buy: 8, sell: 4}
+      - {material: NOTE_BLOCK, buy: 18, sell: 9}
+      - {material: TNT, buy: 220, sell: 110}
       - {material: RAIL, buy: 10, sell: 5}
       - {material: POWERED_RAIL, buy: 45, sell: 22}
       - {material: DETECTOR_RAIL, buy: 40, sell: 20}
       - {material: ACTIVATOR_RAIL, buy: 40, sell: 20}
+      - {material: SCULK_SENSOR, buy: 140, sell: 70}
+      - {material: CALIBRATED_SCULK_SENSOR, buy: 180, sell: 90}
+      - {material: CRAFTER, buy: 800, sell: 400}
+      - {material: COPPER_BULB, buy: 45, sell: 22}
+      - {material: COPPER_GRATE, buy: 30, sell: 15}
 
   lights:
     display-name: "Lyra Ashworth"
-    icon: STONE
-    head-texture: "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMmMwMmMzZmZkNTcwNWFiNDg4YjMwNWQ1N2ZmMDE2OGUyNmRlNzBmZDNmNzM5ZTgzOTY2MWFiOTQ3ZGZmMzdiMSJ9fX0="
+    icon: LANTERN
+    head-texture: "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMzVlNzk5ZGJmYWY5ODI4N2RmYmFmY2U5NzA2MTJjOGYwNzUxNjg5NzdhYWNjMzA5ODlkMzRhNGE1ZmNkZjQyOSJ9fX0="
     items:
-      - {material: SEA_LANTERN, buy: 60, sell: 30}
+      - {material: SEA_LANTERN, buy: 65, sell: 32}
       - {material: LANTERN, buy: 25, sell: 12}
       - {material: SOUL_LANTERN, buy: 30, sell: 15}
       - {material: END_ROD, buy: 55, sell: 27}
@@ -259,14 +257,37 @@ categories:
       - {material: OCHRE_FROGLIGHT, buy: 120, sell: 60}
       - {material: VERDANT_FROGLIGHT, buy: 120, sell: 60}
       - {material: PEARLESCENT_FROGLIGHT, buy: 120, sell: 60}
-      - {material: GLOWSTONE, buy: 70, sell: 35}
-      - {material: REDSTONE_LAMP, buy: 60, sell: 30}
+      - {material: GLOWSTONE, buy: 90, sell: 45}
+      - {material: REDSTONE_LAMP, buy: 70, sell: 35}
       - {material: JACK_O_LANTERN, buy: 35, sell: 17}
+      - {material: CAMPFIRE, buy: 20, sell: 10}
+      - {material: SOUL_CAMPFIRE, buy: 35, sell: 17}
+      - {material: CANDLE, buy: 80, sell: 40}
+      - {material: SEA_PICKLE, buy: 20, sell: 10}
+
+  furniture:
+    display-name: "Percival Wynn"
+    icon: BELL
+    head-texture: "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvOTQyNDhkZDA2ODAzMDVhZDczYjIxNGU4YzZiMDAwOTRlMjdhNGRkZDgwMzQ2NzY5MjFmOTA1MTMwYjg1OGJkYiJ9fX0="
+    items:
+      - {material: BOOKSHELF, buy: 40, sell: 20}
+      - {material: CHISELED_BOOKSHELF, buy: 55, sell: 27}
+      - {material: BARREL, buy: 30, sell: 15}
+      - {material: LECTERN, buy: 35, sell: 17}
+      - {material: COMPOSTER, buy: 25, sell: 12}
+      - {material: FLOWER_POT, buy: 10, sell: 5}
+      - {material: IRON_CHAIN, buy: 15, sell: 7}
+      - {material: COPPER_CHAIN, buy: 15, sell: 7}
+      - {material: BELL, buy: 70, sell: 35}
+      - {material: BEEHIVE, buy: 40, sell: 20}
+      - {material: BEE_NEST, buy: 60, sell: 30}
+      - {material: CAULDRON, buy: 30, sell: 15}
+      - {material: DECORATED_POT, buy: 45, sell: 22}
 
   farming:
     display-name: "Clara Whitfield"
-    icon: STONE
-    head-texture: "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMmMwMmMzZmZkNTcwNWFiNDg4YjMwNWQ1N2ZmMDE2OGUyNmRlNzBmZDNmNzM5ZTgzOTY2MWFiOTQ3ZGZmMzdiMSJ9fX0="
+    icon: WHEAT
+    head-texture: "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvZDAxZTAzNWEzZDhkNjEyNjA3MmJjYmU1MmE5NzkxM2FjZTkzNTUyYTk5OTk1YjVkNDA3MGQ2NzgzYTMxZTkwOSJ9fX0="
     items:
       - {material: WHEAT, buy: 8, sell: 4}
       - {material: WHEAT_SEEDS, buy: 4, sell: 2}
@@ -274,263 +295,313 @@ categories:
       - {material: POTATO, buy: 10, sell: 5}
       - {material: BEETROOT, buy: 10, sell: 5}
       - {material: BEETROOT_SEEDS, buy: 5, sell: 2}
-      - {material: PUMPKIN, buy: 18, sell: 9}
+      - {material: PUMPKIN, buy: 15, sell: 7}
       - {material: PUMPKIN_SEEDS, buy: 6, sell: 3}
-      - {material: MELON_SLICE, display-name: "Melon", buy: 15, sell: 7}
+      - {material: MELON_SLICE, display-name: "Melon", buy: 4, sell: 2}
       - {material: MELON_SEEDS, buy: 6, sell: 3}
       - {material: SUGAR_CANE, buy: 12, sell: 6}
-      - {material: CACTUS, buy: 10, sell: 5}
-      - {material: BAMBOO, buy: 8, sell: 4}
-      - {material: COCOA_BEANS, buy: 16, sell: 8}
+      - {material: CACTUS, buy: 8, sell: 4}
+      - {material: COCOA_BEANS, buy: 18, sell: 9}
       - {material: SWEET_BERRIES, buy: 14, sell: 7}
       - {material: GLOW_BERRIES, buy: 18, sell: 9}
-      - {material: NETHER_WART, buy: 80, sell: 0}
+      - {material: NETHER_WART, buy: 80, sell: 40}
       - {material: KELP, buy: 6, sell: 3}
       - {material: HAY_BLOCK, buy: 40, sell: 20}
 
   food:
     display-name: "Rosalind Ferris"
-    icon: STONE
-    head-texture: "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMmMwMmMzZmZkNTcwNWFiNDg4YjMwNWQ1N2ZmMDE2OGUyNmRlNzBmZDNmNzM5ZTgzOTY2MWFiOTQ3ZGZmMzdiMSJ9fX0="
+    icon: COOKED_BEEF
+    head-texture: "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvYzY3NzRkMmRmNTE1ZWNlYWU5ZWVkMjkxYzFiNDBmOTRhZGY3MWRmMGFiODFjNzE5MTQwMmUxYTQ1YjNhMjA4NyJ9fX0="
     items:
       - {material: BREAD, buy: 30, sell: 15}
-      - {material: COOKED_BEEF, buy: 55, sell: 27}
-      - {material: COOKED_CHICKEN, buy: 45, sell: 22}
-      - {material: COOKED_PORKCHOP, buy: 55, sell: 27}
-      - {material: COOKED_MUTTON, buy: 50, sell: 25}
-      - {material: COOKED_RABBIT, buy: 45, sell: 22}
+      - {material: COOKED_BEEF, display-name: "Steak", buy: 60, sell: 30}
+      - {material: COOKED_CHICKEN, buy: 50, sell: 25}
+      - {material: COOKED_PORKCHOP, buy: 60, sell: 30}
+      - {material: COOKED_MUTTON, buy: 55, sell: 27}
+      - {material: COOKED_RABBIT, buy: 50, sell: 25}
       - {material: COOKED_COD, buy: 35, sell: 17}
       - {material: COOKED_SALMON, buy: 40, sell: 20}
-      - {material: GOLDEN_CARROT, buy: 150, sell: 75}
-      - {material: GOLDEN_APPLE, buy: 400, sell: 200}
+      - {material: GOLDEN_CARROT, buy: 180, sell: 90}
+      - {material: GOLDEN_APPLE, buy: 1200, sell: 600}
       - {material: APPLE, buy: 25, sell: 12}
       - {material: HONEY_BOTTLE, buy: 45, sell: 22}
       - {material: MUSHROOM_STEW, buy: 30, sell: 15}
       - {material: PUMPKIN_PIE, buy: 60, sell: 30}
       - {material: CAKE, buy: 90, sell: 45}
-      - {material: SUSPICIOUS_STEW, buy: 50, sell: 0}
+      - {material: SUSPICIOUS_STEW, buy: 50, sell: 25}
 
   combat:
     display-name: "Gideon Marsh"
-    icon: STONE
-    head-texture: "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMmMwMmMzZmZkNTcwNWFiNDg4YjMwNWQ1N2ZmMDE2OGUyNmRlNzBmZDNmNzM5ZTgzOTY2MWFiOTQ3ZGZmMzdiMSJ9fX0="
+    icon: IRON_SWORD
+    head-texture: "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvNWU0MDliOTU4YmM0ZmUwNDVlOTVkMzI1ZTZlOTdhNTMzMTM3ZTMzZmVjNzA0MmFjMDI3YjMwYmI2OTNhOWQ0MiJ9fX0="
     items:
-      - {material: ARROW, buy: 8}
-      - {material: SPECTRAL_ARROW, buy: 20}
-      - {material: BOW, buy: 180}
-      - {material: CROSSBOW, buy: 220}
-      - {material: TRIDENT, buy: 1200}
-      - {material: WOODEN_SWORD, buy: 30}
-      - {material: STONE_SWORD, buy: 60}
-      - {material: IRON_SWORD, buy: 350}
-      - {material: GOLDEN_SWORD, buy: 250}
-      - {material: DIAMOND_SWORD, buy: 1800}
-      - {material: IRON_AXE, buy: 350}
-      - {material: SHIELD, buy: 200}
+      - {material: ARROW, buy: 8, sell: 4}
+      - {material: SPECTRAL_ARROW, buy: 20, sell: 10}
+      - {material: BOW, buy: 220, sell: 110}
+      - {material: CROSSBOW, buy: 350, sell: 175}
+      - {material: SHIELD, buy: 250, sell: 125}
+      - {material: TRIDENT, buy: 18000, sell: 9000}
+      - {material: WOODEN_SWORD, buy: 20, sell: 10}
+      - {material: STONE_SWORD, buy: 50, sell: 25}
+      - {material: IRON_SWORD, buy: 300, sell: 150}
+      - {material: GOLDEN_SWORD, buy: 200, sell: 100}
+      - {material: DIAMOND_SWORD, buy: 1400, sell: 700}
+      - {material: IRON_AXE, buy: 300, sell: 150}
+      - {material: TOTEM_OF_UNDYING, buy: 10000, sell: 5000}
 
   armor:
     display-name: "Adrian Cole"
-    icon: STONE
-    head-texture: "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMmMwMmMzZmZkNTcwNWFiNDg4YjMwNWQ1N2ZmMDE2OGUyNmRlNzBmZDNmNzM5ZTgzOTY2MWFiOTQ3ZGZmMzdiMSJ9fX0="
+    icon: DIAMOND_CHESTPLATE
+    head-texture: "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvZjUyMmRiOTJmMTg4ZWJjNzcxM2NmMzViNGNiYWVkMWNmZTI2NDJhNTk4NmMzYmRlOTkzZjVjZmIzNzI3NjY0YyJ9fX0="
     items:
-      - {material: LEATHER_HELMET, buy: 40}
-      - {material: LEATHER_CHESTPLATE, buy: 60}
-      - {material: LEATHER_LEGGINGS, buy: 55}
-      - {material: LEATHER_BOOTS, buy: 35}
-      - {material: GOLDEN_HELMET, buy: 200}
-      - {material: GOLDEN_CHESTPLATE, buy: 300}
-      - {material: GOLDEN_LEGGINGS, buy: 280}
-      - {material: GOLDEN_BOOTS, buy: 150}
-      - {material: CHAINMAIL_HELMET, buy: 400}
-      - {material: CHAINMAIL_CHESTPLATE, buy: 700}
-      - {material: CHAINMAIL_LEGGINGS, buy: 600}
-      - {material: CHAINMAIL_BOOTS, buy: 350}
-      - {material: IRON_HELMET, buy: 300}
-      - {material: IRON_CHESTPLATE, buy: 700}
-      - {material: IRON_LEGGINGS, buy: 600}
-      - {material: IRON_BOOTS, buy: 300}
-      - {material: DIAMOND_HELMET, buy: 900}
-      - {material: DIAMOND_CHESTPLATE, buy: 2000}
-      - {material: DIAMOND_LEGGINGS, buy: 1700}
-      - {material: DIAMOND_BOOTS, buy: 900}
-      - {material: TURTLE_HELMET, buy: 350}
-      - {material: ELYTRA, buy: 5000}
-      - {material: TOTEM_OF_UNDYING, buy: 5000}
+      - {material: LEATHER_HELMET, buy: 35, sell: 17}
+      - {material: LEATHER_CHESTPLATE, buy: 55, sell: 27}
+      - {material: LEATHER_LEGGINGS, buy: 50, sell: 25}
+      - {material: LEATHER_BOOTS, buy: 30, sell: 15}
+      - {material: GOLDEN_HELMET, buy: 180, sell: 90}
+      - {material: GOLDEN_CHESTPLATE, buy: 280, sell: 140}
+      - {material: GOLDEN_LEGGINGS, buy: 250, sell: 125}
+      - {material: GOLDEN_BOOTS, buy: 140, sell: 70}
+      - {material: CHAINMAIL_HELMET, buy: 220, sell: 110}
+      - {material: CHAINMAIL_CHESTPLATE, buy: 350, sell: 175}
+      - {material: CHAINMAIL_LEGGINGS, buy: 300, sell: 150}
+      - {material: CHAINMAIL_BOOTS, buy: 180, sell: 90}
+      - {material: IRON_HELMET, buy: 250, sell: 125}
+      - {material: IRON_CHESTPLATE, buy: 480, sell: 240}
+      - {material: IRON_LEGGINGS, buy: 420, sell: 210}
+      - {material: IRON_BOOTS, buy: 250, sell: 125}
+      - {material: DIAMOND_HELMET, buy: 900, sell: 450}
+      - {material: DIAMOND_CHESTPLATE, buy: 1600, sell: 800}
+      - {material: DIAMOND_LEGGINGS, buy: 1400, sell: 700}
+      - {material: DIAMOND_BOOTS, buy: 900, sell: 450}
+      - {material: TURTLE_HELMET, buy: 350, sell: 175}
+      - {material: ELYTRA, buy: 20000, sell: 10000}
 
   alchemy:
     display-name: "Wren Ashby"
-    icon: STONE
-    head-texture: "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMmMwMmMzZmZkNTcwNWFiNDg4YjMwNWQ1N2ZmMDE2OGUyNmRlNzBmZDNmNzM5ZTgzOTY2MWFiOTQ3ZGZmMzdiMSJ9fX0="
+    icon: BLAZE_POWDER
+    head-texture: "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvYTg4NTZlYWFmYWQ5NmQ3NmZhM2I1ZWRkMGUzYjVmNDVlZTQ5YTMwNjczMDZhZDk0ZGY5YWIzYmQ1YjJkMTQyZCJ9fX0="
     items:
-      - {material: BLAZE_ROD, buy: 250}
-      - {material: BLAZE_POWDER, buy: 130}
-      - {material: NETHER_WART, buy: 80}
-      - {material: GLASS_BOTTLE, buy: 10}
-      - {material: GLOWSTONE_DUST, buy: 70}
-      - {material: FERMENTED_SPIDER_EYE, buy: 120}
-      - {material: GHAST_TEAR, buy: 450}
-      - {material: DRAGON_BREATH, buy: 600}
-      - {material: PUFFERFISH, buy: 40}
-      - {material: BREEZE_ROD, buy: 700}
+      - {material: BLAZE_ROD, buy: 300, sell: 150}
+      - {material: BLAZE_POWDER, buy: 150, sell: 75}
+      - {material: NETHER_WART, buy: 80, sell: 40}
+      - {material: GLASS_BOTTLE, buy: 8, sell: 4}
+      - {material: GLOWSTONE_DUST, buy: 65, sell: 32}
+      - {material: FERMENTED_SPIDER_EYE, buy: 120, sell: 60}
+      - {material: GHAST_TEAR, buy: 600, sell: 300}
+      - {material: PHANTOM_MEMBRANE, buy: 450, sell: 225}
+      - {material: DRAGON_BREATH, buy: 1200, sell: 600}
+      - {material: PUFFERFISH, buy: 40, sell: 20}
+      - {material: BREEZE_ROD, buy: 700, sell: 350}
 
   nether:
     display-name: "Talia Renner"
-    icon: STONE
-    head-texture: "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMmMwMmMzZmZkNTcwNWFiNDg4YjMwNWQ1N2ZmMDE2OGUyNmRlNzBmZDNmNzM5ZTgzOTY2MWFiOTQ3ZGZmMzdiMSJ9fX0="
+    icon: ENDER_PEARL
+    head-texture: "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvOTQyNDhkZDA2ODAzMDVhZDczYjIxNGU4YzZiMDAwOTRlMjdhNGRkZDgwMzQ2NzY5MjFmOTA1MTMwYjg1OGJkYiJ9fX0="
     items:
-      - {material: OBSIDIAN, buy: 70, sell: 35}
-      - {material: CRYING_OBSIDIAN, buy: 220, sell: 110}
-      - {material: GLOWSTONE, buy: 70, sell: 35}
-      - {material: SOUL_SAND, buy: 30, sell: 15}
+      - {material: CRYING_OBSIDIAN, buy: 250, sell: 125}
+      - {material: GLOWSTONE, buy: 90, sell: 45}
+      - {material: SOUL_SAND, buy: 25, sell: 12}
       - {material: SOUL_SOIL, buy: 20, sell: 10}
-      - {material: CHORUS_FRUIT, buy: 45, sell: 22}
-      - {material: CHORUS_FLOWER, buy: 60, sell: 30}
+      - {material: CHORUS_FRUIT, buy: 50, sell: 25}
+      - {material: CHORUS_FLOWER, buy: 65, sell: 32}
       - {material: SHROOMLIGHT, buy: 90, sell: 45}
-      - {material: WARPED_WART_BLOCK, buy: 40, sell: 20}
-      - {material: NETHER_QUARTZ_ORE, buy: 50, sell: 25}
+      - {material: WARPED_WART_BLOCK, buy: 45, sell: 22}
+      - {material: NETHER_QUARTZ_ORE, buy: 40, sell: 20}
       - {material: NETHERRACK, buy: 5, sell: 2}
-      - {material: MAGMA_BLOCK, buy: 25, sell: 12}
+      - {material: MAGMA_BLOCK, buy: 30, sell: 15}
       - {material: END_ROD, buy: 55, sell: 27}
-      - {material: PURPUR_PILLAR, buy: 45, sell: 22}
+      - {material: PURPUR_PILLAR, buy: 60, sell: 30}
 
   colored_blocks:
     display-name: "Nova Sinclair"
-    icon: STONE
-    head-texture: "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMmMwMmMzZmZkNTcwNWFiNDg4YjMwNWQ1N2ZmMDE2OGUyNmRlNzBmZDNmNzM5ZTgzOTY2MWFiOTQ3ZGZmMzdiMSJ9fX0="
+    icon: LIME_CONCRETE
+    head-texture: "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMTllMDRhNzUyNTk2ZjkzOWY1ODE5MzA0MTQ1NjFiMTc1NDU0ZDQ1YTA1MDY1MDFlN2QyNDg4Mjk1YTVkNWRlIn19fQ=="
     items:
-      - {material: WHITE_WOOL, buy: 10, sell: 5}
-      - {material: ORANGE_WOOL, buy: 10, sell: 5}
-      - {material: MAGENTA_WOOL, buy: 10, sell: 5}
-      - {material: LIGHT_BLUE_WOOL, buy: 10, sell: 5}
-      - {material: YELLOW_WOOL, buy: 10, sell: 5}
-      - {material: LIME_WOOL, buy: 10, sell: 5}
-      - {material: PINK_WOOL, buy: 10, sell: 5}
-      - {material: GRAY_WOOL, buy: 10, sell: 5}
-      - {material: LIGHT_GRAY_WOOL, buy: 10, sell: 5}
-      - {material: CYAN_WOOL, buy: 10, sell: 5}
-      - {material: PURPLE_WOOL, buy: 10, sell: 5}
-      - {material: BLUE_WOOL, buy: 10, sell: 5}
-      - {material: BROWN_WOOL, buy: 10, sell: 5}
-      - {material: GREEN_WOOL, buy: 10, sell: 5}
-      - {material: RED_WOOL, buy: 10, sell: 5}
-      - {material: BLACK_WOOL, buy: 10, sell: 5}
-      - {material: WHITE_CONCRETE, buy: 18, sell: 9}
-      - {material: ORANGE_CONCRETE, buy: 18, sell: 9}
-      - {material: MAGENTA_CONCRETE, buy: 18, sell: 9}
-      - {material: LIGHT_BLUE_CONCRETE, buy: 18, sell: 9}
-      - {material: YELLOW_CONCRETE, buy: 18, sell: 9}
-      - {material: LIME_CONCRETE, buy: 18, sell: 9}
-      - {material: PINK_CONCRETE, buy: 18, sell: 9}
-      - {material: GRAY_CONCRETE, buy: 18, sell: 9}
-      - {material: LIGHT_GRAY_CONCRETE, buy: 18, sell: 9}
-      - {material: CYAN_CONCRETE, buy: 18, sell: 9}
-      - {material: PURPLE_CONCRETE, buy: 18, sell: 9}
-      - {material: BLUE_CONCRETE, buy: 18, sell: 9}
-      - {material: BROWN_CONCRETE, buy: 18, sell: 9}
-      - {material: GREEN_CONCRETE, buy: 18, sell: 9}
-      - {material: RED_CONCRETE, buy: 18, sell: 9}
-      - {material: BLACK_CONCRETE, buy: 18, sell: 9}
-      - {material: WHITE_STAINED_GLASS, buy: 16, sell: 8}
-      - {material: ORANGE_STAINED_GLASS, buy: 16, sell: 8}
-      - {material: MAGENTA_STAINED_GLASS, buy: 16, sell: 8}
-      - {material: LIGHT_BLUE_STAINED_GLASS, buy: 16, sell: 8}
-      - {material: YELLOW_STAINED_GLASS, buy: 16, sell: 8}
-      - {material: LIME_STAINED_GLASS, buy: 16, sell: 8}
-      - {material: PINK_STAINED_GLASS, buy: 16, sell: 8}
-      - {material: GRAY_STAINED_GLASS, buy: 16, sell: 8}
-      - {material: LIGHT_GRAY_STAINED_GLASS, buy: 16, sell: 8}
-      - {material: CYAN_STAINED_GLASS, buy: 16, sell: 8}
-      - {material: PURPLE_STAINED_GLASS, buy: 16, sell: 8}
-      - {material: BLUE_STAINED_GLASS, buy: 16, sell: 8}
-      - {material: BROWN_STAINED_GLASS, buy: 16, sell: 8}
-      - {material: GREEN_STAINED_GLASS, buy: 16, sell: 8}
-      - {material: RED_STAINED_GLASS, buy: 16, sell: 8}
-      - {material: BLACK_STAINED_GLASS, buy: 16, sell: 8}
-      - {material: WHITE_TERRACOTTA, buy: 20, sell: 10}
-      - {material: ORANGE_TERRACOTTA, buy: 20, sell: 10}
-      - {material: MAGENTA_TERRACOTTA, buy: 20, sell: 10}
-      - {material: LIGHT_BLUE_TERRACOTTA, buy: 20, sell: 10}
-      - {material: YELLOW_TERRACOTTA, buy: 20, sell: 10}
-      - {material: LIME_TERRACOTTA, buy: 20, sell: 10}
-      - {material: PINK_TERRACOTTA, buy: 20, sell: 10}
-      - {material: GRAY_TERRACOTTA, buy: 20, sell: 10}
-      - {material: LIGHT_GRAY_TERRACOTTA, buy: 20, sell: 10}
-      - {material: CYAN_TERRACOTTA, buy: 20, sell: 10}
-      - {material: PURPLE_TERRACOTTA, buy: 20, sell: 10}
-      - {material: BLUE_TERRACOTTA, buy: 20, sell: 10}
-      - {material: BROWN_TERRACOTTA, buy: 20, sell: 10}
-      - {material: GREEN_TERRACOTTA, buy: 20, sell: 10}
-      - {material: RED_TERRACOTTA, buy: 20, sell: 10}
-      - {material: BLACK_TERRACOTTA, buy: 20, sell: 10}
-      - {material: WHITE_GLAZED_TERRACOTTA, buy: 45, sell: 22}
-      - {material: ORANGE_GLAZED_TERRACOTTA, buy: 45, sell: 22}
-      - {material: MAGENTA_GLAZED_TERRACOTTA, buy: 45, sell: 22}
-      - {material: LIGHT_BLUE_GLAZED_TERRACOTTA, buy: 45, sell: 22}
-      - {material: YELLOW_GLAZED_TERRACOTTA, buy: 45, sell: 22}
-      - {material: LIME_GLAZED_TERRACOTTA, buy: 45, sell: 22}
-      - {material: PINK_GLAZED_TERRACOTTA, buy: 45, sell: 22}
-      - {material: GRAY_GLAZED_TERRACOTTA, buy: 45, sell: 22}
-      - {material: LIGHT_GRAY_GLAZED_TERRACOTTA, buy: 45, sell: 22}
-      - {material: CYAN_GLAZED_TERRACOTTA, buy: 45, sell: 22}
-      - {material: PURPLE_GLAZED_TERRACOTTA, buy: 45, sell: 22}
-      - {material: BLUE_GLAZED_TERRACOTTA, buy: 45, sell: 22}
-      - {material: BROWN_GLAZED_TERRACOTTA, buy: 45, sell: 22}
-      - {material: GREEN_GLAZED_TERRACOTTA, buy: 45, sell: 22}
-      - {material: RED_GLAZED_TERRACOTTA, buy: 45, sell: 22}
-      - {material: BLACK_GLAZED_TERRACOTTA, buy: 45, sell: 22}
-      - {material: WHITE_CONCRETE_POWDER, buy: 16, sell: 8}
-      - {material: ORANGE_CONCRETE_POWDER, buy: 16, sell: 8}
-      - {material: MAGENTA_CONCRETE_POWDER, buy: 16, sell: 8}
-      - {material: LIGHT_BLUE_CONCRETE_POWDER, buy: 16, sell: 8}
-      - {material: YELLOW_CONCRETE_POWDER, buy: 16, sell: 8}
-      - {material: LIME_CONCRETE_POWDER, buy: 16, sell: 8}
-      - {material: PINK_CONCRETE_POWDER, buy: 16, sell: 8}
-      - {material: GRAY_CONCRETE_POWDER, buy: 16, sell: 8}
-      - {material: LIGHT_GRAY_CONCRETE_POWDER, buy: 16, sell: 8}
-      - {material: CYAN_CONCRETE_POWDER, buy: 16, sell: 8}
-      - {material: PURPLE_CONCRETE_POWDER, buy: 16, sell: 8}
-      - {material: BLUE_CONCRETE_POWDER, buy: 16, sell: 8}
-      - {material: BROWN_CONCRETE_POWDER, buy: 16, sell: 8}
-      - {material: GREEN_CONCRETE_POWDER, buy: 16, sell: 8}
-      - {material: RED_CONCRETE_POWDER, buy: 16, sell: 8}
-      - {material: BLACK_CONCRETE_POWDER, buy: 16, sell: 8}
-      - {material: WHITE_CARPET, buy: 6, sell: 3}
-      - {material: ORANGE_CARPET, buy: 6, sell: 3}
-      - {material: MAGENTA_CARPET, buy: 6, sell: 3}
-      - {material: LIGHT_BLUE_CARPET, buy: 6, sell: 3}
-      - {material: YELLOW_CARPET, buy: 6, sell: 3}
-      - {material: LIME_CARPET, buy: 6, sell: 3}
-      - {material: PINK_CARPET, buy: 6, sell: 3}
-      - {material: GRAY_CARPET, buy: 6, sell: 3}
-      - {material: LIGHT_GRAY_CARPET, buy: 6, sell: 3}
-      - {material: CYAN_CARPET, buy: 6, sell: 3}
-      - {material: PURPLE_CARPET, buy: 6, sell: 3}
-      - {material: BLUE_CARPET, buy: 6, sell: 3}
-      - {material: BROWN_CARPET, buy: 6, sell: 3}
-      - {material: GREEN_CARPET, buy: 6, sell: 3}
-      - {material: RED_CARPET, buy: 6, sell: 3}
-      - {material: BLACK_CARPET, buy: 6, sell: 3}
-      - {material: WHITE_STAINED_GLASS_PANE, buy: 10, sell: 5}
-      - {material: ORANGE_STAINED_GLASS_PANE, buy: 10, sell: 5}
-      - {material: MAGENTA_STAINED_GLASS_PANE, buy: 10, sell: 5}
-      - {material: LIGHT_BLUE_STAINED_GLASS_PANE, buy: 10, sell: 5}
-      - {material: YELLOW_STAINED_GLASS_PANE, buy: 10, sell: 5}
-      - {material: LIME_STAINED_GLASS_PANE, buy: 10, sell: 5}
-      - {material: PINK_STAINED_GLASS_PANE, buy: 10, sell: 5}
-      - {material: GRAY_STAINED_GLASS_PANE, buy: 10, sell: 5}
-      - {material: LIGHT_GRAY_STAINED_GLASS_PANE, buy: 10, sell: 5}
-      - {material: CYAN_STAINED_GLASS_PANE, buy: 10, sell: 5}
-      - {material: PURPLE_STAINED_GLASS_PANE, buy: 10, sell: 5}
-      - {material: BLUE_STAINED_GLASS_PANE, buy: 10, sell: 5}
-      - {material: BROWN_STAINED_GLASS_PANE, buy: 10, sell: 5}
-      - {material: GREEN_STAINED_GLASS_PANE, buy: 10, sell: 5}
-      - {material: RED_STAINED_GLASS_PANE, buy: 10, sell: 5}
-      - {material: BLACK_STAINED_GLASS_PANE, buy: 10, sell: 5}
+      - {material: WHITE_WOOL, buy: 18, sell: 9}
+      - {material: ORANGE_WOOL, buy: 18, sell: 9}
+      - {material: MAGENTA_WOOL, buy: 18, sell: 9}
+      - {material: LIGHT_BLUE_WOOL, buy: 18, sell: 9}
+      - {material: YELLOW_WOOL, buy: 18, sell: 9}
+      - {material: LIME_WOOL, buy: 18, sell: 9}
+      - {material: PINK_WOOL, buy: 18, sell: 9}
+      - {material: GRAY_WOOL, buy: 18, sell: 9}
+      - {material: LIGHT_GRAY_WOOL, buy: 18, sell: 9}
+      - {material: CYAN_WOOL, buy: 18, sell: 9}
+      - {material: PURPLE_WOOL, buy: 18, sell: 9}
+      - {material: BLUE_WOOL, buy: 18, sell: 9}
+      - {material: BROWN_WOOL, buy: 18, sell: 9}
+      - {material: GREEN_WOOL, buy: 18, sell: 9}
+      - {material: RED_WOOL, buy: 18, sell: 9}
+      - {material: BLACK_WOOL, buy: 18, sell: 9}
+      - {material: WHITE_CONCRETE, buy: 25, sell: 12}
+      - {material: ORANGE_CONCRETE, buy: 25, sell: 12}
+      - {material: MAGENTA_CONCRETE, buy: 25, sell: 12}
+      - {material: LIGHT_BLUE_CONCRETE, buy: 25, sell: 12}
+      - {material: YELLOW_CONCRETE, buy: 25, sell: 12}
+      - {material: LIME_CONCRETE, buy: 25, sell: 12}
+      - {material: PINK_CONCRETE, buy: 25, sell: 12}
+      - {material: GRAY_CONCRETE, buy: 25, sell: 12}
+      - {material: LIGHT_GRAY_CONCRETE, buy: 25, sell: 12}
+      - {material: CYAN_CONCRETE, buy: 25, sell: 12}
+      - {material: PURPLE_CONCRETE, buy: 25, sell: 12}
+      - {material: BLUE_CONCRETE, buy: 25, sell: 12}
+      - {material: BROWN_CONCRETE, buy: 25, sell: 12}
+      - {material: GREEN_CONCRETE, buy: 25, sell: 12}
+      - {material: RED_CONCRETE, buy: 25, sell: 12}
+      - {material: BLACK_CONCRETE, buy: 25, sell: 12}
+      - {material: WHITE_CONCRETE_POWDER, buy: 18, sell: 9}
+      - {material: ORANGE_CONCRETE_POWDER, buy: 18, sell: 9}
+      - {material: MAGENTA_CONCRETE_POWDER, buy: 18, sell: 9}
+      - {material: LIGHT_BLUE_CONCRETE_POWDER, buy: 18, sell: 9}
+      - {material: YELLOW_CONCRETE_POWDER, buy: 18, sell: 9}
+      - {material: LIME_CONCRETE_POWDER, buy: 18, sell: 9}
+      - {material: PINK_CONCRETE_POWDER, buy: 18, sell: 9}
+      - {material: GRAY_CONCRETE_POWDER, buy: 18, sell: 9}
+      - {material: LIGHT_GRAY_CONCRETE_POWDER, buy: 18, sell: 9}
+      - {material: CYAN_CONCRETE_POWDER, buy: 18, sell: 9}
+      - {material: PURPLE_CONCRETE_POWDER, buy: 18, sell: 9}
+      - {material: BLUE_CONCRETE_POWDER, buy: 18, sell: 9}
+      - {material: BROWN_CONCRETE_POWDER, buy: 18, sell: 9}
+      - {material: GREEN_CONCRETE_POWDER, buy: 18, sell: 9}
+      - {material: RED_CONCRETE_POWDER, buy: 18, sell: 9}
+      - {material: BLACK_CONCRETE_POWDER, buy: 18, sell: 9}
+      - {material: WHITE_TERRACOTTA, buy: 22, sell: 11}
+      - {material: ORANGE_TERRACOTTA, buy: 22, sell: 11}
+      - {material: MAGENTA_TERRACOTTA, buy: 22, sell: 11}
+      - {material: LIGHT_BLUE_TERRACOTTA, buy: 22, sell: 11}
+      - {material: YELLOW_TERRACOTTA, buy: 22, sell: 11}
+      - {material: LIME_TERRACOTTA, buy: 22, sell: 11}
+      - {material: PINK_TERRACOTTA, buy: 22, sell: 11}
+      - {material: GRAY_TERRACOTTA, buy: 22, sell: 11}
+      - {material: LIGHT_GRAY_TERRACOTTA, buy: 22, sell: 11}
+      - {material: CYAN_TERRACOTTA, buy: 22, sell: 11}
+      - {material: PURPLE_TERRACOTTA, buy: 22, sell: 11}
+      - {material: BLUE_TERRACOTTA, buy: 22, sell: 11}
+      - {material: BROWN_TERRACOTTA, buy: 22, sell: 11}
+      - {material: GREEN_TERRACOTTA, buy: 22, sell: 11}
+      - {material: RED_TERRACOTTA, buy: 22, sell: 11}
+      - {material: BLACK_TERRACOTTA, buy: 22, sell: 11}
+      - {material: WHITE_GLAZED_TERRACOTTA, buy: 55, sell: 27}
+      - {material: ORANGE_GLAZED_TERRACOTTA, buy: 55, sell: 27}
+      - {material: MAGENTA_GLAZED_TERRACOTTA, buy: 55, sell: 27}
+      - {material: LIGHT_BLUE_GLAZED_TERRACOTTA, buy: 55, sell: 27}
+      - {material: YELLOW_GLAZED_TERRACOTTA, buy: 55, sell: 27}
+      - {material: LIME_GLAZED_TERRACOTTA, buy: 55, sell: 27}
+      - {material: PINK_GLAZED_TERRACOTTA, buy: 55, sell: 27}
+      - {material: GRAY_GLAZED_TERRACOTTA, buy: 55, sell: 27}
+      - {material: LIGHT_GRAY_GLAZED_TERRACOTTA, buy: 55, sell: 27}
+      - {material: CYAN_GLAZED_TERRACOTTA, buy: 55, sell: 27}
+      - {material: PURPLE_GLAZED_TERRACOTTA, buy: 55, sell: 27}
+      - {material: BLUE_GLAZED_TERRACOTTA, buy: 55, sell: 27}
+      - {material: BROWN_GLAZED_TERRACOTTA, buy: 55, sell: 27}
+      - {material: GREEN_GLAZED_TERRACOTTA, buy: 55, sell: 27}
+      - {material: RED_GLAZED_TERRACOTTA, buy: 55, sell: 27}
+      - {material: BLACK_GLAZED_TERRACOTTA, buy: 55, sell: 27}
+      - {material: WHITE_STAINED_GLASS, buy: 18, sell: 9}
+      - {material: ORANGE_STAINED_GLASS, buy: 18, sell: 9}
+      - {material: MAGENTA_STAINED_GLASS, buy: 18, sell: 9}
+      - {material: LIGHT_BLUE_STAINED_GLASS, buy: 18, sell: 9}
+      - {material: YELLOW_STAINED_GLASS, buy: 18, sell: 9}
+      - {material: LIME_STAINED_GLASS, buy: 18, sell: 9}
+      - {material: PINK_STAINED_GLASS, buy: 18, sell: 9}
+      - {material: GRAY_STAINED_GLASS, buy: 18, sell: 9}
+      - {material: LIGHT_GRAY_STAINED_GLASS, buy: 18, sell: 9}
+      - {material: CYAN_STAINED_GLASS, buy: 18, sell: 9}
+      - {material: PURPLE_STAINED_GLASS, buy: 18, sell: 9}
+      - {material: BLUE_STAINED_GLASS, buy: 18, sell: 9}
+      - {material: BROWN_STAINED_GLASS, buy: 18, sell: 9}
+      - {material: GREEN_STAINED_GLASS, buy: 18, sell: 9}
+      - {material: RED_STAINED_GLASS, buy: 18, sell: 9}
+      - {material: BLACK_STAINED_GLASS, buy: 18, sell: 9}
+      - {material: WHITE_CARPET, buy: 8, sell: 4}
+      - {material: ORANGE_CARPET, buy: 8, sell: 4}
+      - {material: MAGENTA_CARPET, buy: 8, sell: 4}
+      - {material: LIGHT_BLUE_CARPET, buy: 8, sell: 4}
+      - {material: YELLOW_CARPET, buy: 8, sell: 4}
+      - {material: LIME_CARPET, buy: 8, sell: 4}
+      - {material: PINK_CARPET, buy: 8, sell: 4}
+      - {material: GRAY_CARPET, buy: 8, sell: 4}
+      - {material: LIGHT_GRAY_CARPET, buy: 8, sell: 4}
+      - {material: CYAN_CARPET, buy: 8, sell: 4}
+      - {material: PURPLE_CARPET, buy: 8, sell: 4}
+      - {material: BLUE_CARPET, buy: 8, sell: 4}
+      - {material: BROWN_CARPET, buy: 8, sell: 4}
+      - {material: GREEN_CARPET, buy: 8, sell: 4}
+      - {material: RED_CARPET, buy: 8, sell: 4}
+      - {material: BLACK_CARPET, buy: 8, sell: 4}
+      - {material: WHITE_STAINED_GLASS_PANE, buy: 12, sell: 6}
+      - {material: ORANGE_STAINED_GLASS_PANE, buy: 12, sell: 6}
+      - {material: MAGENTA_STAINED_GLASS_PANE, buy: 12, sell: 6}
+      - {material: LIGHT_BLUE_STAINED_GLASS_PANE, buy: 12, sell: 6}
+      - {material: YELLOW_STAINED_GLASS_PANE, buy: 12, sell: 6}
+      - {material: LIME_STAINED_GLASS_PANE, buy: 12, sell: 6}
+      - {material: PINK_STAINED_GLASS_PANE, buy: 12, sell: 6}
+      - {material: GRAY_STAINED_GLASS_PANE, buy: 12, sell: 6}
+      - {material: LIGHT_GRAY_STAINED_GLASS_PANE, buy: 12, sell: 6}
+      - {material: CYAN_STAINED_GLASS_PANE, buy: 12, sell: 6}
+      - {material: PURPLE_STAINED_GLASS_PANE, buy: 12, sell: 6}
+      - {material: BLUE_STAINED_GLASS_PANE, buy: 12, sell: 6}
+      - {material: BROWN_STAINED_GLASS_PANE, buy: 12, sell: 6}
+      - {material: GREEN_STAINED_GLASS_PANE, buy: 12, sell: 6}
+      - {material: RED_STAINED_GLASS_PANE, buy: 12, sell: 6}
+      - {material: BLACK_STAINED_GLASS_PANE, buy: 12, sell: 6}
+      - {material: WHITE_CANDLE, buy: 80, sell: 40}
+      - {material: ORANGE_CANDLE, buy: 80, sell: 40}
+      - {material: MAGENTA_CANDLE, buy: 80, sell: 40}
+      - {material: LIGHT_BLUE_CANDLE, buy: 80, sell: 40}
+      - {material: YELLOW_CANDLE, buy: 80, sell: 40}
+      - {material: LIME_CANDLE, buy: 80, sell: 40}
+      - {material: PINK_CANDLE, buy: 80, sell: 40}
+      - {material: GRAY_CANDLE, buy: 80, sell: 40}
+      - {material: LIGHT_GRAY_CANDLE, buy: 80, sell: 40}
+      - {material: CYAN_CANDLE, buy: 80, sell: 40}
+      - {material: PURPLE_CANDLE, buy: 80, sell: 40}
+      - {material: BLUE_CANDLE, buy: 80, sell: 40}
+      - {material: BROWN_CANDLE, buy: 80, sell: 40}
+      - {material: GREEN_CANDLE, buy: 80, sell: 40}
+      - {material: RED_CANDLE, buy: 80, sell: 40}
+      - {material: BLACK_CANDLE, buy: 80, sell: 40}
+      - {material: WHITE_BANNER, buy: 60, sell: 30}
+      - {material: ORANGE_BANNER, buy: 60, sell: 30}
+      - {material: MAGENTA_BANNER, buy: 60, sell: 30}
+      - {material: LIGHT_BLUE_BANNER, buy: 60, sell: 30}
+      - {material: YELLOW_BANNER, buy: 60, sell: 30}
+      - {material: LIME_BANNER, buy: 60, sell: 30}
+      - {material: PINK_BANNER, buy: 60, sell: 30}
+      - {material: GRAY_BANNER, buy: 60, sell: 30}
+      - {material: LIGHT_GRAY_BANNER, buy: 60, sell: 30}
+      - {material: CYAN_BANNER, buy: 60, sell: 30}
+      - {material: PURPLE_BANNER, buy: 60, sell: 30}
+      - {material: BLUE_BANNER, buy: 60, sell: 30}
+      - {material: BROWN_BANNER, buy: 60, sell: 30}
+      - {material: GREEN_BANNER, buy: 60, sell: 30}
+      - {material: RED_BANNER, buy: 60, sell: 30}
+      - {material: BLACK_BANNER, buy: 60, sell: 30}
+      - {material: WHITE_BED, buy: 40, sell: 20}
+      - {material: ORANGE_BED, buy: 40, sell: 20}
+      - {material: MAGENTA_BED, buy: 40, sell: 20}
+      - {material: LIGHT_BLUE_BED, buy: 40, sell: 20}
+      - {material: YELLOW_BED, buy: 40, sell: 20}
+      - {material: LIME_BED, buy: 40, sell: 20}
+      - {material: PINK_BED, buy: 40, sell: 20}
+      - {material: GRAY_BED, buy: 40, sell: 20}
+      - {material: LIGHT_GRAY_BED, buy: 40, sell: 20}
+      - {material: CYAN_BED, buy: 40, sell: 20}
+      - {material: PURPLE_BED, buy: 40, sell: 20}
+      - {material: BLUE_BED, buy: 40, sell: 20}
+      - {material: BROWN_BED, buy: 40, sell: 20}
+      - {material: GREEN_BED, buy: 40, sell: 20}
+      - {material: RED_BED, buy: 40, sell: 20}
+      - {material: BLACK_BED, buy: 40, sell: 20}
+      - {material: GLASS_PANE, buy: 8, sell: 4}
+      - {material: TINTED_GLASS, buy: 25, sell: 12}
+      - {material: CLAY, buy: 12, sell: 6}
 
   flowers:
     display-name: "Ivy Delacroix"
-    icon: STONE
-    head-texture: "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMmMwMmMzZmZkNTcwNWFiNDg4YjMwNWQ1N2ZmMDE2OGUyNmRlNzBmZDNmNzM5ZTgzOTY2MWFiOTQ3ZGZmMzdiMSJ9fX0="
+    icon: POPPY
+    head-texture: "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvNTVhMGIwN2UzNmVhZmRlY2YwNTljOGNiMTM0YTdiZjBhMTY3ZjkwMDk2NmYxMDk5MjUyZDkwMzI3NjQ2MWNjZSJ9fX0="
     items:
       - {material: DANDELION, buy: 8, sell: 4}
       - {material: POPPY, buy: 8, sell: 4}
@@ -554,12 +625,27 @@ categories:
       - {material: ROSE_BUSH, buy: 14, sell: 7}
       - {material: PEONY, buy: 14, sell: 7}
       - {material: LILY_PAD, buy: 10, sell: 5}
-      - {material: WITHER_ROSE, buy: 60}
+      - {material: WITHER_ROSE, buy: 100}
+      - {material: VINE, buy: 6, sell: 3}
+      - {material: TWISTING_VINES, buy: 8, sell: 4}
+      - {material: WEEPING_VINES, buy: 8, sell: 4}
+      - {material: BIG_DRIPLEAF, buy: 12, sell: 6}
+      - {material: SMALL_DRIPLEAF, buy: 10, sell: 5}
+      - {material: HANGING_ROOTS, buy: 10, sell: 5}
+      - {material: MOSS_CARPET, buy: 8, sell: 4}
+      - {material: PALE_MOSS_CARPET, buy: 10, sell: 5}
+      - {material: PALE_HANGING_MOSS, buy: 10, sell: 5}
+      - {material: SHORT_GRASS, buy: 4, sell: 2}
+      - {material: FERN, buy: 6, sell: 3}
+      - {material: LARGE_FERN, buy: 10, sell: 5}
+      - {material: SPORE_BLOSSOM, buy: 30, sell: 15}
+      - {material: PINK_PETALS, buy: 8, sell: 4}
+      - {material: WILDFLOWERS, buy: 10, sell: 5}
 
   dyes:
     display-name: "June Halloway"
-    icon: STONE
-    head-texture: "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMmMwMmMzZmZkNTcwNWFiNDg4YjMwNWQ1N2ZmMDE2OGUyNmRlNzBmZDNmNzM5ZTgzOTY2MWFiOTQ3ZGZmMzdiMSJ9fX0="
+    icon: LIME_DYE
+    head-texture: "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvZDE0YmZmMWEzOGM5MTU0ZTVlYzg0Y2U1Y2YwMGM1ODc2OGUwNjhlYjQyYjJkODlhNmJiZDI5Nzg3NTkwMTA2YiJ9fX0="
     items:
       - {material: WHITE_DYE, buy: 25, sell: 12}
       - {material: ORANGE_DYE, buy: 25, sell: 12}

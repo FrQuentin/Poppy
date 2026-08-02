@@ -192,6 +192,7 @@ fly:
   time-remaining: "&e[!] You have {time} of flight time remaining."
   time-unlimited: "&e[!] You have unlimited flight time (no limit configured)."
   time-locked: "&4[!] You can't fly right now — try again in {time}."
+  wrong-gamemode: "&4[!] You can only use /fly in Survival mode!"
 
 cooldowns:
   header: "&7- &6Cooldowns"

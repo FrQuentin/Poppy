@@ -214,7 +214,7 @@ public class PoppyLogger {
             return;
         }
 
-        File[] files = logsFolder.listFiles((dir, name) -> name.startsWith(FILE_PREFIX) && name.endsWith(FILE_SUFFIX));
+        File[] files = logsFolder.listFiles((_, name) -> name.startsWith(FILE_PREFIX) && name.endsWith(FILE_SUFFIX));
         if (files == null) {
             return;
         }

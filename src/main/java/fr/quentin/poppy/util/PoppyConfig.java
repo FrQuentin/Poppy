@@ -111,7 +111,6 @@ public final class PoppyConfig {
     private volatile long flyLockoutMillis;
     private volatile boolean flyParticlesEnabled;
     private volatile long flyMaxDurationMillis;
-    private volatile long flyMaxDurationCooldownMillis;
     private volatile long flyMaxDurationWarningSeconds;
 
     private volatile long feedCooldownMillis;
@@ -205,7 +204,6 @@ public final class PoppyConfig {
         flyLockoutMillis = Math.max(0, c.getInt("fly-lockout-seconds", 30)) * 1000L;
         flyParticlesEnabled = c.getBoolean("fly-particles-enabled", true);
         flyMaxDurationMillis = Math.max(0, c.getInt("fly-max-duration-minutes", 30)) * 60L * 1000L;
-        flyMaxDurationCooldownMillis = Math.max(0, c.getInt("fly-max-duration-cooldown-minutes", 60)) * 60L * 1000L;
         flyMaxDurationWarningSeconds = Math.max(0, c.getInt("fly-max-duration-warning-seconds", 30));
 
         feedCooldownMillis = Math.max(0, c.getInt("feed-cooldown-seconds", 180)) * 1000L;
@@ -296,6 +294,7 @@ public final class PoppyConfig {
         return customQuitMessage;
     }
 
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     public boolean showHealthInTab() {
         return showHealthInTab;
     }
@@ -336,6 +335,7 @@ public final class PoppyConfig {
         return deathCoordsEnabled;
     }
 
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     public boolean deathChestEnabled() {
         return deathChestEnabled;
     }
@@ -384,6 +384,7 @@ public final class PoppyConfig {
         return sleepPercentage;
     }
 
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     public boolean sleepStatusMessageEnabled() {
         return sleepStatusMessageEnabled;
     }
@@ -420,6 +421,7 @@ public final class PoppyConfig {
         return homesLimitTiers;
     }
 
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     public boolean silkSpawnerEnabled() {
         return silkSpawnerEnabled;
     }
@@ -464,10 +466,6 @@ public final class PoppyConfig {
         return flyMaxDurationMillis;
     }
 
-    public long flyMaxDurationCooldownMillis() {
-        return flyMaxDurationCooldownMillis;
-    }
-
     public long flyMaxDurationWarningSeconds() {
         return flyMaxDurationWarningSeconds;
     }
@@ -476,6 +474,7 @@ public final class PoppyConfig {
         return tpaToggleCooldownMillis;
     }
 
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     public boolean deathChestReadOnly() {
         return deathChestReadOnly;
     }

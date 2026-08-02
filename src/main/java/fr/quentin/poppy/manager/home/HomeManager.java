@@ -295,56 +295,6 @@ public class HomeManager {
     }
 
     /**
-     * Combines what were previously two separate O(n) scans
-     * ({@code countPlayersWithHomes} + {@code countTotalHomes}), each parsing
-     * every homes file independently — on a server with tens of thousands of
-     * players who have homes, that was tens of thousands of redundant YAML
-     * parses, synchronously, on the main thread, during {@code onEnable}.
-     * This does a single pass over the folder, parsing each file exactly
-     * once, and runs entirely on {@link #ioExecutor} — {@code onEnable}
-     * doesn't block on it at all; see {@code Poppy#logStartupBanner} for how
-     * the console banner reports the result once it's ready instead.
-     */
-    public record HomeStats(int playersWithHomes, int totalHomes) {
-    }
-
-    /**
-     * Combines what were previously two separate O(n) scans, parsing each
-     * file exactly once, entirely off the main thread.
-     *
-     * <p>Deliberately NOT run on {@link #ioExecutor}: that executor is
-     * single-threaded and shared with every homes write ({@code save},
-     * {@code unload}) — a long reporting scan (potentially several minutes on
-     * a server with tens of thousands of homes files) would queue behind it
-     * and, worse, queue every homes write behind *itself* for its entire
-     * duration. {@code inFlight} still keeps reads correct during that
-     * window, but durability wouldn't be: a crash while the scan is running
-     * would lose every home created since startup, since none of it would
-     * have reached disk yet. Using the default common pool instead means
-     * this scan never competes with, or delays, actual player data being
-     * saved.
-     */
-    public CompletableFuture<HomeStats> collectStatsAsync() {
-        return CompletableFuture.supplyAsync(() -> {
-            File[] files = homesFolder.listFiles((dir, name) -> name.endsWith(".yml"));
-            if (files == null) {
-                return new HomeStats(0, 0);
-            }
-
-            int players = 0;
-            int total = 0;
-            for (File file : files) {
-                int count = fileHomeCount(file);
-                if (count > 0) {
-                    players++;
-                    total += count;
-                }
-            }
-            return new HomeStats(players, total);
-        });
-    }
-
-    /**
      * Snapshots {@code homes} into {@link #inFlight} under a fresh identity
      * token, submits the async write, and clears the snapshot once done —
      * but only if this write's token is still the current one for this

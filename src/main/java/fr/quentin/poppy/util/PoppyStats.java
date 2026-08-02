@@ -24,10 +24,4 @@ public final class PoppyStats {
     public void incrementTeleports() { teleportsPerformed.incrementAndGet(); }
     public void incrementRtpUsed() { rtpUsed.incrementAndGet(); }
     public void incrementSharesCreated() { sharesCreated.incrementAndGet(); }
-
-    public long getHomesCreated() { return homesCreated.get(); }
-    public long getHomesDeleted() { return homesDeleted.get(); }
-    public long getTeleportsPerformed() { return teleportsPerformed.get(); }
-    public long getRtpUsed() { return rtpUsed.get(); }
-    public long getSharesCreated() { return sharesCreated.get(); }
 }

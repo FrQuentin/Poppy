@@ -69,7 +69,6 @@ public final class Poppy extends JavaPlugin {
 
     private HomeManager homeManager;
     private SpawnManager spawnManager;
-    private PoppyStats stats;
     private PoppyLogger poppyLogger;
     private DeathChestManager deathChestManager;
 
@@ -80,7 +79,7 @@ public final class Poppy extends JavaPlugin {
         PoppyConfig config = new PoppyConfig(this);
         homeManager = new HomeManager(this, config);
         spawnManager = new SpawnManager(this);
-        stats = new PoppyStats();
+        PoppyStats stats = new PoppyStats();
 
         Messages messages = new Messages(this);
         CooldownRegistry cooldownRegistry = new CooldownRegistry();
@@ -201,8 +200,6 @@ public final class Poppy extends JavaPlugin {
         // AutoAfkTask checks the setting live each run, so it can be toggled via
         // /poppy reload without a restart.
         new AutoAfkTask(this, afkManager, messages, config, poppyLogger).runTaskTimer(this, 20L * 60, 20L * 60);
-
-        logStartupBanner();
     }
 
     @Override
@@ -217,45 +214,10 @@ public final class Poppy extends JavaPlugin {
             deathChestManager.shutdown();
         }
 
-        logShutdownSummary();
         getLogger().info("Poppy has been disabled.");
 
         if (poppyLogger != null) {
             poppyLogger.shutdown();
         }
-    }
-
-    private void logStartupBanner() {
-        boolean showStats = getConfig().getBoolean("startup-stats-enabled", true);
-
-        getLogger().info("========================================");
-        getLogger().info(" Poppy v" + getPluginMeta().getVersion() + " enabled successfully.");
-        getLogger().info(" config.yml and messages.yml loaded OK.");
-        getLogger().info(" Spawn point: " + (spawnManager.hasSpawn() ? "configured" : "NOT SET (use /setspawn)"));
-        getLogger().info(" Modules: afk-auto=" + getConfig().getBoolean("afk-auto-enabled", true)
-                + ", combat-tag=" + getConfig().getBoolean("combat-tag-enabled", true)
-                + ", tab-health=" + getConfig().getBoolean("show-health-in-tab", true)
-                + ", custom-join-quit=" + getConfig().getBoolean("custom-join-message", true));
-        getLogger().info("========================================");
-
-        if (showStats) {
-            homeManager.collectStatsAsync().thenAccept(stats ->
-                    getLogger().info(" Known players with homes: " + stats.playersWithHomes() + " (" + stats.totalHomes() + " homes total)")
-            );
-        }
-    }
-
-    private void logShutdownSummary() {
-        if (stats == null) {
-            return;
-        }
-
-        getLogger().info("---- Poppy session summary ----");
-        getLogger().info(" Homes created: " + stats.getHomesCreated());
-        getLogger().info(" Homes deleted: " + stats.getHomesDeleted());
-        getLogger().info(" Teleports performed: " + stats.getTeleportsPerformed());
-        getLogger().info(" /rtp uses: " + stats.getRtpUsed());
-        getLogger().info(" Homes shared: " + stats.getSharesCreated());
-        getLogger().info("--------------------------------");
     }
 }

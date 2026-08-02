@@ -122,10 +122,7 @@ public class HomeManager {
      */
     public Home getHomeUncached(UUID uuid, String name) {
         LinkedHashMap<String, Home> cached = cache.get(uuid);
-        if (cached != null) {
-            return cached.get(name.toLowerCase());
-        }
-        return load(uuid).get(name.toLowerCase());
+        return Objects.requireNonNullElseGet(cached, () -> load(uuid)).get(name.toLowerCase());
     }
 
     /**
@@ -364,12 +361,6 @@ public class HomeManager {
         }
     }
 
-    private int fileHomeCount(File file) {
-        YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
-        ConfigurationSection homesSection = config.getConfigurationSection("homes");
-        return homesSection == null ? 0 : homesSection.getKeys(false).size();
-    }
-
     private YamlConfiguration buildConfig(LinkedHashMap<String, Home> homes) {
         YamlConfiguration config = new YamlConfiguration();
         ConfigurationSection homesSection = config.createSection("homes");
@@ -390,7 +381,7 @@ public class HomeManager {
         return config;
     }
 
-    protected void writeToDisk(YamlConfiguration config, File file, UUID uuid) {
+    public void writeToDisk(YamlConfiguration config, File file, UUID uuid) {
         AtomicYamlWriter.save(config, file, plugin, "homes for " + uuid);
     }
 

@@ -505,17 +505,7 @@ public class DeathChestManager implements Listener {
         }
 
         try {
-            Inventory topInventory = event.getView().getTopInventory();
-            boolean clickedTop = event.getClickedInventory() == topInventory;
-
-            boolean isDeposit;
-            if (clickedTop) {
-                isDeposit = DEPOSIT_ACTIONS.contains(event.getAction());
-            } else {
-                // A shift-click from the player's own inventory always targets the
-                // other open inventory — here, the death chest — so it's a deposit.
-                isDeposit = event.getAction() == InventoryAction.MOVE_TO_OTHER_INVENTORY;
-            }
+            boolean isDeposit = isIsDeposit(event);
 
             if (isDeposit && event.getWhoClicked() instanceof Player player) {
                 event.setCancelled(true);
@@ -524,6 +514,21 @@ public class DeathChestManager implements Listener {
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Error in DeathChestManager#onDepositClick for " + event.getWhoClicked().getName(), e);
         }
+    }
+
+    private static boolean isIsDeposit(@NonNull InventoryClickEvent event) {
+        Inventory topInventory = event.getView().getTopInventory();
+        boolean clickedTop = event.getClickedInventory() == topInventory;
+
+        boolean isDeposit;
+        if (clickedTop) {
+            isDeposit = DEPOSIT_ACTIONS.contains(event.getAction());
+        } else {
+            // A shift-click from the player's own inventory always targets the
+            // other open inventory — here, the death chest — so it's a deposit.
+            isDeposit = event.getAction() == InventoryAction.MOVE_TO_OTHER_INVENTORY;
+        }
+        return isDeposit;
     }
 
     /**

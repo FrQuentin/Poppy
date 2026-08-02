@@ -98,10 +98,6 @@ public class TeleportManager implements Listener {
         this.logger = logger;
     }
 
-    public boolean requestTeleport(Player player, Home home) {
-        return requestTeleportInternal(player, () -> Resolution.of(home), "home.success", null);
-    }
-
     public boolean requestTeleport(Player player, Home home, String successMessagePath) {
         return requestTeleportInternal(player, () -> Resolution.of(home), successMessagePath, null);
     }
@@ -110,25 +106,17 @@ public class TeleportManager implements Listener {
         return requestTeleportInternal(player, () -> Resolution.of(home), successMessagePath, onSuccess);
     }
 
-    public boolean requestTeleport(Player player, Supplier<Home> homeSupplier, String successMessagePath) {
-        return requestTeleportInternal(player, () -> Resolution.of(homeSupplier.get()), successMessagePath, null);
-    }
-
-    public boolean requestTeleport(Player player, Supplier<Home> homeSupplier, String successMessagePath, Runnable onSuccess) {
-        return requestTeleportInternal(player, () -> Resolution.of(homeSupplier.get()), successMessagePath, onSuccess);
+    public void requestTeleport(Player player, Supplier<Home> homeSupplier, String successMessagePath) {
+        requestTeleportInternal(player, () -> Resolution.of(homeSupplier.get()), successMessagePath, null);
     }
 
     /**
      * Same as the {@link Supplier}{@code <Home>} overloads, but with a
      * {@link Resolution} supplier that can attach a specific failure
      * message — see {@link Resolution} for why that matters.
-     *
-     * @return true if the request was accepted (warmup started, or an
-     *         instant teleport was dispatched); false if rejected outright
-     *         because the player is combat-tagged.
      */
-    public boolean requestTeleportResolved(Player player, Supplier<Resolution> resolutionSupplier, String successMessagePath, Runnable onSuccess) {
-        return requestTeleportInternal(player, resolutionSupplier, successMessagePath, onSuccess);
+    public void requestTeleportResolved(Player player, Supplier<Resolution> resolutionSupplier, String successMessagePath, Runnable onSuccess) {
+        requestTeleportInternal(player, resolutionSupplier, successMessagePath, onSuccess);
     }
 
     private boolean requestTeleportInternal(Player player, Supplier<Resolution> resolutionSupplier, String successMessagePath, Runnable onSuccess) {
@@ -293,7 +281,7 @@ public class TeleportManager implements Listener {
      * Only ever runs on the main thread — guaranteed by both callers in
      * {@link #teleportNow}.
      */
-    protected void onTeleportComplete(Player player, Location origin, Home home, boolean success, String successMessagePath, Runnable onSuccess) {
+    public void onTeleportComplete(Player player, Location origin, Home home, boolean success, String successMessagePath, Runnable onSuccess) {
         if (!success) {
             plugin.getLogger().warning("Teleport of " + player.getName() + " to '" + home.name() + "' did not complete successfully");
             return;

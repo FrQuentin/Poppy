@@ -360,7 +360,7 @@ public class HomesGUIListener implements Listener {
         ItemStack cursor = who.getItemOnCursor();
         who.setItemOnCursor(null);
 
-        if (cursor == null || cursor.getType().isAir()) {
+        if (cursor.getType().isAir()) {
             return;
         }
 

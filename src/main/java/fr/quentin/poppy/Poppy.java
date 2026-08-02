@@ -1,10 +1,60 @@
 package fr.quentin.poppy;
 
-import fr.quentin.poppy.commands.*;
-import fr.quentin.poppy.gui.*;
-import fr.quentin.poppy.listeners.*;
-import fr.quentin.poppy.manager.*;
+import fr.quentin.poppy.commands.afk.AfkCommand;
+import fr.quentin.poppy.commands.back.BackCommand;
+import fr.quentin.poppy.commands.back.DeathBackCommand;
+import fr.quentin.poppy.commands.combat.CombatCommand;
+import fr.quentin.poppy.commands.fly.FlyCommand;
+import fr.quentin.poppy.commands.fly.FlyTimeCommand;
+import fr.quentin.poppy.commands.home.DelHomeCommand;
+import fr.quentin.poppy.commands.home.HomeCommand;
+import fr.quentin.poppy.commands.home.HomesCommand;
+import fr.quentin.poppy.commands.home.SetHomeCommand;
+import fr.quentin.poppy.commands.misc.CooldownsCommand;
+import fr.quentin.poppy.commands.misc.FeedCommand;
+import fr.quentin.poppy.commands.misc.HealCommand;
+import fr.quentin.poppy.commands.misc.PoppyCommand;
+import fr.quentin.poppy.commands.rtp.RtpCommand;
+import fr.quentin.poppy.commands.share.PoppyGotoCommand;
+import fr.quentin.poppy.commands.share.ShareHomeCommand;
+import fr.quentin.poppy.commands.spawn.DelSpawnCommand;
+import fr.quentin.poppy.commands.spawn.SetSpawnCommand;
+import fr.quentin.poppy.commands.spawn.SpawnCommand;
+import fr.quentin.poppy.commands.tpa.*;
+import fr.quentin.poppy.commands.trash.TrashCommand;
+import fr.quentin.poppy.gui.home.ConfirmDeleteGUI;
+import fr.quentin.poppy.gui.home.ConfirmOverwriteGUI;
+import fr.quentin.poppy.gui.home.HomesGUI;
+import fr.quentin.poppy.gui.home.HomesGUIListener;
+import fr.quentin.poppy.gui.trash.TrashGUI;
+import fr.quentin.poppy.gui.trash.TrashListener;
+import fr.quentin.poppy.listeners.afk.AfkListener;
+import fr.quentin.poppy.listeners.death.DeathCoordsListener;
+import fr.quentin.poppy.listeners.misc.JoinQuitListener;
+import fr.quentin.poppy.listeners.misc.UnknownCommandListener;
+import fr.quentin.poppy.listeners.poppy.PoppyLoreListener;
+import fr.quentin.poppy.listeners.silkspawner.SilkSpawnerListener;
+import fr.quentin.poppy.listeners.sleep.SleepStatusListener;
+import fr.quentin.poppy.listeners.tab.TabHealthListener;
+import fr.quentin.poppy.manager.afk.AfkManager;
+import fr.quentin.poppy.manager.afk.AutoAfkTask;
+import fr.quentin.poppy.manager.back.BackListener;
+import fr.quentin.poppy.manager.back.BackManager;
+import fr.quentin.poppy.manager.combat.CombatListener;
+import fr.quentin.poppy.manager.combat.CombatManager;
+import fr.quentin.poppy.manager.death.DeathLocationManager;
+import fr.quentin.poppy.manager.deathchest.DeathChestManager;
+import fr.quentin.poppy.manager.fly.FlyManager;
+import fr.quentin.poppy.manager.home.HomeCacheListener;
+import fr.quentin.poppy.manager.home.HomeManager;
+import fr.quentin.poppy.manager.share.ShareManager;
+import fr.quentin.poppy.manager.sleep.SleepPercentageListener;
+import fr.quentin.poppy.manager.spawn.SpawnManager;
+import fr.quentin.poppy.manager.teleport.TeleportManager;
+import fr.quentin.poppy.manager.tpa.TpaManager;
+import fr.quentin.poppy.manager.tpa.TpaQuitListener;
 import fr.quentin.poppy.util.*;
+import fr.quentin.poppy.util.cooldown.CooldownRegistry;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.Objects;
@@ -22,7 +72,6 @@ public final class Poppy extends JavaPlugin {
     private PoppyStats stats;
     private PoppyLogger poppyLogger;
     private DeathChestManager deathChestManager;
-    private EconomyManager economyManager;
 
     @Override
     public void onEnable() {
@@ -31,7 +80,6 @@ public final class Poppy extends JavaPlugin {
         PoppyConfig config = new PoppyConfig(this);
         homeManager = new HomeManager(this, config);
         spawnManager = new SpawnManager(this);
-        economyManager = new EconomyManager(this, config);
         stats = new PoppyStats();
 
         Messages messages = new Messages(this);
@@ -52,9 +100,6 @@ public final class Poppy extends JavaPlugin {
         DeathLocationManager deathLocationManager = new DeathLocationManager();
         deathChestManager = new DeathChestManager(this, messages, config, poppyLogger);
         FlyManager flyManager = new FlyManager(this, messages, config, combatManager);
-
-        ShopManager shopManager = new ShopManager(this, economyManager);
-        ShopGUI shopGUI = new ShopGUI(this, messages);
 
         // Both created here (not inline at registerEvents time) since PoppyCommand
         // needs a reference to each to call reapply() from /poppy reload.
@@ -118,7 +163,7 @@ public final class Poppy extends JavaPlugin {
         TpaToggleCommand tpaToggleCommand = new TpaToggleCommand(this, tpaManager, messages, config);
         Objects.requireNonNull(getCommand("tpatoggle")).setExecutor(tpaToggleCommand);
 
-        PoppyCommand poppyCommand = new PoppyCommand(this, messages, config, poppyLogger, sleepPercentageListener, tabHealthListener, shopManager);
+        PoppyCommand poppyCommand = new PoppyCommand(this, messages, config, poppyLogger, sleepPercentageListener, tabHealthListener);
         Objects.requireNonNull(getCommand("poppy")).setExecutor(poppyCommand);
         Objects.requireNonNull(getCommand("poppy")).setTabCompleter(poppyCommand);
 
@@ -131,18 +176,6 @@ public final class Poppy extends JavaPlugin {
         Objects.requireNonNull(getCommand("combat")).setExecutor(new CombatCommand(this, combatManager, messages));
 
         Objects.requireNonNull(getCommand("cooldowns")).setExecutor(new CooldownsCommand(this, messages, cooldownRegistry));
-
-        MoneyCommand moneyCommand = new MoneyCommand(this, economyManager, messages);
-        Objects.requireNonNull(getCommand("money")).setExecutor(moneyCommand);
-        Objects.requireNonNull(getCommand("money")).setTabCompleter(moneyCommand);
-
-        PayCommand payCommand = new PayCommand(this, economyManager, messages);
-        Objects.requireNonNull(getCommand("pay")).setExecutor(payCommand);
-        Objects.requireNonNull(getCommand("pay")).setTabCompleter(payCommand);
-
-        Objects.requireNonNull(getCommand("baltop")).setExecutor(new BalTopCommand(this, economyManager, messages, config.economyBaltopSize()));
-
-        Objects.requireNonNull(getCommand("shop")).setExecutor(new ShopCommand(this, shopManager, shopGUI, messages));
 
         getServer().getPluginManager().registerEvents(
                 new HomesGUIListener(this, homeManager, homesGUI, confirmDeleteGUI, confirmOverwriteGUI, teleportManager, messages, stats, poppyLogger), this);
@@ -163,8 +196,6 @@ public final class Poppy extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new SleepStatusListener(this, messages, config, poppyLogger), this);
         getServer().getPluginManager().registerEvents(new SilkSpawnerListener(this, messages, config), this);
         getServer().getPluginManager().registerEvents(flyManager, this);
-        getServer().getPluginManager().registerEvents(economyManager, this);
-        getServer().getPluginManager().registerEvents(new ShopListener(this, shopManager, shopGUI, messages), this);
 
         // Always scheduled now (rather than only if afk-auto-enabled at startup) —
         // AutoAfkTask checks the setting live each run, so it can be toggled via
@@ -184,9 +215,6 @@ public final class Poppy extends JavaPlugin {
         }
         if (deathChestManager != null) {
             deathChestManager.shutdown();
-        }
-        if (economyManager != null) {
-            economyManager.shutdown();
         }
 
         logShutdownSummary();

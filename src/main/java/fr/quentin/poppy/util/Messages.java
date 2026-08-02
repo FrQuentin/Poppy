@@ -1,5 +1,6 @@
 package fr.quentin.poppy.util;
 
+import fr.quentin.poppy.util.io.AtomicYamlWriter;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextReplacementConfig;
 import net.kyori.adventure.text.format.TextDecoration;

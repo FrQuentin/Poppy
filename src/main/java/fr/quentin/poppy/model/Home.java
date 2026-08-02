@@ -1,5 +1,6 @@
 package fr.quentin.poppy.model;
 
+import fr.quentin.poppy.manager.spawn.SpawnManager;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -7,7 +8,7 @@ import org.bukkit.World;
 /**
  * Immutable representation of a player's home (or the server spawn, which
  * reuses this same record with a fixed {@code "spawn"} name — see
- * {@link fr.quentin.poppy.manager.SpawnManager}).
+ * {@link SpawnManager}).
  */
 public record Home(String name, String worldName, double x, double y, double z, float yaw, float pitch,
                    long createdAt) {

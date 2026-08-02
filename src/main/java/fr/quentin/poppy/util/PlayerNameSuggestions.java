@@ -1,5 +1,6 @@
 package fr.quentin.poppy.util;
 
+import fr.quentin.poppy.manager.tpa.TpaManager;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
@@ -16,7 +17,7 @@ import java.util.Locale;
  * the kind of thing vanish exists to prevent, and something cheaters
  * routinely probe for. Used by /tpa and /tpahere, which target anyone
  * online (unlike /tpaccept and /tpadeny, which use
- * {@link fr.quentin.poppy.manager.TpaManager#pendingRequesterNames} to
+ * {@link TpaManager#pendingRequesterNames} to
  * only suggest players with an actual pending request).
  */
 public final class PlayerNameSuggestions {

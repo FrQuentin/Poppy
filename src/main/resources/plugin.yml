@@ -136,27 +136,6 @@ commands:
     usage: /flytime
     permission: poppy.fly
     permission-message: "&4[!] You don't have permission to do this."
-  money:
-    description: Check your balance, or (admin) adjust another player's.
-    usage: /money [add|remove|set <player> <amount>]
-    permission: poppy.money
-    permission-message: "&4[!] You don't have permission to do this."
-    aliases: [ balance, bal ]
-  pay:
-    description: Send money to another player.
-    usage: /pay <player> <amount>
-    permission: poppy.pay
-    permission-message: "&4[!] You don't have permission to do this."
-  baltop:
-    description: See the richest players on the server.
-    usage: /baltop
-    permission: poppy.baltop
-    permission-message: "&4[!] You don't have permission to do this."
-  shop:
-    description: Open the server shop.
-    usage: /shop
-    permission: poppy.shop
-    permission-message: "&4[!] You don't have permission to do this."
 
 permissions:
   poppy.*:
@@ -187,11 +166,6 @@ permissions:
       poppy.fly: true
       poppy.combat: true
       poppy.cooldowns: true
-      poppy.money: true
-      poppy.pay: true
-      poppy.money.admin: true
-      poppy.baltop: true
-      poppy.shop: true
 
   poppy.sethome:
     description: Allows creating homes with /sethome.
@@ -276,19 +250,4 @@ permissions:
     default: true
   poppy.cooldowns:
     description: Allows checking cooldowns with /cooldowns.
-    default: true
-  poppy.money:
-    description: Allows checking your own balance with /money.
-    default: true
-  poppy.pay:
-    description: Allows sending money to other players with /pay.
-    default: true
-  poppy.money.admin:
-    description: Allows adjusting other players' balances with /money add|remove|set.
-    default: op
-  poppy.baltop:
-    description: Allows viewing the richest players with /baltop.
-    default: true
-  poppy.shop:
-    description: Allows using the server shop with /shop.
     default: true

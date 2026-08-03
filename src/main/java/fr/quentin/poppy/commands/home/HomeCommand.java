@@ -48,14 +48,19 @@ public class HomeCommand extends SafeCommand implements TabCompleter {
         }
 
         if (args.length == 0) {
+            // Same permission check as /homes — without this, a player missing
+            // poppy.homes (but keeping poppy.home) could still reach the GUI
+            // through this exact path, bypassing the restriction /homes enforces.
+            if (!player.hasPermission("poppy.homes")) {
+                player.sendMessage(messages.get("general.no-permission"));
+                return true;
+            }
             homesGUI.open(player, homeManager);
             return true;
         }
 
         String name = args[0];
-        Home home = homeManager.getHome(player.getUniqueId(), name);
-
-        if (home == null) {
+        if (!homeManager.hasHome(player.getUniqueId(), name)) {
             player.sendMessage(messages.get("home.not-found"));
             return true;
         }

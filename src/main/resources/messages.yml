@@ -8,7 +8,6 @@ general:
 sethome:
   usage: "<#dc2625>[!] Usage: </#dc2625>/sethome <lt>home>"
   invalid-name: "<#dc2625>[!] Home names can only contain letters, numbers, - and _ (max 32 characters)."
-  already-exists: "<#dc2625>[!] You already have a home named {home}!"
   full: "<#dc2625>[!] You can't have more than {max} homes!"
   success: "<#85cc16>[!] You have created a new home, {home}!"
 

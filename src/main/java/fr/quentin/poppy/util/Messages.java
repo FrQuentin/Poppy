@@ -164,7 +164,7 @@ public class Messages {
 
         return result.replaceText(TextReplacementConfig.builder()
                 .match(combinedPattern)
-                .replacement((matchResult, builder) -> {
+                .replacement((matchResult, _) -> {
                     String key = matchResult.group(1);
                     return Component.text(values.getOrDefault(key, matchResult.group()));
                 })

@@ -1,5 +1,6 @@
 package fr.quentin.poppy.commands.rtp;
 
+import fr.quentin.poppy.manager.combat.CombatManager;
 import fr.quentin.poppy.manager.teleport.TeleportManager;
 import fr.quentin.poppy.model.Home;
 import fr.quentin.poppy.util.*;
@@ -59,12 +60,15 @@ public class RtpCommand extends SafeCommand implements Listener {
     private final PoppyConfig config;
     private final PoppyStats stats;
     private final CooldownStore cooldown;
+    private final CombatManager combatManager;
 
     private final Set<UUID> inProgress = new HashSet<>();
 
-    public RtpCommand(JavaPlugin plugin, TeleportManager teleportManager, Messages messages, PoppyConfig config, PoppyStats stats, CooldownRegistry registry) {
+    public RtpCommand(JavaPlugin plugin, TeleportManager teleportManager, CombatManager combatManager,
+                      Messages messages, PoppyConfig config, PoppyStats stats, CooldownRegistry registry) {
         super(plugin, messages);
         this.teleportManager = teleportManager;
+        this.combatManager = combatManager;
         this.config = config;
         this.stats = stats;
         this.cooldown = new CooldownStore(plugin);
@@ -72,25 +76,37 @@ public class RtpCommand extends SafeCommand implements Listener {
     }
 
     @Override
-    protected boolean execute(@NonNull CommandSender sender, @NonNull Command command, @NonNull String label, String @NonNull [] args) {
+    protected boolean execute(@NonNull CommandSender sender, @NonNull Command command,
+                              @NonNull String label, String @NonNull [] args) {
         Player player = requirePlayer(sender);
         if (player == null) {
             return true;
         }
 
-        long remaining = cooldown.remainingSeconds(player.getUniqueId());
+        UUID uuid = player.getUniqueId();
+
+        // Rejected BEFORE any chunk generation — a full search for a player who
+        // can't be teleported anyway is pure wasted work, exactly the vector the
+        // earlier "cooldown applies on search failure too" fix meant to close,
+        // reopened via this separate rejection path (requestTeleport refusing
+        // because of a combat tag, distinct from a failed safe-spot search).
+        if (combatManager.isInCombat(uuid)) {
+            player.sendMessage(messages.get("combat.in-combat",
+                    "seconds", String.valueOf(combatManager.remainingSeconds(uuid))));
+            return true;
+        }
+
+        long remaining = cooldown.remainingSeconds(uuid);
         if (remaining > 0) {
             player.sendMessage(messages.get("rtp.cooldown", "time", DurationFormat.format(remaining)));
             return true;
         }
-
-        if (!inProgress.add(player.getUniqueId())) {
+        if (!inProgress.add(uuid)) {
             player.sendMessage(messages.get("rtp.already-searching"));
             return true;
         }
-
         if (inProgress.size() > config.rtpMaxConcurrentSearches()) {
-            inProgress.remove(player.getUniqueId());
+            inProgress.remove(uuid);
             player.sendMessage(messages.get("rtp.server-busy"));
             return true;
         }
@@ -132,7 +148,6 @@ public class RtpCommand extends SafeCommand implements Listener {
             Bukkit.getScheduler().runTask(plugin, () -> handleChunkLoaded(player, world, x, z, center, attemptsLeft));
             return;
         }
-
         if (!player.isOnline()) {
             inProgress.remove(player.getUniqueId());
             return;
@@ -143,13 +158,17 @@ public class RtpCommand extends SafeCommand implements Listener {
                 : buildOverworldCandidate(world, x, z);
 
         if (candidate != null && isSafe(candidate)) {
-            Home rtpHome = Home.fromLocation("rtp", candidate);
-            boolean accepted = teleportManager.requestTeleport(player, rtpHome, "rtp.success");
+            UUID uuid = player.getUniqueId();
+            boolean accepted = teleportManager.requestTeleport(player, Home.fromLocation("rtp", candidate), "rtp.success");
+            inProgress.remove(uuid);
 
-            inProgress.remove(player.getUniqueId());
+            // The search genuinely cost chunk generations — the cooldown is owed
+            // regardless of whether the teleport itself was accepted or rejected
+            // (a combat tag applied mid-search, since this runs across several
+            // ticks). Without this, the command stayed freely re-triggerable.
+            cooldown.start(uuid, config.rtpCooldownMillis());
 
             if (accepted) {
-                cooldown.start(player.getUniqueId(), config.rtpCooldownMillis());
                 stats.incrementRtpUsed();
             }
         } else {

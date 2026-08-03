@@ -131,7 +131,7 @@ public final class Poppy extends JavaPlugin {
 
         Objects.requireNonNull(getCommand("back")).setExecutor(new BackCommand(this, backManager, teleportManager, messages));
 
-        RtpCommand rtpCommand = new RtpCommand(this, teleportManager, messages, config, stats, cooldownRegistry);
+        RtpCommand rtpCommand = new RtpCommand(this, teleportManager, combatManager, messages, config, stats, cooldownRegistry);
         Objects.requireNonNull(getCommand("rtp")).setExecutor(rtpCommand);
         getServer().getPluginManager().registerEvents(rtpCommand, this);
 

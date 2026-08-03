@@ -125,6 +125,19 @@ public class FlyManager implements Listener {
         Bukkit.getScheduler().runTaskTimer(plugin, this::purgeStaleBudgets, BUDGET_PURGE_INTERVAL_TICKS, BUDGET_PURGE_INTERVAL_TICKS);
     }
 
+    /**
+     * Minimum budget required to (re)take off. Without this floor, a player
+     * at the cap could relaunch /fly every second for a one-second flight,
+     * and the estimate {@code /fly} showed never matched what {@link #toggle}
+     * actually did (see {@link #secondsUntilAnyBudget}). Tied to the
+     * end-of-flight warning window — taking off for less time than the
+     * configured warning itself doesn't make sense.
+     */
+    private long minimumBudgetMillis() {
+        long warningMillis = config.flyMaxDurationWarningSeconds() * 1000L;
+        return warningMillis > 0 ? warningMillis : 10_000L;
+    }
+
     public ToggleResult toggle(Player player) {
         UUID uuid = player.getUniqueId();
         long now = System.currentTimeMillis();
@@ -147,7 +160,8 @@ public class FlyManager implements Listener {
         long maxMillis = config.flyMaxDurationMillis();
         if (maxMillis > 0) {
             long currentUsed = computeCurrentUsedMillis(uuid, now);
-            if (currentUsed >= maxMillis) {
+            long minimum = Math.min(minimumBudgetMillis(), maxMillis);
+            if (maxMillis - currentUsed < minimum) {
                 return ToggleResult.NO_BUDGET;
             }
 
@@ -188,9 +202,26 @@ public class FlyManager implements Listener {
         return remaining <= 0 ? 0 : (remaining / 1000) + 1;
     }
 
+    /**
+     * Seconds until the player has enough regenerated budget to actually
+     * take off again — not the time to a full recharge. Aligned with the
+     * same {@link #minimumBudgetMillis()} floor {@link #toggle} enforces, so
+     * this estimate and the real behavior finally agree: previously this
+     * returned the time to a FULL recharge (the raw used amount), while
+     * {@code toggle()} only required {@code currentUsed < maxMillis} — two
+     * different thresholds for the same decision, meaning {@code /fly} and
+     * {@code /flytime} could show contradictory numbers, and a player could
+     * spam /fly for repeated one-second flights right at the cap.
+     */
     public long secondsUntilAnyBudget(UUID uuid) {
+        long maxMillis = config.flyMaxDurationMillis();
+        if (maxMillis <= 0) {
+            return 0;
+        }
         long used = computeCurrentUsedMillis(uuid, System.currentTimeMillis());
-        return used <= 0 ? 0 : (used / 1000) + 1;
+        long minimum = Math.min(minimumBudgetMillis(), maxMillis);
+        long missing = minimum - (maxMillis - used);
+        return missing <= 0 ? 0 : (missing / 1000) + 1;
     }
 
     @EventHandler(priority = EventPriority.MONITOR)

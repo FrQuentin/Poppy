@@ -51,6 +51,8 @@ commands:
   deathback:
     description: Internal command triggered by the death coordinates message. Don't run this manually.
     usage: /deathback
+    permission: poppy.deathback
+    permission-message: "&4[!] You don't have permission to do this."
   back:
     description: Teleport back to your location before your last teleport, or where you died.
     usage: /back
@@ -166,6 +168,7 @@ permissions:
       poppy.fly: true
       poppy.combat: true
       poppy.cooldowns: true
+      poppy.deathback: true
 
   poppy.sethome:
     description: Allows creating homes with /sethome.
@@ -250,4 +253,7 @@ permissions:
     default: true
   poppy.cooldowns:
     description: Allows checking cooldowns with /cooldowns.
+    default: true
+  poppy.deathback:
+    description: Allows returning to your last death location via the death coordinates link.
     default: true

@@ -1,38 +1,47 @@
 package fr.quentin.poppy.util;
 
+import fr.quentin.poppy.util.io.AtomicYamlWriter;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Level;
 
 /**
  * Thin typed facade over {@code plugin.getConfig()}. Every value is read
  * from the {@link FileConfiguration} exactly once, at construction and on
- * every {@link #reload()} — not on every getter call.
+ * every {@link #reload()} — not on every getter call, so hot paths
+ * ({@code PlayerMoveEvent}, {@code EntityDamageEvent}, per-log-line reads,
+ * etc.) never touch the underlying YAML structure directly. Getters just
+ * return the cached {@code volatile} value; {@code /poppy reload} still
+ * applies everywhere immediately, since that's exactly what triggers the
+ * re-read.
  *
- * <p>The original design re-read {@code plugin.getConfig()} on every
- * single getter call, so {@code /poppy reload} would apply immediately
- * everywhere with zero extra plumbing. That's simple, but it was applied
- * uniformly even on genuinely hot paths: {@code cancelOnMove()} /
- * {@code cancelOnDamage()} on every {@code PlayerMoveEvent}/
- * {@code EntityDamageEvent} (dozens per second per player),
- * {@code deathChestEnabled()} at the top of eight different
- * {@code DeathChestManager} handlers including {@code onChunkLoad}, and
- * two config reads per {@link PoppyLogger#log} call — each individual read
- * is cheap (a {@code MemorySection} path split, a map lookup), but the
- * aggregate cost across a busy server is real and hard to profile because
- * it's spread across dozens of call sites rather than concentrated in one
- * place.
- *
- * <p>Every value is now read once per {@link #reload()} into a
- * {@code volatile} field (or an immutable {@link List}/{@link Map} behind
- * one), and getters just return the cached value — {@code /poppy reload}
- * still applies everywhere immediately (it's what triggers the re-read),
- * but normal operation never touches {@link FileConfiguration} at all.
- * {@code volatile} also makes this class safe to read from a thread other
- * than the main one — {@link PoppyLogger} does exactly that from its own
- * I/O executor thread.
+ * <p><b>Default-merging on {@link #reload()}:</b> a plugin update that
+ * adds a new config.yml key used to leave that key permanently invisible
+ * and uneditable for every existing install — the code's own
+ * {@code getInt(key, fallback)} default kept the plugin behaving
+ * correctly in memory, but an admin had no way to even discover the key
+ * existed to customize it. This is exactly what happened with
+ * {@code poppy-lore-cooldown-minutes}: read by this class with a
+ * fallback default, but never actually present in the shipped
+ * config.yml. {@link #reload} now merges the jar's bundled defaults on
+ * top of the on-disk file — checked against a completely separate,
+ * defaults-free {@link YamlConfiguration} read straight from disk, so
+ * there's no ambiguity from Bukkit's {@code isSet()}/{@code contains()}
+ * semantics under an attached {@code setDefaults} — and only writes the
+ * merged result back (via {@link AtomicYamlWriter}, atomic) when
+ * something was actually missing. Same pattern {@code Messages#reload}
+ * already used for messages.yml; this closes the same class of bug
+ * structurally so it can't recur silently for any future key.
  */
 public final class PoppyConfig {
 
@@ -66,6 +75,7 @@ public final class PoppyConfig {
     private volatile boolean combatTagEnabled;
     private volatile long combatTagMillis;
     private volatile boolean combatLogPunishEnabled;
+    private volatile boolean combatLogPunishOnKick;
 
     private volatile boolean afkAutoEnabled;
     private volatile long afkIdleMillis;
@@ -112,13 +122,10 @@ public final class PoppyConfig {
     private volatile boolean flyParticlesEnabled;
     private volatile long flyMaxDurationMillis;
     private volatile long flyMaxDurationWarningSeconds;
+    private volatile boolean flyForceDisableOnJoin;
 
     private volatile long feedCooldownMillis;
     private volatile long healCooldownMillis;
-
-    private volatile boolean flyForceDisableOnJoin;
-
-    private volatile boolean combatLogPunishOnKick;
 
     public PoppyConfig(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -129,7 +136,26 @@ public final class PoppyConfig {
         plugin.reloadConfig();
         FileConfiguration c = plugin.getConfig();
 
-        flyForceDisableOnJoin = c.getBoolean("fly-force-disable-on-join", true);
+        // Merges any config.yml key present in the jar's bundled defaults but
+        // missing from the on-disk file — see the class-level doc.
+        File file = new File(plugin.getDataFolder(), "config.yml");
+        try (InputStream in = plugin.getResource("config.yml")) {
+            if (in != null) {
+                YamlConfiguration defaults = YamlConfiguration.loadConfiguration(new InputStreamReader(in, StandardCharsets.UTF_8));
+                YamlConfiguration rawFromDisk = YamlConfiguration.loadConfiguration(file);
+
+                if (hasMissingKeys(rawFromDisk, defaults)) {
+                    rawFromDisk.setDefaults(defaults);
+                    rawFromDisk.options().copyDefaults(true);
+                    AtomicYamlWriter.save(rawFromDisk, file, plugin, "config.yml");
+                    // Already has everything merged in memory — no need to re-read
+                    // the file we just wrote.
+                    c = rawFromDisk;
+                }
+            }
+        } catch (IOException e) {
+            plugin.getLogger().log(Level.WARNING, "Could not merge default config values into config.yml", e);
+        }
 
         teleportWarmupSeconds = Math.max(0, c.getInt("teleport-warmup-seconds", 3));
         cancelOnMove = c.getBoolean("cancel-on-move", true);
@@ -159,6 +185,7 @@ public final class PoppyConfig {
         combatTagEnabled = c.getBoolean("combat-tag-enabled", true);
         combatTagMillis = Math.max(0, c.getLong("combat-tag-seconds", 10)) * 1000L;
         combatLogPunishEnabled = c.getBoolean("combat-log-punish", true);
+        combatLogPunishOnKick = c.getBoolean("combat-log-punish-on-kick", false);
 
         afkAutoEnabled = c.getBoolean("afk-auto-enabled", true);
         afkIdleMillis = Math.max(1, c.getLong("afk-auto-minutes", 5)) * 60L * 1000L;
@@ -205,11 +232,25 @@ public final class PoppyConfig {
         flyParticlesEnabled = c.getBoolean("fly-particles-enabled", true);
         flyMaxDurationMillis = Math.max(0, c.getInt("fly-max-duration-minutes", 30)) * 60L * 1000L;
         flyMaxDurationWarningSeconds = Math.max(0, c.getInt("fly-max-duration-warning-seconds", 30));
+        flyForceDisableOnJoin = c.getBoolean("fly-force-disable-on-join", true);
 
         feedCooldownMillis = Math.max(0, c.getInt("feed-cooldown-seconds", 180)) * 1000L;
         healCooldownMillis = Math.max(0, c.getInt("heal-cooldown-seconds", 180)) * 1000L;
+    }
 
-        combatLogPunishOnKick = c.getBoolean("combat-log-punish-on-kick", false);
+    /**
+     * True if the on-disk file is missing any key present in the bundled
+     * defaults — {@code loaded} must never have had {@code setDefaults}
+     * called on it, so {@code isSet} here can only ever reflect what's
+     * truly present in the physical file, with zero fallback ambiguity.
+     */
+    private boolean hasMissingKeys(YamlConfiguration loaded, YamlConfiguration defaults) {
+        for (String key : defaults.getKeys(true)) {
+            if (!loaded.isSet(key)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private int computeTrashSize(int configured) {
@@ -220,14 +261,8 @@ public final class PoppyConfig {
         return Math.min(54, normalized);
     }
 
-    /**
-     * Eagerly resolves every known {@link PoppyLogger.Category} at reload
-     * time, rather than reading {@code logging.categories.<name>} lazily
-     * per call — the exact hot-path cost {@link PoppyLogger#log} was
-     * paying twice per log line.
-     */
     private Map<String, Boolean> buildLoggingCategories(FileConfiguration c) {
-        Map<String, Boolean> categories = new java.util.HashMap<>();
+        Map<String, Boolean> categories = new HashMap<>();
         for (PoppyLogger.Category category : PoppyLogger.Category.values()) {
             categories.put(category.name(), c.getBoolean("logging.categories." + category.name().toLowerCase(), true));
         }
@@ -282,6 +317,10 @@ public final class PoppyConfig {
         return rtpCooldownMillis;
     }
 
+    public int rtpMaxConcurrentSearches() {
+        return rtpMaxConcurrentSearches;
+    }
+
     public int trashSize() {
         return trashSize;
     }
@@ -313,6 +352,10 @@ public final class PoppyConfig {
 
     public boolean combatLogPunishEnabled() {
         return combatLogPunishEnabled;
+    }
+
+    public boolean combatLogPunishOnKick() {
+        return combatLogPunishOnKick;
     }
 
     public boolean afkAutoEnabled() {
@@ -356,6 +399,11 @@ public final class PoppyConfig {
         return deathChestXpRefundPercent;
     }
 
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
+    public boolean deathChestReadOnly() {
+        return deathChestReadOnly;
+    }
+
     public int tpaExpirySeconds() {
         return tpaExpirySeconds;
     }
@@ -370,6 +418,14 @@ public final class PoppyConfig {
 
     public boolean tpaAllowCrossWorld() {
         return tpaAllowCrossWorld;
+    }
+
+    public boolean tpaBlockToCombat() {
+        return tpaBlockToCombat;
+    }
+
+    public long tpaToggleCooldownMillis() {
+        return tpaToggleCooldownMillis;
     }
 
     public long poppyLoreCooldownMillis() {
@@ -438,30 +494,6 @@ public final class PoppyConfig {
         return flyParticlesEnabled;
     }
 
-    public long feedCooldownMillis() {
-        return feedCooldownMillis;
-    }
-
-    public long healCooldownMillis() {
-        return healCooldownMillis;
-    }
-
-    public boolean tpaBlockToCombat() {
-        return tpaBlockToCombat;
-    }
-
-    public boolean flyForceDisableOnJoin() {
-        return flyForceDisableOnJoin;
-    }
-
-    public boolean combatLogPunishOnKick() {
-        return combatLogPunishOnKick;
-    }
-
-    public int rtpMaxConcurrentSearches() {
-        return rtpMaxConcurrentSearches;
-    }
-
     public long flyMaxDurationMillis() {
         return flyMaxDurationMillis;
     }
@@ -470,12 +502,15 @@ public final class PoppyConfig {
         return flyMaxDurationWarningSeconds;
     }
 
-    public long tpaToggleCooldownMillis() {
-        return tpaToggleCooldownMillis;
+    public boolean flyForceDisableOnJoin() {
+        return flyForceDisableOnJoin;
     }
 
-    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
-    public boolean deathChestReadOnly() {
-        return deathChestReadOnly;
+    public long feedCooldownMillis() {
+        return feedCooldownMillis;
+    }
+
+    public long healCooldownMillis() {
+        return healCooldownMillis;
     }
 }

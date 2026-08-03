@@ -165,6 +165,7 @@ fly-particles-enabled: true
 # /tpa or /tpahere being used as a free, instant, world-wide teleport
 # network between two accounts.
 tpa-max-distance: 0
+
 # If false, /tpaccept refuses to teleport across different worlds
 # (Overworld/Nether/End), even within tpa-max-distance.
 tpa-allow-cross-world: true
@@ -177,11 +178,18 @@ combat-log-punish: true
 # Cooldown (in seconds) between two /afk toggles. Prevents a macro spamming
 # the AFK broadcast to every online player.
 afk-toggle-cooldown-seconds: 5
+
 # Cooldown (in seconds) between two /poppy easter egg uses.
 poppy-easteregg-cooldown-seconds: 3
+
+# Cooldown (in minutes) between two tellings of the Poppy story
+# triggered by right-clicking an Iron Golem while holding a Poppy.
+poppy-lore-cooldown-minutes: 30
+
 # Cooldown (in seconds) between two "X/Y players sleeping" broadcasts
 # triggered by the same player repeatedly entering a bed.
 sleep-status-cooldown-seconds: 5
+
 # Cooldown (in seconds) between two /tpa or /tpahere requests sent by the
 # same player — prevents using teleport requests as a harassment/spam vector.
 tpa-request-cooldown-seconds: 5
@@ -212,19 +220,21 @@ combat-log-punish-on-kick: false
 # concurrent load. Raise on a large server, lower on a small one.
 rtp-max-concurrent-searches: 3
 
-# Maximum cumulative time (in minutes) a player can have /fly enabled
-# before being forced to land and wait out a cooldown. Cumulative, not
-# per-session: toggling /fly off and back on doesn't reset the counter,
-# only actually hitting the cap and waiting out the cooldown below does.
-# Set to 0 to disable this limit entirely (only the post-damage lockout
-# still applies).
+# Cumulative flight budget (in minutes): the maximum amount of flight time a
+# player can use with /fly. This is not a cooldown: the meter drains second by
+# second while flying and recharges second by second as soon as the player
+# stops flying — even while offline, since it is based on real-world time
+# rather than server ticks. Disabling /fly manually does not reset anything:
+# it simply starts the recharge. Use /flytime to display the current status of
+# the flight meter. Set this to 0 to disable the flight time limit entirely
+# (only the post-damage flight lockout will still apply).
 fly-max-duration-minutes: 30
-# How long (in minutes) a player must wait after hitting the max flight
-# duration above before they can use /fly again.
-fly-max-duration-cooldown-minutes: 60
 
-# How many seconds before a player's cumulative flight budget runs out to
-# warn them with a chat message. Set to 0 to disable the warning.
+# How many seconds before the flight meter is depleted the player is warned
+# with a message. This value also acts as a minimum threshold: /fly will refuse
+# to activate if the remaining flight budget is below this duration (otherwise,
+# players could repeatedly take off for one-second flights while hovering near
+# the ceiling). Set this to 0 to disable the warning.
 fly-max-duration-warning-seconds: 30
 
 # Cooldown (in seconds) between two /tpatoggle uses — /tpatoggle writes a

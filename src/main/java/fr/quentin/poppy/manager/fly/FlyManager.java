@@ -19,10 +19,8 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
-import org.bukkit.event.player.PlayerChangedWorldEvent;
-import org.bukkit.event.player.PlayerGameModeChangeEvent;
-import org.bukkit.event.player.PlayerJoinEvent;
-import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.player.*;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.projectiles.ProjectileSource;
 import org.jspecify.annotations.NonNull;
@@ -337,6 +335,82 @@ public class FlyManager implements Listener {
         if (budget != null) {
             flightBudgets.put(uuid, new FlightBudget(budget.usedMillis(), System.currentTimeMillis()));
         }
+    }
+
+    /**
+     * {@link #onDamage} never sees this: it explicitly ignores
+     * {@link org.bukkit.event.entity.EntityDamageEvent.DamageCause#FALL},
+     * and fall damage is precisely how a /fly user is most likely to die —
+     * cutting flight mid-air (a simple double-tap of space) puts them into
+     * ordinary free fall, no command involved. Without this handler,
+     * {@link #activeFly} kept the UUID forever after such a death: the
+     * server itself resets {@code allowFlight} on Survival respawn, so
+     * Poppy's internal state ("this player is actively flying") and the
+     * player's real state ("standing on the ground, can't fly") diverged
+     * permanently. The visible symptoms were compounding — the budget kept
+     * draining a full second per second while the player just walked around
+     * post-respawn (see {@link #tickFlightDuration}, which only checks
+     * {@code activeFly}/online, never {@code isFlying()}), eventually
+     * "running out" of flight time despite never having taken off again;
+     * and {@code /fly} returned {@code DISABLED} on the very next press
+     * (the {@code activeFly.contains} branch in {@link #toggle}), requiring
+     * two presses to actually take off.
+     */
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onDeath(@NonNull PlayerDeathEvent event) {
+        endFlightSession(event.getEntity().getUniqueId());
+    }
+
+    /**
+     * Companion to {@link #onDeath} — ends the tracked session (redundant
+     * with {@link #onDeath} in the common case, but a safety net for any
+     * path a death could be missed) and, after a one-tick delay, re-syncs
+     * {@code allowFlight} the same way {@link #onJoin} does. The delay
+     * matters: the server re-applies the respawning player's attributes
+     * during the respawn dispatch itself, so a {@code setAllowFlight} call
+     * made synchronously here would just get overwritten.
+     */
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onRespawn(@NonNull PlayerRespawnEvent event) {
+        Player player = event.getPlayer();
+        UUID uuid = player.getUniqueId();
+        endFlightSession(uuid);
+
+        if (!config.flyForceDisableOnJoin()) {
+            return;
+        }
+
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (!player.isOnline()) {
+                return;
+            }
+            GameMode mode = player.getGameMode();
+            if (mode == GameMode.CREATIVE || mode == GameMode.SPECTATOR) {
+                return;
+            }
+            if (!activeFly.contains(uuid) && player.getAllowFlight()) {
+                player.setAllowFlight(false);
+                player.setFlying(false);
+            }
+        });
+    }
+
+    /**
+     * Ends a flight session outside the normal toggle-off path: removes the
+     * player from {@link #activeFly}, freezes their budget at its current
+     * value, and clears any pending {@link #warnedThisCycle} flag — the
+     * single place all of that bookkeeping happens together, used by
+     * {@link #onDeath}/{@link #onRespawn} (see their doc for why those two
+     * handlers exist at all) and reusable anywhere else a flight session
+     * needs to end without the player themselves calling {@code toggle}.
+     * A no-op if the player wasn't actually being tracked.
+     */
+    private void endFlightSession(UUID uuid) {
+        if (!activeFly.remove(uuid)) {
+            return;
+        }
+        freezeBudget(uuid);
+        warnedThisCycle.remove(uuid);
     }
 
     /**

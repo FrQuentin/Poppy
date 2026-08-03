@@ -125,23 +125,12 @@ public class FlyManager implements Listener {
         Bukkit.getScheduler().runTaskTimer(plugin, this::purgeStaleBudgets, BUDGET_PURGE_INTERVAL_TICKS, BUDGET_PURGE_INTERVAL_TICKS);
     }
 
-    /**
-     * Toggles flight for the player. Turning it OFF is always allowed.
-     * Turning it ON requires Survival ({@link ToggleResult#WRONG_GAMEMODE}
-     * otherwise), not being in the End ({@link ToggleResult#BLOCKED_END}),
-     * and a non-empty flight budget ({@link ToggleResult#NO_BUDGET}
-     * otherwise).
-     */
     public ToggleResult toggle(Player player) {
         UUID uuid = player.getUniqueId();
         long now = System.currentTimeMillis();
 
         if (activeFly.contains(uuid)) {
-            FlightBudget budget = flightBudgets.get(uuid);
-            if (budget != null) {
-                flightBudgets.put(uuid, new FlightBudget(budget.usedMillis(), now));
-            }
-            activeFly.remove(uuid);
+            endFlightSession(uuid);
             player.setAllowFlight(false);
             player.setFlying(false);
             return ToggleResult.DISABLED;
@@ -169,6 +158,7 @@ public class FlyManager implements Listener {
             }
         }
 
+        warnedThisCycle.remove(uuid);
         activeFly.add(uuid);
         player.setAllowFlight(true);
         player.setFlying(true);
@@ -256,8 +246,7 @@ public class FlyManager implements Listener {
                 return;
             }
 
-            freezeBudget(uuid);
-            activeFly.remove(uuid);
+            endFlightSession(uuid);
             player.setAllowFlight(false);
             player.setFlying(false);
             player.sendMessage(messages.get("fly.blocked-end"));
@@ -297,10 +286,7 @@ public class FlyManager implements Listener {
             GameMode newMode = event.getNewGameMode();
 
             if (newMode == GameMode.CREATIVE || newMode == GameMode.SPECTATOR) {
-                if (activeFly.contains(uuid)) {
-                    freezeBudget(uuid);
-                }
-                activeFly.remove(uuid);
+                endFlightSession(uuid);
                 return;
             }
 
@@ -322,9 +308,9 @@ public class FlyManager implements Listener {
     public void onQuit(@NonNull PlayerQuitEvent event) {
         Player player = event.getPlayer();
         UUID uuid = player.getUniqueId();
-
-        if (activeFly.remove(uuid)) {
-            freezeBudget(uuid);
+        boolean wasFlying = activeFly.contains(uuid);
+        endFlightSession(uuid);
+        if (wasFlying) {
             player.setAllowFlight(false);
             player.setFlying(false);
         }
@@ -396,39 +382,39 @@ public class FlyManager implements Listener {
     }
 
     /**
-     * Ends a flight session outside the normal toggle-off path: removes the
-     * player from {@link #activeFly}, freezes their budget at its current
-     * value, and clears any pending {@link #warnedThisCycle} flag — the
-     * single place all of that bookkeeping happens together, used by
-     * {@link #onDeath}/{@link #onRespawn} (see their doc for why those two
-     * handlers exist at all) and reusable anywhere else a flight session
-     * needs to end without the player themselves calling {@code toggle}.
-     * A no-op if the player wasn't actually being tracked.
+     * Single point where a flight session ends outside the normal toggle-off
+     * path: freezes the budget at its current value (regeneration starts
+     * counting from now) and clears any pending {@link #warnedThisCycle}
+     * flag — always, regardless of whether the player was actually being
+     * tracked in {@link #activeFly}, since a caller like {@link #onQuit} may
+     * call this defensively without knowing in advance. Without this single
+     * point of truth, "end a flight session" used to be written six times
+     * slightly differently across the class — one of those variants
+     * (regenerating the budget back to zero in {@link #toggle}) removed the
+     * player's {@link #flightBudgets} entry without ever touching
+     * {@link #warnedThisCycle}, permanently orphaning that UUID in the set:
+     * the warning could then never fire again for that player, and the set
+     * itself grew by one entry per unique player on the server with no purge
+     * until a restart.
      */
     private void endFlightSession(UUID uuid) {
-        if (!activeFly.remove(uuid)) {
-            return;
+        if (activeFly.remove(uuid)) {
+            freezeBudget(uuid);
         }
-        freezeBudget(uuid);
         warnedThisCycle.remove(uuid);
     }
 
-    /**
-     * @param target the entity the player just attacked, for the
-     *               notification message — null when called from the
-     *               generic {@link #onDamage} path.
-     */
     private void disableFlightAndLock(Player player, Entity target, long lockoutMillis, String messagePath, String targetPlaceholderName) {
-        if (!activeFly.contains(player.getUniqueId())) {
+        UUID uuid = player.getUniqueId();
+        if (!activeFly.contains(uuid)) {
             return;
         }
 
         player.setFlying(false);
         player.setAllowFlight(false);
-        freezeBudget(player.getUniqueId());
-        activeFly.remove(player.getUniqueId());
+        endFlightSession(uuid);
 
-        lockoutStore.start(player.getUniqueId(), lockoutMillis);
+        lockoutStore.start(uuid, lockoutMillis);
 
         if (target != null && targetPlaceholderName != null) {
             player.sendMessage(messages.get(messagePath, targetPlaceholderName, targetName(target)));

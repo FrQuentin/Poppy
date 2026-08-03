@@ -71,6 +71,7 @@ public final class Poppy extends JavaPlugin {
     private SpawnManager spawnManager;
     private PoppyLogger poppyLogger;
     private DeathChestManager deathChestManager;
+    private FlyManager flyManager;
 
     @Override
     public void onEnable() {
@@ -98,7 +99,7 @@ public final class Poppy extends JavaPlugin {
         AfkManager afkManager = new AfkManager();
         DeathLocationManager deathLocationManager = new DeathLocationManager();
         deathChestManager = new DeathChestManager(this, messages, config, poppyLogger);
-        FlyManager flyManager = new FlyManager(this, messages, config, combatManager);
+        flyManager = new FlyManager(this, messages, config, combatManager);
 
         // Both created here (not inline at registerEvents time) since PoppyCommand
         // needs a reference to each to call reapply() from /poppy reload.
@@ -212,6 +213,9 @@ public final class Poppy extends JavaPlugin {
         }
         if (deathChestManager != null) {
             deathChestManager.shutdown();
+        }
+        if (flyManager != null) {
+            flyManager.shutdown();
         }
 
         getLogger().info("Poppy has been disabled.");

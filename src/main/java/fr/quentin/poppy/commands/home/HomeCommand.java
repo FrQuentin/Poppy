@@ -3,7 +3,6 @@ package fr.quentin.poppy.commands.home;
 import fr.quentin.poppy.gui.home.HomesGUI;
 import fr.quentin.poppy.manager.home.HomeManager;
 import fr.quentin.poppy.manager.teleport.TeleportManager;
-import fr.quentin.poppy.model.Home;
 import fr.quentin.poppy.util.Messages;
 import fr.quentin.poppy.util.SafeCommand;
 import org.bukkit.command.Command;
@@ -17,15 +16,15 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Handles /home: with no argument, opens the /homes GUI; with a home name,
- * teleports directly to it (going through {@link TeleportManager} so the
- * usual warmup/combat-tag rules apply).
+ * Handles /home: with no argument, opens the same homes GUI as /homes
+ * (see {@link HomesGUI}); with a name, teleports directly to that home.
  *
- * <p>The destination is passed as a supplier that re-fetches the home from
- * {@link HomeManager} by name, rather than the {@link Home} instance
- * captured here — this way, if the home is deleted (e.g. via /delhome)
- * during the teleport warmup, {@link TeleportManager} notices at the last
- * moment and cancels instead of teleporting to stale coordinates.
+ * <p>The no-argument path re-checks {@code poppy.homes} — the same
+ * permission {@code HomesCommand} enforces — before opening the GUI.
+ * Without this check, a player who had {@code poppy.home} but had
+ * {@code poppy.homes} specifically revoked could still reach the exact
+ * same GUI through this command, silently bypassing the restriction
+ * {@code /homes} was supposed to enforce.
  */
 public class HomeCommand extends SafeCommand implements TabCompleter {
 
@@ -48,9 +47,9 @@ public class HomeCommand extends SafeCommand implements TabCompleter {
         }
 
         if (args.length == 0) {
-            // Same permission check as /homes — without this, a player missing
-            // poppy.homes (but keeping poppy.home) could still reach the GUI
-            // through this exact path, bypassing the restriction /homes enforces.
+            // Same permission check as /homes — without this, a player
+            // missing poppy.homes (but keeping poppy.home) could still
+            // reach the GUI through this exact path.
             if (!player.hasPermission("poppy.homes")) {
                 player.sendMessage(messages.get("general.no-permission"));
                 return true;

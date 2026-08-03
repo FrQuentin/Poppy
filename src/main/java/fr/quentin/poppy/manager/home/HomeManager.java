@@ -230,33 +230,44 @@ public class HomeManager {
      * Warms {@link #cache} for a player asynchronously — meant to be
      * called on join, before any command has a chance to trigger
      * {@link #load}'s synchronous file read on the main thread. A no-op if
-     * the cache is already populated by the time this runs (e.g. some
-     * other code path already called {@link #getHomes} for this player).
+     * the cache is already populated by the time this runs.
      *
-     * <p>Also a no-op if the player is no longer online by the time the
-     * async read completes — without this check, a player who connects and
-     * immediately disconnects (a very common pattern on a public server:
-     * connection lag, IP scanners/bots) would have {@link #unload} fire and
-     * find nothing to remove (the cache entry doesn't exist yet), then the
-     * async read would land afterward and cache an entry for a now-offline
-     * player that no future {@link org.bukkit.event.player.PlayerQuitEvent}
-     * will ever evict — the exact leak {@link #getHomeUncached} exists to
-     * avoid, reintroduced through this different path.
+     * <p>Reads happen through {@link #ioExecutor}, not a generic async pool
+     * — this is what {@link #load} already did via {@link #inFlight}, and
+     * this method must honor the same ordering guarantee: without going
+     * through {@code ioExecutor}, this read had no ordering relationship
+     * with any write already queued for this player. A player who
+     * {@code /sethome}'d, then disconnected, then reconnected quickly
+     * enough (a busy server's {@code ioExecutor} queue can easily take
+     * seconds to drain) would have this preload read the file before the
+     * pending write landed — silently overwriting the cache with a stale
+     * disk state, permanently losing the just-created home the next time
+     * {@link #save} ran. Submitting through {@code ioExecutor} guarantees
+     * this read is ordered strictly after every write already queued for
+     * this UUID; the {@link #inFlight} re-check after hopping back to the
+     * main thread is belt-and-suspenders for a write queued in the
+     * meantime.
      */
     public void preloadAsync(UUID uuid) {
         if (cache.containsKey(uuid)) {
             return;
         }
 
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            LinkedHashMap<String, Home> homes = readFromDisk(uuid);
-            Bukkit.getScheduler().runTask(plugin, () -> {
-                if (Bukkit.getPlayer(uuid) == null) {
-                    return;
-                }
-                cache.putIfAbsent(uuid, homes);
+        try {
+            ioExecutor.submit(() -> {
+                LinkedHashMap<String, Home> fromDisk = readFromDisk(uuid);
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    if (Bukkit.getPlayer(uuid) == null) {
+                        return;
+                    }
+                    LinkedHashMap<String, Home> pending = inFlight.get(uuid);
+                    cache.putIfAbsent(uuid, pending != null ? new LinkedHashMap<>(pending) : fromDisk);
+                });
             });
-        });
+        } catch (RejectedExecutionException e) {
+            plugin.getLogger().log(Level.WARNING,
+                    "Could not queue homes preload for " + uuid + " (I/O executor already shut down)", e);
+        }
     }
 
     /**

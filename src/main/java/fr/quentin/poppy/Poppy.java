@@ -91,7 +91,7 @@ public final class Poppy extends JavaPlugin {
         ConfirmDeleteGUI confirmDeleteGUI = new ConfirmDeleteGUI(this, messages);
         ConfirmOverwriteGUI confirmOverwriteGUI = new ConfirmOverwriteGUI(this, messages);
         BackManager backManager = new BackManager();
-        CombatManager combatManager = new CombatManager(config, cooldownRegistry);
+        CombatManager combatManager = new CombatManager(this, config, cooldownRegistry);
         TeleportManager teleportManager = new TeleportManager(this, messages, config, backManager, combatManager, stats, poppyLogger);
         ShareManager shareManager = new ShareManager(this, config);
         TrashGUI trashGUI = new TrashGUI(messages, config);

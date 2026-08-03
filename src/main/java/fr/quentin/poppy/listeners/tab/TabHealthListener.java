@@ -6,6 +6,7 @@ import fr.quentin.poppy.manager.sleep.SleepPercentageListener;
 import fr.quentin.poppy.util.PoppyConfig;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.attribute.Attribute;
@@ -162,7 +163,7 @@ public class TabHealthListener implements Listener {
         }
         lastSentText.put(uuid, cacheKey);
 
-        NamedTextColor color = healthColor(player.getHealth(), maxHealth(player));
+        TextColor color = healthColor(player.getHealth(), maxHealth(player));
 
         Component prefix = afk
                 ? Component.text("[AFK] ", NamedTextColor.GRAY)
@@ -180,14 +181,18 @@ public class TabHealthListener implements Listener {
         return attribute != null ? attribute.getValue() : 20.0;
     }
 
-    private NamedTextColor healthColor(double health, double maxHealth) {
+    private static final TextColor HEALTH_HIGH = TextColor.fromHexString("#85cc16");
+    private static final TextColor HEALTH_MEDIUM = TextColor.fromHexString("#e9b308");
+    private static final TextColor HEALTH_LOW = TextColor.fromHexString("#dc2625");
+
+    private TextColor healthColor(double health, double maxHealth) {
         double ratio = maxHealth <= 0 ? 0 : health / maxHealth;
         if (ratio > 0.66) {
-            return NamedTextColor.GREEN;
+            return HEALTH_HIGH;
         } else if (ratio > 0.33) {
-            return NamedTextColor.YELLOW;
+            return HEALTH_MEDIUM;
         } else {
-            return NamedTextColor.RED;
+            return HEALTH_LOW;
         }
     }
 }

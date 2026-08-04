@@ -5,7 +5,6 @@ import fr.quentin.poppy.manager.afk.AfkManager;
 import fr.quentin.poppy.manager.sleep.SleepPercentageListener;
 import fr.quentin.poppy.util.PoppyConfig;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
@@ -49,8 +48,31 @@ import java.util.logging.Level;
  * between ticks would otherwise get a redundant packet sent every single
  * interval, for every online player, forever. Evicted on quit (see
  * {@link #onQuit}) to avoid an unbounded map over a long server uptime.
+ *
+ * <p>Health color follows three hex thresholds ({@link #HEALTH_HIGH}/
+ * {@link #HEALTH_MEDIUM}/{@link #HEALTH_LOW}) matching the plugin's
+ * messages.yml palette, rather than vanilla's
+ * {@code NamedTextColor.GREEN}/{@code YELLOW}/{@code RED}. A player who's
+ * AFK shows {@link #AFK_COLOR} for the heart count instead of a health
+ * threshold color — an AFK player isn't taking real-time damage, so the
+ * usual green/yellow/red signal doesn't mean much while inactive.
+ *
+ * <p>{@link #NAME_COLOR}/{@link #AFK_COLOR} are set <b>explicitly</b> on
+ * {@link Player#displayName()} in {@link #updatePlayer}, rather than
+ * leaving it uncolored — Adventure's {@link Component} color inheritance
+ * meant an uncolored name nested inside {@code prefix.append(displayName)}
+ * silently inherited whatever color the AFK prefix carried, with no
+ * explicit theming either way. The {@code [AFK]} prefix uses the same
+ * {@link #AFK_COLOR} as the name and heart count, for a consistent AFK
+ * look across the whole tab entry.
  */
 public class TabHealthListener implements Listener {
+
+    private static final TextColor HEALTH_HIGH = TextColor.fromHexString("#85cc16");
+    private static final TextColor HEALTH_MEDIUM = TextColor.fromHexString("#e9b308");
+    private static final TextColor HEALTH_LOW = TextColor.fromHexString("#dc2625");
+    private static final TextColor AFK_COLOR = TextColor.fromHexString("#a7aeba");
+    private static final TextColor NAME_COLOR = TextColor.fromHexString("#f3f3f3");
 
     private final JavaPlugin plugin;
     private final AfkManager afkManager;
@@ -163,15 +185,16 @@ public class TabHealthListener implements Listener {
         }
         lastSentText.put(uuid, cacheKey);
 
-        TextColor color = healthColor(player.getHealth(), maxHealth(player));
+        TextColor heartColor = afk ? AFK_COLOR : healthColor(player.getHealth(), maxHealth(player));
+        TextColor nameColor = afk ? AFK_COLOR : NAME_COLOR;
 
         Component prefix = afk
-                ? Component.text("[AFK] ", NamedTextColor.GRAY)
+                ? Component.text("[AFK] ", AFK_COLOR)
                 : Component.empty();
 
         Component listName = prefix
-                .append(player.displayName())
-                .append(Component.text("  ❤ " + heartsText, color));
+                .append(player.displayName().color(nameColor))
+                .append(Component.text("  ❤ " + heartsText, heartColor));
 
         player.playerListName(listName);
     }
@@ -180,10 +203,6 @@ public class TabHealthListener implements Listener {
         AttributeInstance attribute = player.getAttribute(Attribute.MAX_HEALTH);
         return attribute != null ? attribute.getValue() : 20.0;
     }
-
-    private static final TextColor HEALTH_HIGH = TextColor.fromHexString("#85cc16");
-    private static final TextColor HEALTH_MEDIUM = TextColor.fromHexString("#e9b308");
-    private static final TextColor HEALTH_LOW = TextColor.fromHexString("#dc2625");
 
     private TextColor healthColor(double health, double maxHealth) {
         double ratio = maxHealth <= 0 ? 0 : health / maxHealth;

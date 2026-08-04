@@ -27,6 +27,7 @@ import fr.quentin.poppy.gui.trash.TrashGUI;
 import fr.quentin.poppy.gui.trash.TrashListener;
 import fr.quentin.poppy.listeners.afk.AfkListener;
 import fr.quentin.poppy.listeners.death.DeathCoordsListener;
+import fr.quentin.poppy.listeners.misc.ChatFormatListener;
 import fr.quentin.poppy.listeners.misc.JoinQuitListener;
 import fr.quentin.poppy.listeners.misc.UnknownCommandListener;
 import fr.quentin.poppy.listeners.poppy.PoppyLoreListener;
@@ -199,6 +200,7 @@ public final class Poppy extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new SilkSpawnerListener(this, messages, config), this);
         getServer().getPluginManager().registerEvents(flyManager, this);
         getServer().getPluginManager().registerEvents(playtimeManager, this);
+        getServer().getPluginManager().registerEvents(new ChatFormatListener(), this);
 
         // Always scheduled now (rather than only if afk-auto-enabled at startup) —
         // AutoAfkTask checks the setting live each run, so it can be toggled via

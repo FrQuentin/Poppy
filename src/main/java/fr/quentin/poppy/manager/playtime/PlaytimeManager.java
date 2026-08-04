@@ -4,6 +4,7 @@ import fr.quentin.poppy.util.io.AtomicYamlWriter;
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -14,6 +15,7 @@ import org.jspecify.annotations.NonNull;
 
 import java.io.File;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
@@ -57,6 +59,7 @@ public class PlaytimeManager implements Listener {
 
     private final Map<UUID, Long> totalMillis = new HashMap<>();
     private final Map<UUID, Long> sessionStartMillis = new HashMap<>();
+    private final Map<String, UUID> nameCache = new HashMap<>();
 
     private volatile boolean dirty;
     private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor(runnable -> {
@@ -75,7 +78,9 @@ public class PlaytimeManager implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onJoin(@NonNull PlayerJoinEvent event) {
-        sessionStartMillis.put(event.getPlayer().getUniqueId(), System.currentTimeMillis());
+        Player player = event.getPlayer();
+        nameCache.put(player.getName().toLowerCase(Locale.ROOT), player.getUniqueId());
+        sessionStartMillis.put(player.getUniqueId(), System.currentTimeMillis());
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -101,6 +106,16 @@ public class PlaytimeManager implements Listener {
             stored += Math.max(0L, System.currentTimeMillis() - start);
         }
         return stored;
+    }
+
+    /**
+     * Resolves a player name to their UUID via {@link #nameCache} — safe to
+     * call for a currently-offline player as long as they've joined this
+     * server at least once before, without the blocking lookup risk of
+     * {@code Bukkit.getOfflinePlayer(String)} for an uncached name.
+     */
+    public UUID resolveByName(String name) {
+        return nameCache.get(name.toLowerCase(Locale.ROOT));
     }
 
     private void loadAll() {

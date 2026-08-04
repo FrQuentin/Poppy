@@ -201,3 +201,5 @@ cooldowns:
 playtime:
   line-playtime: "<#a7aeba>Playtime: </#a7aeba><#f3f3f3>{days} Days, {hours} Hours and {minutes} Minutes"
   line-join-date: "<#a7aeba>Join date: </#a7aeba><#f3f3f3>{date}"
+  admin-header: "<#e9b308>Play time for player {player}:"
+  admin-target-not-found: "<#dc2625>[!] {player} has never joined this server!"

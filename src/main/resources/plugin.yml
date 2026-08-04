@@ -175,6 +175,7 @@ permissions:
       poppy.cooldowns: true
       poppy.deathback: true
       poppy.playtime: true
+      poppy.playtime.admin: true
 
   poppy.sethome:
     description: Allows creating homes with /sethome.
@@ -266,3 +267,6 @@ permissions:
   poppy.playtime:
     description: Allows checking your own playtime and join date with /playtime.
     default: true
+  poppy.playtime.admin:
+    description: Allows checking another player's playtime with /playtime <player>.
+    default: op

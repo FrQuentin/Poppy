@@ -37,9 +37,6 @@ public class CooldownsCommand extends SafeCommand {
             return true;
         }
 
-        player.sendMessage(messages.get("cooldowns.header"));
-        player.sendMessage(Component.empty());
-
         for (CooldownRegistry.Entry entry : registry.entries()) {
             long remaining = entry.remainingSecondsProvider().apply(player.getUniqueId());
             if (remaining > 0) {

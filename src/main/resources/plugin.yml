@@ -138,6 +138,11 @@ commands:
     usage: /flytime
     permission: poppy.fly
     permission-message: "&4[!] You don't have permission to do this."
+  playtime:
+    description: Check your total playtime and join date.
+    usage: /playtime
+    permission: poppy.playtime
+    permission-message: "&4[!] You don't have permission to do this."
 
 permissions:
   poppy.*:
@@ -169,6 +174,7 @@ permissions:
       poppy.combat: true
       poppy.cooldowns: true
       poppy.deathback: true
+      poppy.playtime: true
 
   poppy.sethome:
     description: Allows creating homes with /sethome.
@@ -256,4 +262,7 @@ permissions:
     default: true
   poppy.deathback:
     description: Allows returning to your last death location via the death coordinates link.
+    default: true
+  poppy.playtime:
+    description: Allows checking your own playtime and join date with /playtime.
     default: true

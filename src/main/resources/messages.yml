@@ -194,7 +194,10 @@ fly:
   wrong-gamemode: "<#dc2625>[!] You can only use /fly in Survival mode!"
 
 cooldowns:
-  header: "<#a7aeba>- </#a7aeba><#f49e0b>Cooldowns"
-  line-active: "<dark_gray>• </dark_gray><#e9b308>{name} </#e9b308><#a7aeba>- </#a7aeba><#f3f3f3>{time}"
-  line-ready: "<dark_gray>• </dark_gray><#e9b308>{name} </#e9b308><#a7aeba>- </#a7aeba><#f3f3f3>Ready"
+  line-active: "<#a7aeba>{name}:</#a7aeba> <#f3f3f3>{time}"
+  line-ready: "<#a7aeba>{name}:</#a7aeba> <#f3f3f3>Ready"
   none: "<#a7aeba>[!] You have no active cooldowns."
+
+playtime:
+  line-playtime: "<#a7aeba>Playtime: </#a7aeba><#f3f3f3>{days} Days, {hours} Hours and {minutes} Minutes"
+  line-join-date: "<#a7aeba>Join date: </#a7aeba><#f3f3f3>{date}"

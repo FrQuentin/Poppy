@@ -10,10 +10,7 @@ import fr.quentin.poppy.commands.home.DelHomeCommand;
 import fr.quentin.poppy.commands.home.HomeCommand;
 import fr.quentin.poppy.commands.home.HomesCommand;
 import fr.quentin.poppy.commands.home.SetHomeCommand;
-import fr.quentin.poppy.commands.misc.CooldownsCommand;
-import fr.quentin.poppy.commands.misc.FeedCommand;
-import fr.quentin.poppy.commands.misc.HealCommand;
-import fr.quentin.poppy.commands.misc.PoppyCommand;
+import fr.quentin.poppy.commands.misc.*;
 import fr.quentin.poppy.commands.rtp.RtpCommand;
 import fr.quentin.poppy.commands.share.PoppyGotoCommand;
 import fr.quentin.poppy.commands.share.ShareHomeCommand;
@@ -47,6 +44,7 @@ import fr.quentin.poppy.manager.deathchest.DeathChestManager;
 import fr.quentin.poppy.manager.fly.FlyManager;
 import fr.quentin.poppy.manager.home.HomeCacheListener;
 import fr.quentin.poppy.manager.home.HomeManager;
+import fr.quentin.poppy.manager.playtime.PlaytimeManager;
 import fr.quentin.poppy.manager.share.ShareManager;
 import fr.quentin.poppy.manager.sleep.SleepPercentageListener;
 import fr.quentin.poppy.manager.spawn.SpawnManager;
@@ -72,6 +70,7 @@ public final class Poppy extends JavaPlugin {
     private PoppyLogger poppyLogger;
     private DeathChestManager deathChestManager;
     private FlyManager flyManager;
+    private PlaytimeManager playtimeManager;
 
     @Override
     public void onEnable() {
@@ -85,6 +84,7 @@ public final class Poppy extends JavaPlugin {
         Messages messages = new Messages(this);
         CooldownRegistry cooldownRegistry = new CooldownRegistry();
         poppyLogger = new PoppyLogger(this, config);
+        playtimeManager = new PlaytimeManager(this);
 
         TpaManager tpaManager = new TpaManager(this, messages, config, poppyLogger);
 
@@ -177,6 +177,8 @@ public final class Poppy extends JavaPlugin {
 
         Objects.requireNonNull(getCommand("cooldowns")).setExecutor(new CooldownsCommand(this, messages, cooldownRegistry));
 
+        Objects.requireNonNull(getCommand("playtime")).setExecutor(new PlaytimeCommand(this, playtimeManager, messages));
+
         getServer().getPluginManager().registerEvents(
                 new HomesGUIListener(this, homeManager, homesGUI, confirmDeleteGUI, confirmOverwriteGUI, teleportManager, messages, stats, poppyLogger), this);
         getServer().getPluginManager().registerEvents(teleportManager, this);
@@ -196,6 +198,7 @@ public final class Poppy extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new SleepStatusListener(this, messages, config, poppyLogger), this);
         getServer().getPluginManager().registerEvents(new SilkSpawnerListener(this, messages, config), this);
         getServer().getPluginManager().registerEvents(flyManager, this);
+        getServer().getPluginManager().registerEvents(playtimeManager, this);
 
         // Always scheduled now (rather than only if afk-auto-enabled at startup) —
         // AutoAfkTask checks the setting live each run, so it can be toggled via
@@ -216,6 +219,9 @@ public final class Poppy extends JavaPlugin {
         }
         if (flyManager != null) {
             flyManager.shutdown();
+        }
+        if (playtimeManager != null) {
+            playtimeManager.shutdown();
         }
 
         getLogger().info("Poppy has been disabled.");

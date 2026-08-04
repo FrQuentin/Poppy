@@ -37,14 +37,14 @@ public class FeedCommand extends SafeCommand {
             return true;
         }
 
-        if (player.getFoodLevel() >= 20 && player.getSaturation() >= 20.0f) {
-            player.sendMessage(messages.get("feed.already-full"));
-            return true;
-        }
-
         long remaining = cooldown.remainingSeconds(player.getUniqueId());
         if (remaining > 0) {
             player.sendMessage(messages.get("feed.cooldown", "time", DurationFormat.format(remaining)));
+            return true;
+        }
+
+        if (player.getFoodLevel() >= 20 && player.getSaturation() >= 20.0f) {
+            player.sendMessage(messages.get("feed.already-full"));
             return true;
         }
 

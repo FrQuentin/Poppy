@@ -39,15 +39,15 @@ public class HealCommand extends SafeCommand {
             return true;
         }
 
-        double maxHealth = maxHealth(player);
-        if (player.getHealth() >= maxHealth) {
-            player.sendMessage(messages.get("heal.already-full"));
-            return true;
-        }
-
         long remaining = cooldown.remainingSeconds(player.getUniqueId());
         if (remaining > 0) {
             player.sendMessage(messages.get("heal.cooldown", "time", DurationFormat.format(remaining)));
+            return true;
+        }
+
+        double maxHealth = maxHealth(player);
+        if (player.getHealth() >= maxHealth) {
+            player.sendMessage(messages.get("heal.already-full"));
             return true;
         }
 

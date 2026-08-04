@@ -135,13 +135,13 @@ tpa:
 poppy:
   wrong-gamemode: "<#dc2625>[!] You need to be in Survival or Creative mode to do this!"
   no-poppy: "<#dc2625>[!] You don't have a poppy in your inventory!"
-  success: "<light_purple>[!] You drop a poppy on the ground. </light_purple><#a7aeba>*plop*"
+  success: "<#eb4899>[!] You drop a poppy on the ground. </#eb4899><#a7aeba>*plop*"
   reload-success: "<#85cc16>[!] Poppy's config.yml and messages.yml have been reloaded!"
   lore-cooldown: "<#dc2625>[!] Please wait {time} before hearing the poppy's story again!"
-  lore-line-1: "<light_purple>~ The Poppy ~"
-  lore-line-2: "<#a7aeba>Legend says the very first poppy in this world grew from a"
-  lore-line-3: "<#a7aeba>single seed a wandering trader dropped by accident, right"
-  lore-line-4: "<#a7aeba>at the edge of an old, forgotten spawn point."
+  lore-line-1: "<#eb4899>~ The Poppy ~"
+  lore-line-2: "<#fcc2e2>Legend says the very first poppy in this world grew from a"
+  lore-line-3: "<#fcc2e2>single seed a wandering trader dropped by accident, right"
+  lore-line-4: "<#fcc2e2>at the edge of an old, forgotten spawn point."
   cooldown: "<#dc2625>[!] Please wait a moment before doing that again!"
 
 death:

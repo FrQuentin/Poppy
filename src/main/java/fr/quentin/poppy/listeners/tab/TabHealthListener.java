@@ -3,6 +3,7 @@ package fr.quentin.poppy.listeners.tab;
 import fr.quentin.poppy.commands.misc.PoppyCommand;
 import fr.quentin.poppy.manager.afk.AfkManager;
 import fr.quentin.poppy.manager.sleep.SleepPercentageListener;
+import fr.quentin.poppy.util.Messages;
 import fr.quentin.poppy.util.PoppyConfig;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextColor;
@@ -65,6 +66,17 @@ import java.util.logging.Level;
  * explicit theming either way. The {@code [AFK]} prefix uses the same
  * {@link #AFK_COLOR} as the name and heart count, for a consistent AFK
  * look across the whole tab entry.
+ *
+ * <p>{@link #updateHeaderFooter} sets the tab list footer to the current
+ * online player count — deliberately independent of
+ * {@code show-health-in-tab}: the player count isn't the same feature as
+ * the per-player health display, so it's refreshed on the same periodic
+ * task in {@link #updateAll} regardless of that toggle, plus immediately
+ * on {@link #onJoin} (the joining player is already counted in
+ * {@link Bukkit#getOnlinePlayers()} by the time the event fires) and, on
+ * {@link #onQuit}, deferred by one tick — at the exact moment
+ * {@code PlayerQuitEvent} fires, the leaving player is still counted,
+ * so reading the count immediately would show one too many.
  */
 public class TabHealthListener implements Listener {
 
@@ -77,14 +89,16 @@ public class TabHealthListener implements Listener {
     private final JavaPlugin plugin;
     private final AfkManager afkManager;
     private final PoppyConfig config;
+    private final Messages messages;
     private final Map<UUID, String> lastSentText = new HashMap<>();
 
     private BukkitTask updateTask;
 
-    public TabHealthListener(JavaPlugin plugin, AfkManager afkManager, PoppyConfig config) {
+    public TabHealthListener(JavaPlugin plugin, AfkManager afkManager, PoppyConfig config, Messages messages) {
         this.plugin = plugin;
         this.afkManager = afkManager;
         this.config = config;
+        this.messages = messages;
 
         scheduleUpdateTask();
     }
@@ -129,22 +143,27 @@ public class TabHealthListener implements Listener {
 
     @EventHandler
     public void onJoin(@NonNull PlayerJoinEvent event) {
-        if (!config.showHealthInTab()) {
-            return;
-        }
         try {
-            updatePlayer(event.getPlayer());
+            updateHeaderFooter();
+            if (config.showHealthInTab()) {
+                updatePlayer(event.getPlayer());
+            }
         } catch (Exception e) {
-            plugin.getLogger().log(Level.SEVERE, "Error setting tab health for " + event.getPlayer().getName(), e);
+            plugin.getLogger().log(Level.SEVERE, "Error setting tab info for " + event.getPlayer().getName(), e);
         }
     }
 
     @EventHandler
     public void onQuit(@NonNull PlayerQuitEvent event) {
         lastSentText.remove(event.getPlayer().getUniqueId());
+        // Deferred a tick — at this exact point in the dispatch, the leaving
+        // player is still counted in Bukkit.getOnlinePlayers().
+        Bukkit.getScheduler().runTask(plugin, this::updateHeaderFooter);
     }
 
     private void updateAll() {
+        updateHeaderFooter();
+
         if (!config.showHealthInTab()) {
             return;
         }
@@ -153,6 +172,23 @@ public class TabHealthListener implements Listener {
                 updatePlayer(player);
             } catch (Exception e) {
                 plugin.getLogger().log(Level.SEVERE, "Error updating tab list health for " + player.getName(), e);
+            }
+        }
+    }
+
+    private void updateHeaderFooter() {
+        int count = Bukkit.getOnlinePlayers().size();
+        // A blank line between the player-name list and the phrase, so it
+        // doesn't sit glued directly under the last entry.
+        Component footer = Component.empty()
+                .appendNewline()
+                .append(messages.get("tab.footer", "count", String.valueOf(count)));
+
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            try {
+                player.sendPlayerListHeaderAndFooter(Component.empty(), footer);
+            } catch (Exception e) {
+                plugin.getLogger().log(Level.SEVERE, "Error updating tab list footer for " + player.getName(), e);
             }
         }
     }

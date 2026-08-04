@@ -105,7 +105,7 @@ public final class Poppy extends JavaPlugin {
         // Both created here (not inline at registerEvents time) since PoppyCommand
         // needs a reference to each to call reapply() from /poppy reload.
         SleepPercentageListener sleepPercentageListener = new SleepPercentageListener(this, config);
-        TabHealthListener tabHealthListener = new TabHealthListener(this, afkManager, config);
+        TabHealthListener tabHealthListener = new TabHealthListener(this, afkManager, config, messages);
 
         Objects.requireNonNull(getCommand("sethome")).setExecutor(
                 new SetHomeCommand(this, homeManager, confirmOverwriteGUI, messages, stats, poppyLogger));

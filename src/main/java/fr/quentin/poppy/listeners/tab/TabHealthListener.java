@@ -9,8 +9,6 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
-import org.bukkit.attribute.Attribute;
-import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -19,10 +17,16 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
+import org.bukkit.scoreboard.Criteria;
+import org.bukkit.scoreboard.DisplaySlot;
+import org.bukkit.scoreboard.Objective;
+import org.bukkit.scoreboard.RenderType;
+import org.bukkit.scoreboard.Scoreboard;
 import org.jspecify.annotations.NonNull;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.logging.Level;
 
@@ -36,55 +40,62 @@ import java.util.logging.Level;
  * {@link PoppyCommand}), the same pattern
  * {@link SleepPercentageListener} uses for its gamerule.
  *
- * <p>{@link #reapply()} also resets every online player's tab list name
- * back to default the moment the setting is toggled off — without this,
- * a player already showing "❤ X" at reload time would stay stuck with
- * that exact text forever (it's never refreshed again once disabled),
- * rather than reverting to their normal name.
+ * <p><b>Real vanilla heart icons, not text:</b> health is shown via a
+ * scoreboard {@link Objective} on {@link DisplaySlot#PLAYER_LIST} with
+ * {@link RenderType#HEARTS} — the client renders actual heart sprites
+ * next to each name, the same visual as the player's own HUD, not a
+ * {@code "❤ 12"} text approximation. The objective's criteria is
+ * {@link Criteria#DUMMY}, not {@link Criteria#HEALTH}: the vanilla
+ * {@code health} criteria auto-tracks each player's real health
+ * server-side, but has a known quirk where it stays stuck at 0 until the
+ * player has taken damage at least once — using {@code DUMMY} and
+ * setting each player's score manually every tick (see
+ * {@link #updateHearts}) avoids that entirely and gives full control.
+ *
+ * <p><b>Real heart sprites can't be recolored</b> — they're fixed game
+ * assets (full/half/empty red, gray for absorption), unlike a text
+ * {@link Component}. This is why the previous green/yellow/red hex health
+ * thresholds are gone: they only made sense for the old text-based
+ * display, and have no equivalent once real hearts are in use. The name
+ * itself and the {@code [AFK]} prefix keep their existing hex-based
+ * coloring in {@link #updatePlayer}, unaffected by this.
+ *
+ * <p><b>Slot-conflict safety:</b> {@link DisplaySlot#PLAYER_LIST} can only
+ * ever show one objective at a time, server-wide. {@link #setupHeartsObjective()}
+ * checks for an existing objective in that slot at construction; if one
+ * is already there under a different name (another plugin — a ranks
+ * plugin, a ping display, etc.), Poppy leaves it alone and logs a single
+ * warning rather than silently overwriting it. {@link #heartsSupported}
+ * reflects whether the feature is actually active.
+ *
+ * <p>{@link #reapply()} clears every online player's tab list name back
+ * to default the moment {@code show-health-in-tab} is toggled off —
+ * without this, a player already showing a colored name at reload time
+ * would stay stuck with it forever. It does not touch the hearts
+ * objective's scores directly; those are simply skipped on the next
+ * {@link #updateAll} while the setting is off, and the objective/slot
+ * assignment itself is left in place (removing and re-registering it on
+ * every toggle isn't necessary — an unused objective with stale scores
+ * showing 0 hearts next to nothing meaningful is harmless since the
+ * PLAYER_LIST slot rendering only matters visually while players are
+ * looking at the tab list, and scores are refreshed the moment the
+ * setting is re-enabled).
  *
  * <p>{@link #lastSentText} caches the plain-text form of each player's
  * last sent tab name, and {@link #updatePlayer} skips the actual
  * {@code playerListName(...)} call when the new text is identical to what
- * was already sent — a player whose health/AFK status hasn't changed
- * between ticks would otherwise get a redundant packet sent every single
- * interval, for every online player, forever. Evicted on quit (see
- * {@link #onQuit}) to avoid an unbounded map over a long server uptime.
- *
- * <p>Health color follows three hex thresholds ({@link #HEALTH_HIGH}/
- * {@link #HEALTH_MEDIUM}/{@link #HEALTH_LOW}) matching the plugin's
- * messages.yml palette, rather than vanilla's
- * {@code NamedTextColor.GREEN}/{@code YELLOW}/{@code RED}. A player who's
- * AFK shows {@link #AFK_COLOR} for the heart count instead of a health
- * threshold color — an AFK player isn't taking real-time damage, so the
- * usual green/yellow/red signal doesn't mean much while inactive.
- *
- * <p>{@link #NAME_COLOR}/{@link #AFK_COLOR} are set <b>explicitly</b> on
- * {@link Player#displayName()} in {@link #updatePlayer}, rather than
- * leaving it uncolored — Adventure's {@link Component} color inheritance
- * meant an uncolored name nested inside {@code prefix.append(displayName)}
- * silently inherited whatever color the AFK prefix carried, with no
- * explicit theming either way. The {@code [AFK]} prefix uses the same
- * {@link #AFK_COLOR} as the name and heart count, for a consistent AFK
- * look across the whole tab entry.
+ * was already sent. Evicted on quit (see {@link #onQuit}) to avoid an
+ * unbounded map over a long server uptime.
  *
  * <p>{@link #updateHeaderFooter} sets the tab list footer to the current
- * online player count — deliberately independent of
- * {@code show-health-in-tab}: the player count isn't the same feature as
- * the per-player health display, so it's refreshed on the same periodic
- * task in {@link #updateAll} regardless of that toggle, plus immediately
- * on {@link #onJoin} (the joining player is already counted in
- * {@link Bukkit#getOnlinePlayers()} by the time the event fires) and, on
- * {@link #onQuit}, deferred by one tick — at the exact moment
- * {@code PlayerQuitEvent} fires, the leaving player is still counted,
- * so reading the count immediately would show one too many.
+ * online player count, independent of {@code show-health-in-tab} — see
+ * its own doc for the join/quit timing details.
  */
 public class TabHealthListener implements Listener {
 
-    private static final TextColor HEALTH_HIGH = TextColor.fromHexString("#85cc16");
-    private static final TextColor HEALTH_MEDIUM = TextColor.fromHexString("#e9b308");
-    private static final TextColor HEALTH_LOW = TextColor.fromHexString("#dc2625");
     private static final TextColor AFK_COLOR = TextColor.fromHexString("#a7aeba");
     private static final TextColor NAME_COLOR = TextColor.fromHexString("#f3f3f3");
+    private static final String HEARTS_OBJECTIVE_NAME = "poppy_hearts";
 
     private final JavaPlugin plugin;
     private final AfkManager afkManager;
@@ -93,6 +104,8 @@ public class TabHealthListener implements Listener {
     private final Map<UUID, String> lastSentText = new HashMap<>();
 
     private BukkitTask updateTask;
+    private Objective heartsObjective;
+    private boolean heartsSupported;
 
     public TabHealthListener(JavaPlugin plugin, AfkManager afkManager, PoppyConfig config, Messages messages) {
         this.plugin = plugin;
@@ -100,7 +113,38 @@ public class TabHealthListener implements Listener {
         this.config = config;
         this.messages = messages;
 
+        setupHeartsObjective();
         scheduleUpdateTask();
+    }
+
+    /**
+     * Claims {@link DisplaySlot#PLAYER_LIST} for the hearts objective if
+     * it's free, or reuses Poppy's own objective if it's already
+     * registered (e.g. surviving across a {@code /poppy reload} — this
+     * class itself is only constructed once per plugin lifetime, but the
+     * check is cheap and defensive). Leaves an objective owned by another
+     * plugin untouched — see the class-level doc.
+     */
+    private void setupHeartsObjective() {
+        Scoreboard scoreboard = Bukkit.getScoreboardManager().getMainScoreboard();
+
+        Objective existing = scoreboard.getObjective(DisplaySlot.PLAYER_LIST);
+        if (existing != null && !existing.getName().equals(HEARTS_OBJECTIVE_NAME)) {
+            plugin.getLogger().warning("Another plugin already occupies the tab list's PLAYER_LIST scoreboard slot ('"
+                    + existing.getName() + "') — Poppy will not show heart icons in tab to avoid overwriting it.");
+            heartsSupported = false;
+            return;
+        }
+
+        Objective objective = scoreboard.getObjective(HEARTS_OBJECTIVE_NAME);
+        if (objective == null) {
+            objective = scoreboard.registerNewObjective(HEARTS_OBJECTIVE_NAME, Criteria.DUMMY, Component.empty());
+        }
+        objective.setRenderType(RenderType.HEARTS);
+        objective.setDisplaySlot(DisplaySlot.PLAYER_LIST);
+
+        heartsObjective = objective;
+        heartsSupported = true;
     }
 
     /**
@@ -147,6 +191,7 @@ public class TabHealthListener implements Listener {
             updateHeaderFooter();
             if (config.showHealthInTab()) {
                 updatePlayer(event.getPlayer());
+                updateHearts(event.getPlayer());
             }
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Error setting tab info for " + event.getPlayer().getName(), e);
@@ -156,6 +201,9 @@ public class TabHealthListener implements Listener {
     @EventHandler
     public void onQuit(@NonNull PlayerQuitEvent event) {
         lastSentText.remove(event.getPlayer().getUniqueId());
+        if (heartsSupported && heartsObjective != null) {
+            Objects.requireNonNull(heartsObjective.getScoreboard()).resetScores(event.getPlayer().getName());
+        }
         // Deferred a tick — at this exact point in the dispatch, the leaving
         // player is still counted in Bukkit.getOnlinePlayers().
         Bukkit.getScheduler().runTask(plugin, this::updateHeaderFooter);
@@ -170,6 +218,7 @@ public class TabHealthListener implements Listener {
         for (Player player : Bukkit.getOnlinePlayers()) {
             try {
                 updatePlayer(player);
+                updateHearts(player);
             } catch (Exception e) {
                 plugin.getLogger().log(Level.SEVERE, "Error updating tab list health for " + player.getName(), e);
             }
@@ -193,27 +242,29 @@ public class TabHealthListener implements Listener {
         }
     }
 
+    /**
+     * Sets the player's score on {@link #heartsObjective} to their current
+     * health (rounded, clamped to at least 0) — the client renders this
+     * as real heart icons via {@link RenderType#HEARTS}. A no-op if the
+     * hearts slot isn't available (see {@link #setupHeartsObjective()}).
+     */
+    private void updateHearts(Player player) {
+        if (!heartsSupported || heartsObjective == null) {
+            return;
+        }
+        int score = (int) Math.max(0, Math.round(player.getHealth()));
+        heartsObjective.getScore(player.getName()).setScore(score);
+    }
+
     private final PlainTextComponentSerializer plainTextSerializer = PlainTextComponentSerializer.plainText();
 
     private void updatePlayer(Player player) {
-        double heartsRaw = (player.getHealth() + player.getAbsorptionAmount()) / 2.0;
-        double hearts = Math.round(heartsRaw * 2) / 2.0;
-        String heartsText = (hearts == Math.floor(hearts)) ? String.valueOf((int) hearts) : String.valueOf(hearts);
-
         boolean afk = afkManager.isAfk(player.getUniqueId());
 
         // Plain-text cache key covering everything that affects the rendered
-        // name: the player's current display name, AFK prefix, and hearts
-        // text/color. If none of these changed since the last tick, skip the
-        // packet entirely. Serialized via PlainTextComponentSerializer rather
-        // than relying on Component#toString() (or concatenating the
-        // Component directly, which falls back to the same thing) — the
-        // default toString() output is a verbose dump of Adventure's internal
-        // structure, not the rendered text, so it works for equality checks
-        // but allocates a much larger string than necessary on every tick for
-        // every online player. Plain text serialization gives the same
-        // change-detection guarantee at a fraction of the allocation cost.
-        String cacheKey = (afk ? "AFK|" : "|") + plainTextSerializer.serialize(player.displayName()) + "|" + heartsText;
+        // name: the player's current display name and AFK status. If neither
+        // changed since the last tick, skip the packet entirely.
+        String cacheKey = (afk ? "AFK|" : "|") + plainTextSerializer.serialize(player.displayName());
 
         UUID uuid = player.getUniqueId();
         if (cacheKey.equals(lastSentText.get(uuid))) {
@@ -221,33 +272,14 @@ public class TabHealthListener implements Listener {
         }
         lastSentText.put(uuid, cacheKey);
 
-        TextColor heartColor = afk ? AFK_COLOR : healthColor(player.getHealth(), maxHealth(player));
         TextColor nameColor = afk ? AFK_COLOR : NAME_COLOR;
 
         Component prefix = afk
                 ? Component.text("[AFK] ", AFK_COLOR)
                 : Component.empty();
 
-        Component listName = prefix
-                .append(player.displayName().color(nameColor))
-                .append(Component.text("  ❤ " + heartsText, heartColor));
+        Component listName = prefix.append(player.displayName().color(nameColor));
 
         player.playerListName(listName);
-    }
-
-    private double maxHealth(Player player) {
-        AttributeInstance attribute = player.getAttribute(Attribute.MAX_HEALTH);
-        return attribute != null ? attribute.getValue() : 20.0;
-    }
-
-    private TextColor healthColor(double health, double maxHealth) {
-        double ratio = maxHealth <= 0 ? 0 : health / maxHealth;
-        if (ratio > 0.66) {
-            return HEALTH_HIGH;
-        } else if (ratio > 0.33) {
-            return HEALTH_MEDIUM;
-        } else {
-            return HEALTH_LOW;
-        }
     }
 }

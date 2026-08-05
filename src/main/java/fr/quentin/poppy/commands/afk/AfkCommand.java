@@ -1,14 +1,13 @@
 package fr.quentin.poppy.commands.afk;
 
-import fr.quentin.poppy.listeners.afk.AfkListener;
 import fr.quentin.poppy.manager.afk.AfkManager;
-import fr.quentin.poppy.manager.afk.AutoAfkTask;
-import fr.quentin.poppy.util.cooldown.CooldownStore;
 import fr.quentin.poppy.util.DurationFormat;
 import fr.quentin.poppy.util.Messages;
 import fr.quentin.poppy.util.PoppyConfig;
 import fr.quentin.poppy.util.PoppyLogger;
 import fr.quentin.poppy.util.SafeCommand;
+import fr.quentin.poppy.util.cooldown.CooldownManager;
+import fr.quentin.poppy.util.cooldown.CooldownStore;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
@@ -17,21 +16,6 @@ import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jspecify.annotations.NonNull;
 
-/**
- * Handles /afk: toggles the sender's AFK status and broadcasts the change
- * to the whole server. The actual AFK state is tracked by {@link AfkManager};
- * this class is only responsible for the command entry point and the message.
- *
- * <p>Rate-limited via {@code afk-toggle-cooldown-seconds} in config.yml,
- * tracked in a shared {@link CooldownStore} rather than a raw
- * {@code Map<UUID, Long>} — so a player who toggles /afk once doesn't
- * leave a permanent entry behind; {@link CooldownStore} purges expired
- * entries on a periodic sweep regardless of whether they're ever read
- * again.
- *
- * @see AfkListener AfkListener, which clears AFK automatically on movement/activity
- * @see AutoAfkTask AutoAfkTask, which sets AFK automatically after inactivity
- */
 public class AfkCommand extends SafeCommand {
 
     private final AfkManager afkManager;
@@ -39,12 +23,13 @@ public class AfkCommand extends SafeCommand {
     private final PoppyLogger logger;
     private final CooldownStore cooldown;
 
-    public AfkCommand(JavaPlugin plugin, AfkManager afkManager, Messages messages, PoppyConfig config, PoppyLogger logger) {
+    public AfkCommand(JavaPlugin plugin, AfkManager afkManager, Messages messages, PoppyConfig config,
+                      PoppyLogger logger, CooldownManager cooldownManager) {
         super(plugin, messages);
         this.afkManager = afkManager;
         this.config = config;
         this.logger = logger;
-        this.cooldown = new CooldownStore(plugin);
+        this.cooldown = cooldownManager.get("afk-toggle");
     }
 
     @Override

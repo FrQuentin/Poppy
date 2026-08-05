@@ -8,25 +8,15 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Shared per-player expiry tracker, replacing what used to be six separate
- * {@code Map<UUID, Long>} + a hand-rolled {@code cooldownRemaining(...)}
- * method duplicated identically across {@code FeedCommand},
- * {@code HealCommand}, {@code RtpCommand}, {@code PoppyGotoCommand},
- * {@code PoppyLoreListener}, and {@code FlyManager}.
+ * Shared per-player expiry tracker — every cooldown in the plugin is
+ * created through {@link CooldownManager} rather than instantiating this
+ * class directly, so there's a single place that owns cooldown creation
+ * and (where relevant) {@code /cooldowns} registration.
  *
- * <p>Deliberately not cleared on quit by any of its callers — the whole
- * point of every one of those cooldowns is to survive a
- * disconnect/reconnect, otherwise a player resets it for free. What none
- * of the original six maps did, though, was ever purge an entry once it
- * had actually expired: {@link #remainingSeconds} only removes an entry
- * when it happens to be read again after expiring, so a player who used a
- * command once and never again keeps a dead entry in memory forever. On a
- * server with tens of thousands of unique players over months, that's
- * real (if small — each entry is a UUID and a long) memory that never
- * gets reclaimed. {@link #purgeExpired()} sweeps out anything already
- * expired regardless of whether it was ever re-read, and is scheduled to
- * run automatically every 5 minutes by this class's own constructor — no
- * per-caller boilerplate needed.
+ * <p>{@link #start} is a no-op for a non-positive duration. Purged
+ * lazily on read ({@link #remainingSeconds}) and periodically every 5
+ * minutes ({@link #purgeExpired}) so an entry that's never read again
+ * after expiring doesn't linger forever.
  */
 public final class CooldownStore {
 
@@ -42,11 +32,6 @@ public final class CooldownStore {
         return remainingSeconds(uuid) > 0;
     }
 
-    /**
-     * Seconds remaining, rounded up so a caller never shows "0s left" while
-     * still technically active. Also lazily purges this specific entry if
-     * it turns out to already be expired.
-     */
     public long remainingSeconds(UUID uuid) {
         Long until = expiries.get(uuid);
         if (until == null) {
@@ -62,12 +47,6 @@ public final class CooldownStore {
         return (remaining / 1000) + 1;
     }
 
-    /**
-     * Starts (or restarts) the cooldown. A non-positive duration is a
-     * no-op — matches every caller's existing "0 or less means disabled"
-     * convention, so cooldown-disabled config values never even create an
-     * entry.
-     */
     public void start(UUID uuid, long durationMillis) {
         if (durationMillis > 0) {
             expiries.put(uuid, System.currentTimeMillis() + durationMillis);
@@ -75,10 +54,16 @@ public final class CooldownStore {
     }
 
     /**
-     * Removes every entry that has already expired, regardless of whether
-     * it was ever read again — the sweep that {@link #remainingSeconds}'s
-     * lazy purge alone can't guarantee.
+     * Forces this cooldown to end immediately for a specific player,
+     * regardless of how much time is left — used where an event should
+     * cancel an in-progress cooldown outright (e.g. a combat tag ending
+     * the moment a player dies) rather than waiting for it to expire
+     * naturally.
      */
+    public void clear(UUID uuid) {
+        expiries.remove(uuid);
+    }
+
     public void purgeExpired() {
         long now = System.currentTimeMillis();
         expiries.entrySet().removeIf(entry -> entry.getValue() <= now);

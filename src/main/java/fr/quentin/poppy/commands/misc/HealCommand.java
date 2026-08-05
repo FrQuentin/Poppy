@@ -1,11 +1,11 @@
 package fr.quentin.poppy.commands.misc;
 
-import fr.quentin.poppy.util.cooldown.CooldownRegistry;
-import fr.quentin.poppy.util.cooldown.CooldownStore;
 import fr.quentin.poppy.util.DurationFormat;
 import fr.quentin.poppy.util.Messages;
 import fr.quentin.poppy.util.PoppyConfig;
 import fr.quentin.poppy.util.SafeCommand;
+import fr.quentin.poppy.util.cooldown.CooldownManager;
+import fr.quentin.poppy.util.cooldown.CooldownStore;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.command.Command;
@@ -14,22 +14,15 @@ import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jspecify.annotations.NonNull;
 
-/**
- * Handles /heal: fully restores the sender's health, rate-limited via
- * {@code heal-cooldown-seconds} in config.yml, tracked in a shared
- * {@link CooldownStore} registered with {@link CooldownRegistry} so it
- * shows up in {@code /cooldowns}.
- */
 public class HealCommand extends SafeCommand {
 
     private final PoppyConfig config;
     private final CooldownStore cooldown;
 
-    public HealCommand(JavaPlugin plugin, Messages messages, PoppyConfig config, CooldownRegistry registry) {
+    public HealCommand(JavaPlugin plugin, Messages messages, PoppyConfig config, CooldownManager cooldownManager) {
         super(plugin, messages);
         this.config = config;
-        this.cooldown = new CooldownStore(plugin);
-        registry.register("Heal", cooldown);
+        this.cooldown = cooldownManager.get("heal", "Heal");
     }
 
     @Override

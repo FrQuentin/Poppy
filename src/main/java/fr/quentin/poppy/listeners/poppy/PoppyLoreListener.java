@@ -1,10 +1,11 @@
 package fr.quentin.poppy.listeners.poppy;
 
-import fr.quentin.poppy.util.cooldown.CooldownStore;
 import fr.quentin.poppy.util.DurationFormat;
 import fr.quentin.poppy.util.Messages;
 import fr.quentin.poppy.util.PoppyConfig;
 import fr.quentin.poppy.util.PoppyLogger;
+import fr.quentin.poppy.util.cooldown.CooldownManager;
+import fr.quentin.poppy.util.cooldown.CooldownStore;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
 import org.bukkit.entity.EntityType;
@@ -19,12 +20,6 @@ import org.jspecify.annotations.NonNull;
 
 import java.util.logging.Level;
 
-/**
- * Easter egg: right-clicking an Iron Golem while holding a poppy tells the
- * player a short made-up story about how the flower ended up in the game.
- * Rate-limited via {@code poppy-lore-cooldown-minutes} in config.yml,
- * tracked in a shared {@link CooldownStore} (see its class-level doc).
- */
 public class PoppyLoreListener implements Listener {
 
     private final JavaPlugin plugin;
@@ -33,12 +28,12 @@ public class PoppyLoreListener implements Listener {
     private final PoppyLogger logger;
     private final CooldownStore cooldown;
 
-    public PoppyLoreListener(JavaPlugin plugin, Messages messages, PoppyConfig config, PoppyLogger logger) {
+    public PoppyLoreListener(JavaPlugin plugin, Messages messages, PoppyConfig config, PoppyLogger logger, CooldownManager cooldownManager) {
         this.plugin = plugin;
         this.messages = messages;
         this.config = config;
         this.logger = logger;
-        this.cooldown = new CooldownStore(plugin);
+        this.cooldown = cooldownManager.get("poppy-lore");
     }
 
     @EventHandler

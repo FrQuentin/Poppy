@@ -1,10 +1,11 @@
 package fr.quentin.poppy.manager.fly;
 
 import fr.quentin.poppy.manager.combat.CombatManager;
-import fr.quentin.poppy.util.cooldown.CooldownStore;
 import fr.quentin.poppy.util.DurationFormat;
 import fr.quentin.poppy.util.Messages;
 import fr.quentin.poppy.util.PoppyConfig;
+import fr.quentin.poppy.util.cooldown.CooldownManager;
+import fr.quentin.poppy.util.cooldown.CooldownStore;
 import fr.quentin.poppy.util.io.AtomicYamlWriter;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
@@ -50,77 +51,20 @@ import java.util.logging.Level;
 /**
  * Backs /fly: disables flight the moment a flying (or fly-enabled) player
  * takes any damage, and blocks /fly for {@code fly-lockout-seconds}
- * afterward via a shared {@link CooldownStore}.
+ * afterward via a shared {@link CooldownStore} obtained from
+ * {@link CooldownManager}.
  *
- * <p><b>Only ever usable in Survival.</b> {@link #toggle} rejects turning
- * flight ON in any other gamemode ({@link ToggleResult#WRONG_GAMEMODE}).
- * Turning flight OFF is always allowed regardless of current gamemode.
- *
- * <p><b>Only ever acts on flight this class itself granted</b> —
- * {@link #disableFlightAndLock}, {@link #onJoin}, {@link #onGameModeChange},
- * {@link #onRespawn} all gate on {@link #activeFly}. {@code fly-force-disable-on-join}
- * opts out of the one safety net that can't fully avoid touching
- * third-party-granted flight.
- *
- * <p><b>Death/respawn:</b> {@link #onDeath}/{@link #onRespawn} exist
- * because {@link #onDamage} explicitly ignores
- * {@link EntityDamageEvent.DamageCause#FALL} — and fall damage is exactly
- * how a /fly user is most likely to die (cutting flight mid-air is a
- * simple double-tap of space). Without these two handlers,
- * {@link #activeFly} kept a dead player's UUID forever after such a
- * death, diverging permanently from the server's own post-respawn reset
- * of {@code allowFlight}.
- *
- * <p><b>Regenerating flight budget (a stamina bar, not a hard cooldown):</b>
- * {@link #flightBudgets} tracks, per player, how much of
- * {@code fly-max-duration-minutes} is currently used up. Flying drains it
- * 1 second per second via {@link #tickFlightDuration}. NOT flying
- * regenerates it — also 1 second per second — computed lazily from
- * wall-clock time via {@link #computeCurrentUsedMillis}, so it keeps
- * regenerating even while the player is offline. {@link #minimumBudgetMillis()}
- * is the floor {@link #toggle} enforces before allowing takeoff, and the
- * same floor {@link #secondsUntilAnyBudget} estimates against — without
- * that alignment, {@code /fly} and {@code /flytime} used to show two
- * different numbers for the same underlying state, and a player right at
- * the cap could spam repeated one-second flights.
- *
- * <p>The budget must never reset for free — a relog, or a short
- * post-damage lockout, must not restore it (both freeze the current
- * value via {@link #freezeBudget}/{@link #endFlightSession} instead of
- * clearing it) — and it must not leak memory for players who log out and
- * never return ({@link #purgeStaleBudgets}).
- *
- * <p><b>Persisted to {@code flybudgets.yml}</b> — without this, every
- * server restart silently refilled every player's budget to full, a
- * small but real exploit for a player who deliberately drains their
- * budget right before a planned restart. Saved on a 1-minute debounce
- * (see {@link #dirty}/{@link #flushIfDirty}) via a dedicated
- * single-thread {@link #ioExecutor}, with a final blocking flush at
- * {@link #shutdown()} — same pattern as {@code DeathChestManager}.
- *
- * <p>{@link #endFlightSession} is the single point where a flight
- * session ends outside the normal toggle-off path: freezes the budget
- * and clears {@link #warnedThisCycle} together, always, regardless of
- * whether the player was actively tracked — this used to be written
- * slightly differently in six different places, one of which (the
- * budget regenerating fully back to zero in {@link #toggle}) never
- * touched {@link #warnedThisCycle} at all, permanently orphaning that
- * UUID in the set (the end-of-flight warning could then never fire again
- * for that player, and the set itself grew unboundedly).
- *
- * <p>Fall damage never triggers a lockout on its own (only real death
- * does, via {@link #onDeath}). Flight can't be enabled while in the End,
- * and is force-disabled if an already-flying player ends up there anyway.
+ * <p>Only ever usable in Survival. Only ever acts on flight this class
+ * itself granted. Death/respawn are explicitly handled since
+ * {@link #onDamage} ignores fall damage. Budget regenerates over time,
+ * never resets for free, and is persisted to {@code flybudgets.yml}.
+ * {@link #endFlightSession} is the single point where a flight session
+ * ends outside the normal toggle-off path.
  */
 public class FlyManager implements Listener {
 
     public enum ToggleResult { ENABLED, DISABLED, BLOCKED_END, NO_BUDGET, WRONG_GAMEMODE }
 
-    /**
-     * {@code usedMillis} is only guaranteed exact as of
-     * {@code lastUpdateMillis} — see {@link #computeCurrentUsedMillis} for
-     * how it's projected forward/backward from there.
-     */
     private record FlightBudget(long usedMillis, long lastUpdateMillis) {
     }
 
@@ -128,8 +72,8 @@ public class FlyManager implements Listener {
     private static final double PARTICLE_RADIUS = 0.6;
     private static final int PARTICLE_POINTS = 8;
     private static final long DURATION_TICK_INTERVAL_TICKS = 20L;
-    private static final long BUDGET_PURGE_INTERVAL_TICKS = 20L * 60 * 5; // 5 minutes
-    private static final long BUDGET_SAVE_INTERVAL_TICKS = 20L * 60; // 1 minute
+    private static final long BUDGET_PURGE_INTERVAL_TICKS = 20L * 60 * 5;
+    private static final long BUDGET_SAVE_INTERVAL_TICKS = 20L * 60;
 
     private final JavaPlugin plugin;
     private final Messages messages;
@@ -149,12 +93,12 @@ public class FlyManager implements Listener {
         return thread;
     });
 
-    public FlyManager(JavaPlugin plugin, Messages messages, PoppyConfig config, CombatManager combatManager) {
+    public FlyManager(JavaPlugin plugin, Messages messages, PoppyConfig config, CombatManager combatManager, CooldownManager cooldownManager) {
         this.plugin = plugin;
         this.messages = messages;
         this.config = config;
         this.combatManager = combatManager;
-        this.lockoutStore = new CooldownStore(plugin);
+        this.lockoutStore = cooldownManager.get("fly-lockout");
         this.file = new File(plugin.getDataFolder(), "flybudgets.yml");
 
         loadBudgets();
@@ -165,13 +109,6 @@ public class FlyManager implements Listener {
         Bukkit.getScheduler().runTaskTimer(plugin, this::flushIfDirty, BUDGET_SAVE_INTERVAL_TICKS, BUDGET_SAVE_INTERVAL_TICKS);
     }
 
-    /**
-     * Toggles flight for the player. Turning it OFF is always allowed.
-     * Turning it ON requires Survival ({@link ToggleResult#WRONG_GAMEMODE}
-     * otherwise), not being in the End ({@link ToggleResult#BLOCKED_END}),
-     * and enough budget above {@link #minimumBudgetMillis()}
-     * ({@link ToggleResult#NO_BUDGET} otherwise).
-     */
     public ToggleResult toggle(Player player) {
         UUID uuid = player.getUniqueId();
         long now = System.currentTimeMillis();
@@ -227,21 +164,14 @@ public class FlyManager implements Listener {
         if (maxMillis <= 0) {
             return -1;
         }
-
         if (isLocked(uuid)) {
             return 0;
         }
-
         long used = computeCurrentUsedMillis(uuid, System.currentTimeMillis());
         long remaining = maxMillis - used;
         return remaining <= 0 ? 0 : (remaining / 1000) + 1;
     }
 
-    /**
-     * Seconds until the player has enough regenerated budget to actually
-     * take off again — aligned with the same {@link #minimumBudgetMillis()}
-     * floor {@link #toggle} enforces.
-     */
     public long secondsUntilAnyBudget(UUID uuid) {
         long maxMillis = config.flyMaxDurationMillis();
         if (maxMillis <= 0) {
@@ -253,11 +183,6 @@ public class FlyManager implements Listener {
         return missing <= 0 ? 0 : (missing / 1000) + 1;
     }
 
-    /**
-     * Minimum budget required to (re)take off. Tied to the end-of-flight
-     * warning window — taking off for less time than the configured
-     * warning itself doesn't make sense.
-     */
     private long minimumBudgetMillis() {
         long warningMillis = config.flyMaxDurationWarningSeconds() * 1000L;
         return warningMillis > 0 ? warningMillis : 10_000L;
@@ -269,15 +194,12 @@ public class FlyManager implements Listener {
             if (event.isCancelled() || event.getFinalDamage() <= 0) {
                 return;
             }
-
             if (event.getCause() == EntityDamageEvent.DamageCause.FALL) {
                 return;
             }
-
             if (!(event.getEntity() instanceof Player player)) {
                 return;
             }
-
             disableFlightAndLock(player, null, config.flyLockoutMillis(), "fly.disabled-damage", null);
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Error in FlyManager#onDamage for " + event.getEntity().getName(), e);
@@ -290,35 +212,21 @@ public class FlyManager implements Listener {
             if (event.isCancelled() || event.getFinalDamage() <= 0) {
                 return;
             }
-
             Player attacker = resolveAttacker(event.getDamager());
             if (attacker == null) {
                 return;
             }
-
             disableFlightAndLock(attacker, event.getEntity(), config.flyLockoutMillis(), "fly.disabled-attack", "target");
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Error in FlyManager#onPvpDamage", e);
         }
     }
 
-    /**
-     * See the class-level doc: {@link #onDamage} never sees a fall death,
-     * which is precisely how a /fly user is most likely to die.
-     */
     @EventHandler(priority = EventPriority.MONITOR)
     public void onDeath(@NonNull PlayerDeathEvent event) {
         endFlightSession(event.getEntity().getUniqueId());
     }
 
-    /**
-     * Companion to {@link #onDeath} — a safety net for any death path
-     * that might be missed, plus re-syncs {@code allowFlight} the same
-     * way {@link #onJoin} does. The one-tick delay matters: the server
-     * re-applies the respawning player's attributes during the respawn
-     * dispatch itself, so a {@code setAllowFlight} call made synchronously
-     * here would just get overwritten.
-     */
     @EventHandler(priority = EventPriority.MONITOR)
     public void onRespawn(@NonNull PlayerRespawnEvent event) {
         Player player = event.getPlayer();
@@ -353,7 +261,6 @@ public class FlyManager implements Listener {
             if (!activeFly.contains(uuid)) {
                 return;
             }
-
             if (player.getWorld().getEnvironment() != World.Environment.THE_END) {
                 return;
             }
@@ -373,14 +280,11 @@ public class FlyManager implements Listener {
             if (!config.flyForceDisableOnJoin()) {
                 return;
             }
-
             Player player = event.getPlayer();
             GameMode mode = player.getGameMode();
-
             if (mode == GameMode.CREATIVE || mode == GameMode.SPECTATOR) {
                 return;
             }
-
             if (!activeFly.contains(player.getUniqueId()) && player.getAllowFlight()) {
                 player.setAllowFlight(false);
                 player.setFlying(false);
@@ -423,10 +327,6 @@ public class FlyManager implements Listener {
         }
     }
 
-    /**
-     * Single point where a flight session ends outside the normal
-     * toggle-off path — see the class-level doc.
-     */
     private void endFlightSession(UUID uuid) {
         if (activeFly.remove(uuid)) {
             freezeBudget(uuid);
@@ -442,11 +342,6 @@ public class FlyManager implements Listener {
         }
     }
 
-    /**
-     * @param target the entity the player just attacked, for the
-     *               notification message — null when called from the
-     *               generic {@link #onDamage} path.
-     */
     private void disableFlightAndLock(Player player, Entity target, long lockoutMillis, String messagePath, String targetPlaceholderName) {
         UUID uuid = player.getUniqueId();
         if (!activeFly.contains(uuid)) {
@@ -594,11 +489,6 @@ public class FlyManager implements Listener {
         }
     }
 
-    /**
-     * Must be called from {@code Poppy#onDisable}, before the plugin fully
-     * unloads, so the last minute of budget changes isn't lost to the
-     * debounce window.
-     */
     public void shutdown() {
         persistBudgets(true);
         ioExecutor.shutdown();
@@ -615,7 +505,6 @@ public class FlyManager implements Listener {
         if (!config.flyParticlesEnabled() || activeFly.isEmpty()) {
             return;
         }
-
         for (UUID uuid : activeFly) {
             Player player = Bukkit.getPlayer(uuid);
             if (player == null || !player.isOnline() || !player.isFlying()) {

@@ -1,9 +1,10 @@
 package fr.quentin.poppy.manager.tpa;
 
-import fr.quentin.poppy.util.cooldown.CooldownStore;
 import fr.quentin.poppy.util.Messages;
 import fr.quentin.poppy.util.PoppyConfig;
 import fr.quentin.poppy.util.PoppyLogger;
+import fr.quentin.poppy.util.cooldown.CooldownManager;
+import fr.quentin.poppy.util.cooldown.CooldownStore;
 import fr.quentin.poppy.util.io.AtomicYamlWriter;
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -21,20 +22,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Level;
 
-/**
- * Tracks pending /tpa and /tpahere requests, the {@code /tpatoggle}
- * opt-out ({@link #requestsDisabled}), and per-requester cooldown (via a
- * shared {@link CooldownStore}).
- *
- * <p>{@link #requestsDisabled} is persisted to {@code tpatoggle.yml} —
- * unlike a plain cooldown, this is a deliberate, durable player
- * preference, often used specifically to opt out of harassment via
- * repeated teleport requests. Losing it silently on every server restart
- * would mean a player relying on it for that reason has their protection
- * quietly disabled without ever being told. Written synchronously (a
- * small file, changed rarely — only on an actual {@code /tpatoggle}
- * command, not a hot path) via {@link AtomicYamlWriter}.
- */
 public class TpaManager {
 
     public enum Type { NORMAL, HERE }
@@ -53,12 +40,12 @@ public class TpaManager {
     private final Set<UUID> requestsDisabled = new HashSet<>();
     private final CooldownStore requestCooldown;
 
-    public TpaManager(JavaPlugin plugin, Messages messages, PoppyConfig config, PoppyLogger logger) {
+    public TpaManager(JavaPlugin plugin, Messages messages, PoppyConfig config, PoppyLogger logger, CooldownManager cooldownManager) {
         this.plugin = plugin;
         this.messages = messages;
         this.config = config;
         this.logger = logger;
-        this.requestCooldown = new CooldownStore(plugin);
+        this.requestCooldown = cooldownManager.get("tpa-request");
         this.toggleFile = new File(plugin.getDataFolder(), "tpatoggle.yml");
 
         loadDisabledRequests();
@@ -156,10 +143,6 @@ public class TpaManager {
         Player targetPlayer = Bukkit.getPlayer(target);
         Player requesterPlayer = Bukkit.getPlayer(requester);
 
-        // Each side notified independently — previously both messages required
-        // BOTH players to still be online, so if either had disconnected in the
-        // meantime, the one still online (waiting on a response) never learned
-        // their request had expired at all; it just silently vanished.
         if (requesterPlayer != null) {
             String targetName = targetPlayer != null ? targetPlayer.getName() : nameOf(target);
             requesterPlayer.sendMessage(messages.get("tpa.expired-requester", "player", targetName));
@@ -206,9 +189,6 @@ public class TpaManager {
         }
     }
 
-    /**
-     * @return true if requests are now accepted, false if now blocked
-     */
     public boolean toggleRequests(UUID uuid) {
         boolean nowAccepting;
         if (requestsDisabled.remove(uuid)) {
@@ -249,10 +229,6 @@ public class TpaManager {
         }
     }
 
-    /**
-     * Small file, changed only on an actual {@code /tpatoggle} command —
-     * not a hot path, so a synchronous atomic write here is fine.
-     */
     private void saveDisabledRequests() {
         YamlConfiguration yaml = new YamlConfiguration();
         List<String> uuids = new ArrayList<>();

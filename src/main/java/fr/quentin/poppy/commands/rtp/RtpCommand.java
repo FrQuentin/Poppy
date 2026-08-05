@@ -3,8 +3,13 @@ package fr.quentin.poppy.commands.rtp;
 import fr.quentin.poppy.manager.combat.CombatManager;
 import fr.quentin.poppy.manager.teleport.TeleportManager;
 import fr.quentin.poppy.model.Home;
-import fr.quentin.poppy.util.*;
-import fr.quentin.poppy.util.cooldown.CooldownRegistry;
+import fr.quentin.poppy.util.DurationFormat;
+import fr.quentin.poppy.util.Messages;
+import fr.quentin.poppy.util.PoppyConfig;
+import fr.quentin.poppy.util.PoppyStats;
+import fr.quentin.poppy.util.SafeCommand;
+import fr.quentin.poppy.util.SafetyCheck;
+import fr.quentin.poppy.util.cooldown.CooldownManager;
 import fr.quentin.poppy.util.cooldown.CooldownStore;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -35,19 +40,13 @@ import java.util.logging.Level;
  * <p><b>A failed search consumes the cooldown, a combat-tag rejection does
  * not:</b> a search running out of attempts still costs up to
  * {@code rtp-max-attempts} chunk generations — expensive — so it must not
- * be free to retry instantly; a combat-tag rejection is rejected by
- * {@link TeleportManager} before any chunk work happens at all, so it
- * stays free.
+ * be free to retry instantly; a combat-tag rejection, checked up front
+ * before any chunk work happens, stays free.
  *
- *
- * <p>The cooldown itself lives in a shared {@link CooldownStore} — see its
- * class-level doc for why that's preferable to a raw
- * {@code Map<UUID, Long>} that's never purged. {@link #inProgress} is a
- * separate {@link Set}, not a cooldown: it tracks an in-flight search, not
- * an expiry, and is cleared on quit as a genuine safety net (a lingering
- * flag would otherwise permanently lock an offline player out after
- * reconnecting) — unlike the cooldown, which is deliberately never reset
- * by disconnecting.
+ * <p>The cooldown itself lives in a shared {@link CooldownStore} obtained
+ * from {@link CooldownManager}. {@link #inProgress} is a separate
+ * {@link Set}, not a cooldown: it tracks an in-flight search, cleared on
+ * quit as a genuine safety net.
  *
  * <p>The Nether needs different vertical placement logic than the
  * Overworld/End: {@link World#getHighestBlockYAt(int, int)} finds the
@@ -65,14 +64,13 @@ public class RtpCommand extends SafeCommand implements Listener {
     private final Set<UUID> inProgress = new HashSet<>();
 
     public RtpCommand(JavaPlugin plugin, TeleportManager teleportManager, CombatManager combatManager,
-                      Messages messages, PoppyConfig config, PoppyStats stats, CooldownRegistry registry) {
+                      Messages messages, PoppyConfig config, PoppyStats stats, CooldownManager cooldownManager) {
         super(plugin, messages);
         this.teleportManager = teleportManager;
         this.combatManager = combatManager;
         this.config = config;
         this.stats = stats;
-        this.cooldown = new CooldownStore(plugin);
-        registry.register("Random Teleport", cooldown);
+        this.cooldown = cooldownManager.get("rtp", "Random Teleport");
     }
 
     @Override
@@ -85,11 +83,6 @@ public class RtpCommand extends SafeCommand implements Listener {
 
         UUID uuid = player.getUniqueId();
 
-        // Rejected BEFORE any chunk generation — a full search for a player who
-        // can't be teleported anyway is pure wasted work, exactly the vector the
-        // earlier "cooldown applies on search failure too" fix meant to close,
-        // reopened via this separate rejection path (requestTeleport refusing
-        // because of a combat tag, distinct from a failed safe-spot search).
         if (combatManager.isInCombat(uuid)) {
             player.sendMessage(messages.get("combat.in-combat",
                     "seconds", String.valueOf(combatManager.remainingSeconds(uuid))));
@@ -162,10 +155,6 @@ public class RtpCommand extends SafeCommand implements Listener {
             boolean accepted = teleportManager.requestTeleport(player, Home.fromLocation("rtp", candidate), "rtp.success");
             inProgress.remove(uuid);
 
-            // The search genuinely cost chunk generations — the cooldown is owed
-            // regardless of whether the teleport itself was accepted or rejected
-            // (a combat tag applied mid-search, since this runs across several
-            // ticks). Without this, the command stayed freely re-triggerable.
             cooldown.start(uuid, config.rtpCooldownMillis());
 
             if (accepted) {

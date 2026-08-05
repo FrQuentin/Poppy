@@ -1,12 +1,13 @@
 package fr.quentin.poppy.commands.misc;
 
-import fr.quentin.poppy.manager.sleep.SleepPercentageListener;
 import fr.quentin.poppy.listeners.tab.TabHealthListener;
-import fr.quentin.poppy.util.cooldown.CooldownStore;
+import fr.quentin.poppy.manager.sleep.SleepPercentageListener;
 import fr.quentin.poppy.util.Messages;
 import fr.quentin.poppy.util.PoppyConfig;
 import fr.quentin.poppy.util.PoppyLogger;
 import fr.quentin.poppy.util.SafeCommand;
+import fr.quentin.poppy.util.cooldown.CooldownManager;
+import fr.quentin.poppy.util.cooldown.CooldownStore;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
@@ -27,19 +28,6 @@ import org.jspecify.annotations.NonNull;
 
 import java.util.List;
 
-/**
- * Handles /poppy: with no argument, a small easter egg (places or drops a
- * poppy). With {@code reload}, reloads config.yml and messages.yml live,
- * and re-applies every setting that can't be picked up automatically by
- * {@link PoppyConfig}'s own live reads alone — the sleep gamerule
- * ({@link SleepPercentageListener#reapply}), the tab-health refresh
- * interval ({@link TabHealthListener#reapply}), and the Poppy log file's
- * flush interval ({@link PoppyLogger#reapply}).
- *
- * <p>The easter egg is rate-limited via
- * {@code poppy-easteregg-cooldown-seconds} in config.yml, tracked in a
- * shared {@link CooldownStore}.
- */
 public class PoppyCommand extends SafeCommand implements TabCompleter {
 
     private final PoppyConfig config;
@@ -49,13 +37,14 @@ public class PoppyCommand extends SafeCommand implements TabCompleter {
     private final CooldownStore easterEggCooldown;
 
     public PoppyCommand(JavaPlugin plugin, Messages messages, PoppyConfig config, PoppyLogger logger,
-                        SleepPercentageListener sleepPercentageListener, TabHealthListener tabHealthListener) {
+                        SleepPercentageListener sleepPercentageListener, TabHealthListener tabHealthListener,
+                        CooldownManager cooldownManager) {
         super(plugin, messages);
         this.config = config;
         this.logger = logger;
         this.sleepPercentageListener = sleepPercentageListener;
         this.tabHealthListener = tabHealthListener;
-        this.easterEggCooldown = new CooldownStore(plugin);
+        this.easterEggCooldown = cooldownManager.get("poppy-easteregg");
     }
 
     @Override

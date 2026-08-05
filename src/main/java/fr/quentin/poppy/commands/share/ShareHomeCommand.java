@@ -1,11 +1,15 @@
 package fr.quentin.poppy.commands.share;
 
-import fr.quentin.poppy.commands.afk.AfkCommand;
 import fr.quentin.poppy.manager.home.HomeManager;
 import fr.quentin.poppy.manager.share.ShareManager;
 import fr.quentin.poppy.model.Home;
-import fr.quentin.poppy.util.*;
-import fr.quentin.poppy.util.cooldown.CooldownRegistry;
+import fr.quentin.poppy.util.DurationFormat;
+import fr.quentin.poppy.util.Messages;
+import fr.quentin.poppy.util.PoppyConfig;
+import fr.quentin.poppy.util.PoppyLogger;
+import fr.quentin.poppy.util.PoppyStats;
+import fr.quentin.poppy.util.SafeCommand;
+import fr.quentin.poppy.util.cooldown.CooldownManager;
 import fr.quentin.poppy.util.cooldown.CooldownStore;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
@@ -15,29 +19,11 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
-import org.bukkit.event.Listener;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jspecify.annotations.NonNull;
 
 import java.util.List;
 
-/**
- * Handles /sharehome: broadcasts a clickable teleport link for one of the
- * sender's homes to the whole server. Clicking the link runs
- * {@code /poppygoto <token>} — see {@link PoppyGotoCommand}.
- *
- * <p>Rate-limited via {@code sharehome-cooldown-seconds} in config.yml,
- * tracked in a shared {@link CooldownStore} — deliberately never cleared
- * on quit or per-player, same reasoning as {@link AfkCommand}: a cooldown
- * on a server-wide broadcast command must survive a disconnect/reconnect,
- * and the store purges expired entries on its own periodic sweep.
- *
- * <p>Still implements {@link Listener} (with no handlers) purely so
- * {@code Poppy#onEnable}'s existing {@code registerEvents(shareHomeCommand, this)}
- * call keeps compiling — it used to carry a {@code PlayerQuitEvent}
- * handler that cleared the old raw cooldown map, removed once the switch
- * to {@link CooldownStore} made it unnecessary.
- */
 public class ShareHomeCommand extends SafeCommand implements TabCompleter {
 
     private final HomeManager homeManager;
@@ -48,15 +34,14 @@ public class ShareHomeCommand extends SafeCommand implements TabCompleter {
     private final CooldownStore cooldown;
 
     public ShareHomeCommand(JavaPlugin plugin, HomeManager homeManager, ShareManager shareManager, Messages messages,
-                            PoppyConfig config, PoppyStats stats, PoppyLogger logger, CooldownRegistry registry) {
+                            PoppyConfig config, PoppyStats stats, PoppyLogger logger, CooldownManager cooldownManager) {
         super(plugin, messages);
         this.homeManager = homeManager;
         this.shareManager = shareManager;
         this.config = config;
         this.stats = stats;
         this.logger = logger;
-        this.cooldown = new CooldownStore(plugin);
-        registry.register("Share Home", cooldown);
+        this.cooldown = cooldownManager.get("sharehome", "Share Home");
     }
 
     @Override

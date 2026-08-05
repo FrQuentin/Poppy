@@ -140,11 +140,41 @@ public class PlaytimeManager implements Listener {
     }
 
     private void flushIfDirty() {
+        foldInOngoingSessions();
         if (!dirty) {
             return;
         }
         dirty = false;
         persist(false);
+    }
+
+    /**
+     * Advances every online player's session start to now, folding the
+     * elapsed time into their total — without this, {@link #dirty} was only
+     * ever set in {@link #onQuit}, meaning a currently-online player's
+     * session was never reflected in {@link #totalMillis} until they
+     * actually disconnected. The class-level doc claimed a crash could lose
+     * at most the time since the last debounce flush; in reality it lost the
+     * player's entire session, since there was never anything new to persist
+     * for someone still connected. {@link #getTotalPlaytimeMillis} stays
+     * accurate either way — it always adds whatever's elapsed since the last
+     * fold-in on top of the persisted total.
+     */
+    private void foldInOngoingSessions() {
+        if (sessionStartMillis.isEmpty()) {
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        for (Map.Entry<UUID, Long> entry : sessionStartMillis.entrySet()) {
+            long elapsed = Math.max(0L, now - entry.getValue());
+            if (elapsed <= 0) {
+                continue;
+            }
+            totalMillis.merge(entry.getKey(), elapsed, Long::sum);
+            entry.setValue(now);
+            dirty = true;
+        }
     }
 
     private void persist(boolean blocking) {

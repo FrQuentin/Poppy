@@ -51,16 +51,15 @@ public class ChatFormatListener implements Listener {
         Player player = event.getPlayer();
 
         if (!player.hasPermission("poppy.chat.bypass")) {
-            long remaining = cooldown.remainingSeconds(player.getUniqueId());
+            long remaining = cooldown.tryStart(player.getUniqueId(), config.chatCooldownMillis());
             if (remaining > 0) {
                 event.setCancelled(true);
                 player.sendMessage(messages.get("chat.cooldown", "time", DurationFormat.format(remaining)));
                 return;
             }
-            cooldown.start(player.getUniqueId(), config.chatCooldownMillis());
         }
 
-        event.renderer((sourceDisplayName, sourceDisplayNameComponent, message, viewer) ->
+        event.renderer((_, sourceDisplayNameComponent, message, _) ->
                 sourceDisplayNameComponent.color(ACCENT)
                         .append(Component.text(": ").color(ACCENT))
                         .append(message.color(ACCENT)));

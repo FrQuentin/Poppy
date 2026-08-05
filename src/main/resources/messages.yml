@@ -206,3 +206,14 @@ playtime:
 
 tab:
   footer: "<#a7aeba>You are online with {count} players!</#a7aeba>"
+
+msg:
+  usage: "<#dc2625>[!] Usage: </#dc2625><#f3f3f3>/msg <player> <message>"
+  self: "<#dc2625>[!] You can't message yourself!"
+  player-not-found: "<#dc2625>[!] {player} isn't online!"
+  cooldown: "<#dc2625>[!] Please wait {time} before sending another message!"
+  outgoing: "<#f49e0b>You -> {target}</#f49e0b><#a7aeba>: {message}"
+  incoming: "<#f49e0b>{sender} -> You</#f49e0b><#a7aeba>: {message}"
+  reply-usage: "<#dc2625>[!] Usage: </#dc2625><#f3f3f3>/reply <message>"
+  no-reply-target: "<#dc2625>[!] You have nobody to reply to!"
+  reply-target-offline: "<#dc2625>[!] That player is no longer online!"

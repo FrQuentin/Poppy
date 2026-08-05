@@ -127,6 +127,8 @@ public final class PoppyConfig {
     private volatile long feedCooldownMillis;
     private volatile long healCooldownMillis;
 
+    private volatile long msgCooldownMillis;
+
     public PoppyConfig(JavaPlugin plugin) {
         this.plugin = plugin;
         reload();
@@ -236,6 +238,8 @@ public final class PoppyConfig {
 
         feedCooldownMillis = Math.max(0, c.getInt("feed-cooldown-seconds", 180)) * 1000L;
         healCooldownMillis = Math.max(0, c.getInt("heal-cooldown-seconds", 180)) * 1000L;
+
+        msgCooldownMillis = Math.max(0, c.getInt("msg-cooldown-seconds", 2)) * 1000L;
     }
 
     /**
@@ -512,5 +516,9 @@ public final class PoppyConfig {
 
     public long healCooldownMillis() {
         return healCooldownMillis;
+    }
+
+    public long msgCooldownMillis() {
+        return msgCooldownMillis;
     }
 }

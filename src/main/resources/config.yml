@@ -248,3 +248,8 @@ tpa-toggle-cooldown-seconds: 3
 # chest for the duration of death-chest-expiry-minutes. Set to false to
 # allow deposits like a normal chest.
 death-chest-read-only: true
+
+# Cooldown (in seconds) between two /msg or /reply sends, shared between
+# both commands — replying doesn't bypass the cooldown from an outgoing
+# /msg, or vice versa. Set to 0 to disable.
+msg-cooldown-seconds: 2

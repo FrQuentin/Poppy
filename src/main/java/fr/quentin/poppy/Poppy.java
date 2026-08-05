@@ -11,6 +11,8 @@ import fr.quentin.poppy.commands.home.HomeCommand;
 import fr.quentin.poppy.commands.home.HomesCommand;
 import fr.quentin.poppy.commands.home.SetHomeCommand;
 import fr.quentin.poppy.commands.misc.*;
+import fr.quentin.poppy.commands.msg.MsgCommand;
+import fr.quentin.poppy.commands.msg.ReplyCommand;
 import fr.quentin.poppy.commands.rtp.RtpCommand;
 import fr.quentin.poppy.commands.share.PoppyGotoCommand;
 import fr.quentin.poppy.commands.share.ShareHomeCommand;
@@ -45,6 +47,7 @@ import fr.quentin.poppy.manager.deathchest.DeathChestManager;
 import fr.quentin.poppy.manager.fly.FlyManager;
 import fr.quentin.poppy.manager.home.HomeCacheListener;
 import fr.quentin.poppy.manager.home.HomeManager;
+import fr.quentin.poppy.manager.msg.MessageManager;
 import fr.quentin.poppy.manager.playtime.PlaytimeManager;
 import fr.quentin.poppy.manager.share.ShareManager;
 import fr.quentin.poppy.manager.sleep.SleepPercentageListener;
@@ -54,6 +57,7 @@ import fr.quentin.poppy.manager.tpa.TpaManager;
 import fr.quentin.poppy.manager.tpa.TpaQuitListener;
 import fr.quentin.poppy.util.*;
 import fr.quentin.poppy.util.cooldown.CooldownRegistry;
+import fr.quentin.poppy.util.cooldown.CooldownStore;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.Objects;
@@ -84,6 +88,9 @@ public final class Poppy extends JavaPlugin {
 
         Messages messages = new Messages(this);
         CooldownRegistry cooldownRegistry = new CooldownRegistry();
+        MessageManager messageManager = new MessageManager();
+        CooldownStore msgCooldown = new CooldownStore(this);
+        cooldownRegistry.register("Message", msgCooldown);
         poppyLogger = new PoppyLogger(this, config);
         playtimeManager = new PlaytimeManager(this);
 
@@ -180,6 +187,12 @@ public final class Poppy extends JavaPlugin {
 
         Objects.requireNonNull(getCommand("playtime")).setExecutor(new PlaytimeCommand(this, playtimeManager, messages));
 
+        MsgCommand msgCommand = new MsgCommand(this, messageManager, messages, config, msgCooldown);
+        Objects.requireNonNull(getCommand("msg")).setExecutor(msgCommand);
+        Objects.requireNonNull(getCommand("msg")).setTabCompleter(msgCommand);
+
+        Objects.requireNonNull(getCommand("reply")).setExecutor(new ReplyCommand(this, messageManager, messages, config, msgCooldown));
+
         getServer().getPluginManager().registerEvents(
                 new HomesGUIListener(this, homeManager, homesGUI, confirmDeleteGUI, confirmOverwriteGUI, teleportManager, messages, stats, poppyLogger), this);
         getServer().getPluginManager().registerEvents(teleportManager, this);
@@ -201,6 +214,7 @@ public final class Poppy extends JavaPlugin {
         getServer().getPluginManager().registerEvents(flyManager, this);
         getServer().getPluginManager().registerEvents(playtimeManager, this);
         getServer().getPluginManager().registerEvents(new ChatFormatListener(), this);
+        getServer().getPluginManager().registerEvents(messageManager, this);
 
         // Always scheduled now (rather than only if afk-auto-enabled at startup) —
         // AutoAfkTask checks the setting live each run, so it can be toggled via

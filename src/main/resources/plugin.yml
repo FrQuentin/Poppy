@@ -143,6 +143,18 @@ commands:
     usage: /playtime
     permission: poppy.playtime
     permission-message: "&4[!] You don't have permission to do this."
+  msg:
+    description: Send a private message to another player.
+    usage: /msg <player> <message>
+    aliases: [ tell, w, whisper ]
+    permission: poppy.msg
+    permission-message: "&4[!] You don't have permission to do this."
+  reply:
+    description: Reply to your last private message conversation.
+    usage: /reply <message>
+    aliases: [ r ]
+    permission: poppy.msg
+    permission-message: "&4[!] You don't have permission to do this."
 
 permissions:
   poppy.*:
@@ -176,6 +188,7 @@ permissions:
       poppy.deathback: true
       poppy.playtime: true
       poppy.playtime.admin: true
+      poppy.msg: true
 
   poppy.sethome:
     description: Allows creating homes with /sethome.
@@ -270,3 +283,6 @@ permissions:
   poppy.playtime.admin:
     description: Allows checking another player's playtime with /playtime <player>.
     default: op
+  poppy.msg:
+    description: Allows sending and receiving private messages with /msg and /reply.
+    default: true

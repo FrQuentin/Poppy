@@ -11,10 +11,19 @@ import java.util.UUID;
 
 /**
  * Tracks each player's current private-message conversation partner,
- * backing /reply. Updated symmetrically on every /msg or /reply: both
- * the sender's and the recipient's "last partner" point at each other,
- * so either side can use /reply to continue the conversation naturally
- * — not just whoever received the most recent message.
+ * backing /reply. Updated on every /msg or /reply.
+ *
+ * <p><b>Recipients aren't blindly redirected — see {@link #CONVERSATION_HOLD_MILLIS}:</b>
+ * the sender always points at the recipient, but the recipient only
+ * points back at the sender if they're not already in a recent
+ * conversation with someone else. Without this, {@link #recordConversation}
+ * unconditionally overwriting both directions was a trivial social-
+ * engineering vector on a public server: while A and B were mid-conversation,
+ * C could send A a single unrelated /msg, silently hijacking A's next
+ * /reply away from B and toward C instead — no permission required, no
+ * warning shown. The hold window is deliberately short (not permanent):
+ * if B never actually replies, the window lapses and someone else can
+ * legitimately start a conversation with A.
  *
  * <p>{@link #onQuit} only removes the leaving player as a KEY (their own
  * outgoing /reply target) — deliberately leaves them as a VALUE in
@@ -26,15 +35,36 @@ import java.util.UUID;
  */
 public class MessageManager implements Listener {
 
-    private final Map<UUID, UUID> lastPartner = new HashMap<>();
+    /** How long a held conversation partner resists being overwritten by a third party. */
+    private static final long CONVERSATION_HOLD_MILLIS = 60_000L;
 
-    public void recordConversation(UUID a, UUID b) {
-        lastPartner.put(a, b);
-        lastPartner.put(b, a);
+    private record Partner(UUID uuid, long updatedAt) {
+    }
+
+    private final Map<UUID, Partner> lastPartner = new HashMap<>();
+
+    /**
+     * The sender always points at the recipient. The recipient only
+     * points back if they're not already in a recent conversation with
+     * someone else — see the class-level doc.
+     */
+    public void recordConversation(UUID sender, UUID recipient) {
+        long now = System.currentTimeMillis();
+        lastPartner.put(sender, new Partner(recipient, now));
+
+        Partner current = lastPartner.get(recipient);
+        boolean held = current != null
+                && !current.uuid().equals(sender)
+                && now - current.updatedAt() < CONVERSATION_HOLD_MILLIS;
+
+        if (!held) {
+            lastPartner.put(recipient, new Partner(sender, now));
+        }
     }
 
     public UUID getLastPartner(UUID uuid) {
-        return lastPartner.get(uuid);
+        Partner partner = lastPartner.get(uuid);
+        return partner != null ? partner.uuid() : null;
     }
 
     @EventHandler

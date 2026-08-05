@@ -224,7 +224,7 @@ public final class Poppy extends JavaPlugin {
         getServer().getPluginManager().registerEvents(flyManager, this);
         getServer().getPluginManager().registerEvents(playtimeManager, this);
         getServer().getPluginManager().registerEvents(messageManager, this);
-        getServer().getPluginManager().registerEvents(new ChatFormatListener(), this);
+        getServer().getPluginManager().registerEvents(new ChatFormatListener(messages, config, cooldownManager), this);
 
         // Always scheduled now (rather than only if afk-auto-enabled at startup) —
         // AutoAfkTask checks the setting live each run, so it can be toggled via

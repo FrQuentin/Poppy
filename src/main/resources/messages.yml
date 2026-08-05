@@ -217,3 +217,6 @@ msg:
   reply-usage: "<#dc2625>[!] Usage: </#dc2625><#f3f3f3>/reply <message>"
   no-reply-target: "<#dc2625>[!] You have nobody to reply to!"
   reply-target-offline: "<#dc2625>[!] That player is no longer online!"
+
+chat:
+  cooldown: "<#dc2625>[!] Please wait {time} before sending another message!"

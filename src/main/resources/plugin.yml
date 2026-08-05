@@ -189,6 +189,7 @@ permissions:
       poppy.playtime: true
       poppy.playtime.admin: true
       poppy.msg: true
+      poppy.chat.bypass: true
 
   poppy.sethome:
     description: Allows creating homes with /sethome.
@@ -286,3 +287,6 @@ permissions:
   poppy.msg:
     description: Allows sending and receiving private messages with /msg and /reply.
     default: true
+  poppy.chat.bypass:
+    description: Allows bypassing the chat cooldown between messages.
+    default: op

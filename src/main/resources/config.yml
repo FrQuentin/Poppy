@@ -253,3 +253,8 @@ death-chest-read-only: true
 # both commands — replying doesn't bypass the cooldown from an outgoing
 # /msg, or vice versa. Set to 0 to disable.
 msg-cooldown-seconds: 5
+
+# Cooldown (in seconds) between two chat messages sent by the same
+# player. Set to 0 to disable. Players with poppy.chat.bypass skip this
+# entirely.
+chat-cooldown-seconds: 5

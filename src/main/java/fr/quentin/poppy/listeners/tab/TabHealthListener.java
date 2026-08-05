@@ -149,15 +149,51 @@ public class TabHealthListener implements Listener {
 
     /**
      * Cancels the currently scheduled update task and reschedules it with
-     * the interval currently in config.yml, and clears every online
-     * player's tab list name if the feature was just turned off — call
-     * after a config reload.
+     * the interval currently in config.yml. If the setting was just turned
+     * off, clears every online player's tab list name AND resets the
+     * hearts objective's scores — leaving stale scores in place used to
+     * show each player frozen at whatever health they had at the moment of
+     * the reload (a player at 2 hearts stayed shown at 2 hearts forever),
+     * which is more misleading than showing nothing. If the setting was
+     * just turned on, re-attempts to claim the PLAYER_LIST slot — a
+     * competing plugin may have released it (or claimed it) since
+     * construction, which used to be the only point this was ever checked.
      */
     public void reapply() {
         if (!config.showHealthInTab()) {
             clearAllPlayerListNames();
+            clearHearts();
+        } else {
+            setupHeartsObjective();
         }
         scheduleUpdateTask();
+    }
+
+    /**
+     * Removes Poppy's hearts objective from PLAYER_LIST and resets every
+     * online player's score on it, rather than leaving stale values behind
+     * when the feature is toggled off.
+     */
+    private void clearHearts() {
+        if (heartsObjective == null) {
+            return;
+        }
+        try {
+            Scoreboard scoreboard = heartsObjective.getScoreboard();
+            if (scoreboard == null) {
+                return;
+            }
+            if (heartsObjective.equals(scoreboard.getObjective(DisplaySlot.PLAYER_LIST))) {
+                scoreboard.clearSlot(DisplaySlot.PLAYER_LIST);
+            }
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                scoreboard.resetScores(player.getName());
+            }
+        } catch (IllegalStateException e) {
+            // Objective was unregistered by another plugin in the meantime.
+            heartsObjective = null;
+            heartsSupported = false;
+        }
     }
 
     private void clearAllPlayerListNames() {

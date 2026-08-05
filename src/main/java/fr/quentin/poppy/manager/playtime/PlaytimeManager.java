@@ -29,26 +29,39 @@ import java.util.logging.Level;
  * Tracks each player's total accumulated playtime, backing /playtime.
  * Deliberately doesn't rely on the vanilla {@code PLAY_ONE_MINUTE}
  * statistic — its exact semantics and even its name have shifted across
- * Minecraft versions, and it's not something this plugin controls the
- * accuracy of. Instead, {@link #sessionStartMillis} records when each
- * online player's current session began; on quit, the elapsed session
- * time is folded into {@link #totalMillis} and persisted.
+ * Minecraft versions. Instead, {@link #sessionStartMillis} records when
+ * each online player's current session began; that elapsed time is
+ * folded into {@link #totalMillis} both on quit and periodically while
+ * still online (see {@link #foldInOngoingSessions}).
  *
  * <p>{@link #getTotalPlaytimeMillis} adds any still-in-progress session
  * time on top of the persisted total, so a currently-online player's
- * playtime is always accurate up to the second, not just as of their
- * last quit.
+ * playtime is always accurate up to the second.
  *
  * <p>Persisted to {@code playtime.yml} on a 1-minute debounce (see
  * {@link #dirty}/{@link #flushIfDirty}) via a dedicated single-thread
- * {@link #ioExecutor}, with a final blocking flush at {@link #shutdown()}
- * — same pattern as {@code FlyManager}'s budget persistence.
+ * {@link #ioExecutor}, with a final blocking flush at {@link #shutdown()}.
  *
- * <p>A hard crash (not a clean shutdown) loses at most the current
- * session's time since the last debounce flush — the same tradeoff
- * {@code BackManager} and similar in-memory-until-quit state in this
- * plugin already accept; acceptable here since this is a cosmetic stat,
- * not gameplay-critical data.
+ * <p><b>{@link #foldInOngoingSessions()} is what makes the debounce
+ * actually bounded:</b> {@link #dirty} used to only ever be set in
+ * {@link #onQuit}, meaning a currently-online player's elapsed session
+ * time was never reflected in {@link #totalMillis} until they actually
+ * disconnected — a crash (not a clean shutdown) lost that player's
+ * entire session, not just "up to a minute" as the debounce name
+ * implies. {@link #flushIfDirty} now folds every online player's elapsed
+ * time into their total on every tick it runs, so at most one flush
+ * interval's worth of playtime is ever at risk, for anyone.
+ *
+ * <p><b>{@link #nameCache} is persisted, not just in-memory:</b> without
+ * this, {@link #resolveByName} could only ever resolve a player who had
+ * reconnected since the last restart — a player's own {@code /playtime}
+ * data on disk was fine, but an admin's {@code /playtime <offline player>}
+ * silently stopped working for anyone who hadn't logged in yet this
+ * session, contradicting what this feature promises. {@link #onJoin}
+ * also purges any stale mapping pointing at this UUID under a different
+ * name before adding the current one — without that, a player who
+ * reclaims a name previously used by someone else would have the old
+ * entry still resolving that name to the WRONG UUID.
  */
 public class PlaytimeManager implements Listener {
 
@@ -79,7 +92,14 @@ public class PlaytimeManager implements Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void onJoin(@NonNull PlayerJoinEvent event) {
         Player player = event.getPlayer();
+
+        // Purge any stale mapping first — without this, a player who reclaims
+        // a name previously used by someone else would resolve to the WRONG
+        // UUID via the old entry, since removal only ever happened by
+        // overwriting the same key, never by value.
+        nameCache.values().removeIf(cached -> cached.equals(player.getUniqueId()));
         nameCache.put(player.getName().toLowerCase(Locale.ROOT), player.getUniqueId());
+
         sessionStartMillis.put(player.getUniqueId(), System.currentTimeMillis());
     }
 
@@ -109,10 +129,10 @@ public class PlaytimeManager implements Listener {
     }
 
     /**
-     * Resolves a player name to their UUID via {@link #nameCache} — safe to
-     * call for a currently-offline player as long as they've joined this
-     * server at least once before, without the blocking lookup risk of
-     * {@code Bukkit.getOfflinePlayer(String)} for an uncached name.
+     * Resolves a player name to their UUID via {@link #nameCache} — works
+     * for a currently-offline player as long as they've joined this
+     * server at least once before, even across a restart (the cache is
+     * persisted, see {@link #loadAll()}/{@link #persist(boolean)}).
      */
     public UUID resolveByName(String name) {
         return nameCache.get(name.toLowerCase(Locale.ROOT));
@@ -124,17 +144,31 @@ public class PlaytimeManager implements Listener {
         }
 
         YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
+
         ConfigurationSection section = yaml.getConfigurationSection("playtime");
-        if (section == null) {
-            return;
+        if (section != null) {
+            for (String uuidString : section.getKeys(false)) {
+                try {
+                    UUID uuid = UUID.fromString(uuidString);
+                    totalMillis.put(uuid, section.getLong(uuidString));
+                } catch (IllegalArgumentException e) {
+                    plugin.getLogger().log(Level.WARNING, "Skipping an invalid UUID in playtime.yml: " + uuidString);
+                }
+            }
         }
 
-        for (String uuidString : section.getKeys(false)) {
-            try {
-                UUID uuid = UUID.fromString(uuidString);
-                totalMillis.put(uuid, section.getLong(uuidString));
-            } catch (IllegalArgumentException e) {
-                plugin.getLogger().log(Level.WARNING, "Skipping an invalid UUID in playtime.yml: " + uuidString);
+        ConfigurationSection names = yaml.getConfigurationSection("names");
+        if (names != null) {
+            for (String name : names.getKeys(false)) {
+                String raw = names.getString(name);
+                if (raw == null) {
+                    continue;
+                }
+                try {
+                    nameCache.put(name, UUID.fromString(raw));
+                } catch (IllegalArgumentException e) {
+                    plugin.getLogger().warning("Skipping an invalid UUID in playtime.yml names: " + name);
+                }
             }
         }
     }
@@ -150,15 +184,11 @@ public class PlaytimeManager implements Listener {
 
     /**
      * Advances every online player's session start to now, folding the
-     * elapsed time into their total — without this, {@link #dirty} was only
-     * ever set in {@link #onQuit}, meaning a currently-online player's
-     * session was never reflected in {@link #totalMillis} until they
-     * actually disconnected. The class-level doc claimed a crash could lose
-     * at most the time since the last debounce flush; in reality it lost the
-     * player's entire session, since there was never anything new to persist
-     * for someone still connected. {@link #getTotalPlaytimeMillis} stays
-     * accurate either way — it always adds whatever's elapsed since the last
-     * fold-in on top of the persisted total.
+     * elapsed time into their total — see the class-level doc for why
+     * this is what bounds the debounce's real data-loss risk.
+     * {@link #getTotalPlaytimeMillis} stays accurate either way, since it
+     * always adds whatever's elapsed since the last fold-in on top of the
+     * persisted total.
      */
     private void foldInOngoingSessions() {
         if (sessionStartMillis.isEmpty()) {
@@ -179,8 +209,12 @@ public class PlaytimeManager implements Listener {
 
     private void persist(boolean blocking) {
         YamlConfiguration yaml = new YamlConfiguration();
+
         for (Map.Entry<UUID, Long> entry : new HashMap<>(totalMillis).entrySet()) {
             yaml.set("playtime." + entry.getKey(), entry.getValue());
+        }
+        for (Map.Entry<String, UUID> entry : new HashMap<>(nameCache).entrySet()) {
+            yaml.set("names." + entry.getKey(), entry.getValue().toString());
         }
 
         try {
@@ -199,17 +233,11 @@ public class PlaytimeManager implements Listener {
 
     /**
      * Folds every still-online player's in-progress session into the
-     * total before the final blocking save — without this, whoever was
-     * online at shutdown would lose their current session's time
-     * entirely (the normal {@link #onQuit} fold-in never runs for a
-     * server stop, only a real disconnect).
+     * total before the final blocking save, then persists — must be
+     * called from {@code Poppy#onDisable}.
      */
     public void shutdown() {
-        long now = System.currentTimeMillis();
-        for (Map.Entry<UUID, Long> entry : new HashMap<>(sessionStartMillis).entrySet()) {
-            long elapsed = Math.max(0L, now - entry.getValue());
-            totalMillis.merge(entry.getKey(), elapsed, Long::sum);
-        }
+        foldInOngoingSessions();
         sessionStartMillis.clear();
 
         persist(true);

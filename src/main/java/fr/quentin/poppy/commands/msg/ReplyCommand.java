@@ -54,7 +54,18 @@ public class ReplyCommand extends SafeCommand {
         }
 
         Player target = Bukkit.getPlayer(partnerUuid);
-        if (target == null || !player.canSee(target)) {
+
+        // A vanished target is still a valid reply recipient if THEY are the one
+        // who initiated this conversation (their own last partner still points
+        // back at us) — the player already knows they exist, so nothing about
+        // vanish is leaked by letting the reply through. Without this
+        // exemption, a moderator messaging a player in vanish (a very common
+        // moderation flow) made /reply completely unusable the moment it
+        // actually mattered.
+        boolean initiatedByTarget = target != null
+                && player.getUniqueId().equals(messageManager.getLastPartner(partnerUuid));
+
+        if (target == null || (!player.canSee(target) && !initiatedByTarget)) {
             player.sendMessage(messages.get("msg.reply-target-offline"));
             return true;
         }

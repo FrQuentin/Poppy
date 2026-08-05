@@ -3,7 +3,7 @@
 # The player sees a countdown in their action bar and the teleport is
 # cancelled if they move or take damage during the warmup.
 # Set to 0 to teleport instantly with no warmup.
-teleport-warmup-seconds: 3
+teleport-warmup-seconds: 5
 
 # If true, moving (even one block) during the warmup cancels the teleport.
 cancel-on-move: true
@@ -26,7 +26,7 @@ rtp-max-radius: 5000
 # How many random spots to try before giving up and telling the player to try again.
 rtp-max-attempts: 20
 # Cooldown (in seconds) between two /rtp uses. Set to 0 to disable.
-rtp-cooldown-seconds: 30
+rtp-cooldown-seconds: 90
 
 # Size of the /trash inventory in slots. Must be a multiple of 9, between 9 and 54.
 trash-size: 27
@@ -112,7 +112,7 @@ logging:
 # Home limit: players without any poppy.homes.<n> permission get this many
 # homes. Grant a tier permission (see homes-limit-tiers below) to give a
 # group a higher limit — the highest tier they have wins.
-homes-default-limit: 10
+homes-default-limit: 20
 # Which tiers to check for poppy.homes.<n> permissions. All limits are
 # capped at 54 (one double chest, the /homes GUI's physical size).
 homes-limit-tiers: [5, 10, 20, 30, 54]
@@ -180,7 +180,7 @@ combat-log-punish: true
 afk-toggle-cooldown-seconds: 5
 
 # Cooldown (in seconds) between two /poppy easter egg uses.
-poppy-easteregg-cooldown-seconds: 3
+poppy-easteregg-cooldown-seconds: 5
 
 # Cooldown (in minutes) between two tellings of the Poppy story
 # triggered by right-clicking an Iron Golem while holding a Poppy.
@@ -240,7 +240,7 @@ fly-max-duration-warning-seconds: 30
 # Cooldown (in seconds) between two /tpatoggle uses — /tpatoggle writes a
 # small file to disk synchronously each time, so this prevents spamming
 # that write with no real purpose.
-tpa-toggle-cooldown-seconds: 3
+tpa-toggle-cooldown-seconds: 5
 
 # If true, a death chest is take-only: the owner (or a bypass-permission
 # player) can withdraw items from it, but nobody can deposit anything —
@@ -252,4 +252,4 @@ death-chest-read-only: true
 # Cooldown (in seconds) between two /msg or /reply sends, shared between
 # both commands — replying doesn't bypass the cooldown from an outgoing
 # /msg, or vice versa. Set to 0 to disable.
-msg-cooldown-seconds: 2
+msg-cooldown-seconds: 5

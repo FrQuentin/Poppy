@@ -219,7 +219,7 @@ public final class Poppy extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new DeathCoordsListener(this, messages, deathLocationManager, config, poppyLogger), this);
         getServer().getPluginManager().registerEvents(deathChestManager, this);
         getServer().getPluginManager().registerEvents(sleepPercentageListener, this);
-        getServer().getPluginManager().registerEvents(new SleepStatusListener(this, messages, config, poppyLogger), this);
+        getServer().getPluginManager().registerEvents(new SleepStatusListener(this, messages, config, poppyLogger, cooldownManager), this);
         getServer().getPluginManager().registerEvents(new SilkSpawnerListener(this, messages, config), this);
         getServer().getPluginManager().registerEvents(flyManager, this);
         getServer().getPluginManager().registerEvents(playtimeManager, this);

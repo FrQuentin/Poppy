@@ -1,6 +1,7 @@
 package fr.quentin.poppy.listeners.sleep;
 
 import fr.quentin.poppy.manager.sleep.SleepPercentageListener;
+import fr.quentin.poppy.util.cooldown.CooldownManager;
 import fr.quentin.poppy.util.cooldown.CooldownStore;
 import fr.quentin.poppy.util.Messages;
 import fr.quentin.poppy.util.PoppyConfig;
@@ -59,12 +60,13 @@ public class SleepStatusListener implements Listener {
     private final Map<UUID, Long> lastKnownTime = new HashMap<>();
     private final Map<UUID, Boolean> wasSleeping = new HashMap<>();
 
-    public SleepStatusListener(JavaPlugin plugin, Messages messages, PoppyConfig config, PoppyLogger logger) {
+    public SleepStatusListener(JavaPlugin plugin, Messages messages, PoppyConfig config,
+                               PoppyLogger logger, CooldownManager cooldownManager) {
         this.plugin = plugin;
         this.messages = messages;
         this.config = config;
         this.logger = logger;
-        this.broadcastCooldown = new CooldownStore(plugin);
+        this.broadcastCooldown = cooldownManager.get("sleep-broadcast");
 
         Bukkit.getScheduler().runTaskTimer(plugin, this::checkForNightSkip, CHECK_INTERVAL_TICKS, CHECK_INTERVAL_TICKS);
     }

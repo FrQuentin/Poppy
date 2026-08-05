@@ -85,6 +85,7 @@ public class FlyManager implements Listener {
     private final Set<UUID> activeFly = new HashSet<>();
     private final Map<UUID, FlightBudget> flightBudgets = new HashMap<>();
     private final Set<UUID> warnedThisCycle = new HashSet<>();
+    private long lastDurationTickMillis = System.currentTimeMillis();
 
     private volatile boolean dirty;
     private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor(runnable -> {
@@ -361,14 +362,31 @@ public class FlyManager implements Listener {
         }
     }
 
+    /**
+     * Drains the budget in real wall-clock time, not a fixed 1000ms per
+     * scheduled execution — this method runs every 20 ticks, which assumes
+     * a steady 20 TPS. On a lagging server (a busy Sunday evening, or simply
+     * a chunk-generating /rtp search running concurrently), this task can
+     * fire every 2 real seconds instead of 1, still only draining 1 second
+     * of budget — while regeneration (see {@link #computeCurrentUsedMillis})
+     * is already wall-clock based and keeps running at full real-time rate
+     * regardless. That asymmetry made flight effectively cheaper the more
+     * the server lagged, and was a real exploit for anyone able to induce
+     * lag on purpose — on top of being an internal design inconsistency
+     * between the two halves of the same budget system. Capped at 5 seconds
+     * so a GC pause or a lag spike can't drain the whole budget in one tick.
+     */
     private void tickFlightDuration() {
+        long now = System.currentTimeMillis();
+        long delta = Math.clamp(now - lastDurationTickMillis, 0L, 5_000L);
+        lastDurationTickMillis = now;
+
         long maxMillis = config.flyMaxDurationMillis();
         if (maxMillis <= 0 || activeFly.isEmpty()) {
             return;
         }
 
         long warningMillis = config.flyMaxDurationWarningSeconds() * 1000L;
-        long now = System.currentTimeMillis();
 
         for (UUID uuid : new ArrayList<>(activeFly)) {
             Player player = Bukkit.getPlayer(uuid);
@@ -378,7 +396,7 @@ public class FlyManager implements Listener {
 
             FlightBudget previous = flightBudgets.get(uuid);
             long usedBefore = previous != null ? previous.usedMillis() : 0L;
-            long used = usedBefore + 1000L;
+            long used = usedBefore + delta;
 
             if (used >= maxMillis) {
                 player.setFlying(false);

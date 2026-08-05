@@ -17,13 +17,14 @@ import org.jspecify.annotations.NonNull;
 
 /**
  * Overrides the default {@code <PlayerName> message} chat format with
- * {@code PlayerName: message}, both in the plugin's light-gray accent
- * color (#a7aeba). Uses {@link AsyncChatEvent#renderer(ChatRenderer)}
- * rather than mutating {@link AsyncChatEvent#message()} directly — this
- * lets each viewer's own client render the sender's name via their
- * existing {@link Component} (preserving any hover/click already
- * attached by another plugin) rather than reconstructing it as plain
- * text.
+ * {@code PlayerName: message} — the player's name in the plugin's
+ * light-gray accent color (#a7aeba), the {@code : } separator and the
+ * message body itself in near-white (#fafffd). Uses
+ * {@link AsyncChatEvent#renderer(ChatRenderer)} rather than mutating
+ * {@link AsyncChatEvent#message()} directly — this lets each viewer's
+ * own client render the sender's name via their existing
+ * {@link Component} (preserving any hover/click already attached by
+ * another plugin) rather than reconstructing it as plain text.
  *
  * <p>Also enforces {@code chat-cooldown-seconds} — a plain rate limit on
  * how often the same player can send a chat message, checked and
@@ -35,6 +36,7 @@ import org.jspecify.annotations.NonNull;
 public class ChatFormatListener implements Listener {
 
     private static final TextColor ACCENT = TextColor.fromHexString("#a7aeba");
+    private static final TextColor MESSAGE_COLOR = TextColor.fromHexString("#fafffd");
 
     private final Messages messages;
     private final PoppyConfig config;
@@ -61,7 +63,7 @@ public class ChatFormatListener implements Listener {
 
         event.renderer((_, sourceDisplayNameComponent, message, _) ->
                 sourceDisplayNameComponent.color(ACCENT)
-                        .append(Component.text(": ").color(ACCENT))
-                        .append(message.color(ACCENT)));
+                        .append(Component.text(": ").color(MESSAGE_COLOR))
+                        .append(message.color(MESSAGE_COLOR)));
     }
 }

@@ -106,6 +106,7 @@ public class TabHealthListener implements Listener {
     private BukkitTask updateTask;
     private Objective heartsObjective;
     private boolean heartsSupported;
+    private int lastSentPlayerCount = -1;
 
     public TabHealthListener(JavaPlugin plugin, AfkManager afkManager, PoppyConfig config, Messages messages) {
         this.plugin = plugin;
@@ -236,13 +237,17 @@ public class TabHealthListener implements Listener {
 
     @EventHandler
     public void onQuit(@NonNull PlayerQuitEvent event) {
-        lastSentText.remove(event.getPlayer().getUniqueId());
-        if (heartsSupported && heartsObjective != null) {
-            Objects.requireNonNull(heartsObjective.getScoreboard()).resetScores(event.getPlayer().getName());
+        try {
+            lastSentText.remove(event.getPlayer().getUniqueId());
+            if (heartsSupported && heartsObjective != null) {
+                Objects.requireNonNull(heartsObjective.getScoreboard()).resetScores(event.getPlayer().getName());
+            }
+            // Deferred a tick — at this exact point in the dispatch, the leaving
+            // player is still counted in Bukkit.getOnlinePlayers().
+            Bukkit.getScheduler().runTask(plugin, this::updateHeaderFooter);
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE, "Error in TabHealthListener#onQuit for " + event.getPlayer().getName(), e);
         }
-        // Deferred a tick — at this exact point in the dispatch, the leaving
-        // player is still counted in Bukkit.getOnlinePlayers().
-        Bukkit.getScheduler().runTask(plugin, this::updateHeaderFooter);
     }
 
     private void updateAll() {
@@ -261,10 +266,23 @@ public class TabHealthListener implements Listener {
         }
     }
 
+    /**
+     * Skips resending the footer entirely when the online count hasn't
+     * changed since the last send — without this, every scheduled tick sent
+     * an identical packet to every online player regardless of whether
+     * anyone had joined or left (100 players at a 20-tick interval = 100
+     * redundant packets/second for unchanged content). The count genuinely
+     * changes on every join/quit (both call this method explicitly), so the
+     * check never skips a real update — only the periodic no-op ticks in
+     * between.
+     */
     private void updateHeaderFooter() {
         int count = Bukkit.getOnlinePlayers().size();
-        // A blank line between the player-name list and the phrase, so it
-        // doesn't sit glued directly under the last entry.
+        if (count == lastSentPlayerCount) {
+            return;
+        }
+        lastSentPlayerCount = count;
+
         Component footer = Component.empty()
                 .appendNewline()
                 .append(messages.get("tab.footer", "count", String.valueOf(count)));

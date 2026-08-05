@@ -160,7 +160,7 @@ public class AfkListener implements Listener {
      * whole activity update is deferred a tick rather than making
      * {@link AfkManager} thread-safe.
      */
-    @EventHandler(priority = EventPriority.MONITOR)
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onChat(@NonNull AsyncChatEvent event) {
         Player player = event.getPlayer();
         Bukkit.getScheduler().runTask(plugin, () -> {

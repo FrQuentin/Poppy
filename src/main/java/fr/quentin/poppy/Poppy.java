@@ -10,11 +10,7 @@ import fr.quentin.poppy.commands.home.DelHomeCommand;
 import fr.quentin.poppy.commands.home.HomeCommand;
 import fr.quentin.poppy.commands.home.HomesCommand;
 import fr.quentin.poppy.commands.home.SetHomeCommand;
-import fr.quentin.poppy.commands.misc.CooldownsCommand;
-import fr.quentin.poppy.commands.misc.FeedCommand;
-import fr.quentin.poppy.commands.misc.HealCommand;
-import fr.quentin.poppy.commands.misc.PlaytimeCommand;
-import fr.quentin.poppy.commands.misc.PoppyCommand;
+import fr.quentin.poppy.commands.misc.*;
 import fr.quentin.poppy.commands.msg.MsgCommand;
 import fr.quentin.poppy.commands.msg.ReplyCommand;
 import fr.quentin.poppy.commands.rtp.RtpCommand;
@@ -202,6 +198,8 @@ public final class Poppy extends JavaPlugin {
         Objects.requireNonNull(getCommand("msg")).setTabCompleter(msgCommand);
 
         Objects.requireNonNull(getCommand("reply")).setExecutor(new ReplyCommand(this, messageManager, messages, config, msgCooldown));
+
+        Objects.requireNonNull(getCommand("bugs")).setExecutor(new BugsCommand(this, messages));
 
         getServer().getPluginManager().registerEvents(
                 new HomesGUIListener(this, homeManager, homesGUI, confirmDeleteGUI, confirmOverwriteGUI, teleportManager, messages, stats, poppyLogger), this);

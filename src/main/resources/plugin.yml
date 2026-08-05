@@ -155,6 +155,11 @@ commands:
     aliases: [ r ]
     permission: poppy.msg
     permission-message: "&4[!] You don't have permission to do this."
+  bugs:
+    description: Show a link to report bugs on GitHub.
+    usage: /bugs
+    permission: poppy.bugs
+    permission-message: "&4[!] You don't have permission to do this."
 
 permissions:
   poppy.*:
@@ -190,6 +195,7 @@ permissions:
       poppy.playtime.admin: true
       poppy.msg: true
       poppy.chat.bypass: true
+      poppy.bugs: true
 
   poppy.sethome:
     description: Allows creating homes with /sethome.
@@ -290,3 +296,6 @@ permissions:
   poppy.chat.bypass:
     description: Allows bypassing the chat cooldown between messages.
     default: op
+  poppy.bugs:
+    description: Allows viewing the bug report link with /bugs.
+    default: true

@@ -220,3 +220,6 @@ msg:
 
 chat:
   cooldown: "<#dc2625>[!] Please wait {time} before sending another message!"
+
+misc:
+  bugs: "<#f49e0b>[!] Report bugs at <click:open_url:'https://github.com/frquentin/poppy/issues'>github.com/frquentin/poppy/issues</click>"

@@ -228,3 +228,8 @@ veinminer:
   enabled: "<#85cc16>[!] Veinminer enabled!"
   disabled: "<#dc2625>[!] Veinminer disabled!"
   cooldown: "<#dc2625>[!] Please wait {time} before toggling Veinminer again!"
+
+treecapitator:
+  enabled: "<#85cc16>[!] Treecapitator enabled!"
+  disabled: "<#dc2625>[!] Treecapitator disabled!"
+  cooldown: "<#dc2625>[!] Please wait {time} before toggling Treecapitator again!"

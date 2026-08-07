@@ -137,6 +137,13 @@ public final class PoppyConfig {
     private volatile Set<Material> veinminerMaterials;
     private volatile boolean veinminerDiagonal;
 
+    private volatile boolean treecapitatorEnabled;
+    private volatile int treecapitatorMaxBlocks;
+    private volatile boolean treecapitatorDefaultEnabled;
+    private volatile long treecapitatorToggleCooldownMillis;
+    private volatile boolean treecapitatorDiagonal;
+    private volatile Set<Material> treecapitatorMaterials;
+
     public PoppyConfig(JavaPlugin plugin) {
         this.plugin = plugin;
         reload();
@@ -255,17 +262,24 @@ public final class PoppyConfig {
         veinminerMaxBlocks = Math.max(1, c.getInt("veinminer-max-blocks", 64));
         veinminerDefaultEnabled = c.getBoolean("veinminer-default-enabled", false);
         veinminerToggleCooldownMillis = Math.max(0, c.getInt("veinminer-toggle-cooldown-seconds", 2)) * 1000L;
-        veinminerMaterials = parseVeinminerMaterials(c.getStringList("veinminer-materials"));
+        veinminerMaterials = parseMaterialSet(c.getStringList("veinminer-materials"));
         veinminerDiagonal = c.getBoolean("veinminer-diagonal", true);
+
+        treecapitatorEnabled = c.getBoolean("treecapitator-enabled", true);
+        treecapitatorMaxBlocks = Math.max(1, c.getInt("treecapitator-max-blocks", 128));
+        treecapitatorDefaultEnabled = c.getBoolean("treecapitator-default-enabled", false);
+        treecapitatorToggleCooldownMillis = Math.max(0, c.getInt("treecapitator-toggle-cooldown-seconds", 2)) * 1000L;
+        treecapitatorDiagonal = c.getBoolean("treecapitator-diagonal", true);
+        treecapitatorMaterials = parseMaterialSet(c.getStringList("treecapitator-materials"));
     }
 
-    private Set<Material> parseVeinminerMaterials(List<String> names) {
+    private Set<Material> parseMaterialSet(List<String> names) {
         Set<Material> materials = new HashSet<>();
         for (String name : names) {
             try {
                 materials.add(Material.valueOf(name.toUpperCase(Locale.ROOT)));
             } catch (IllegalArgumentException e) {
-                plugin.getLogger().warning("Skipping unknown veinminer-materials entry: " + name);
+                plugin.getLogger().warning("Skipping unknown material in config: " + name);
             }
         }
         return Set.copyOf(materials);
@@ -577,5 +591,29 @@ public final class PoppyConfig {
 
     public boolean veinminerDiagonal() {
         return veinminerDiagonal;
+    }
+
+    public boolean treecapitatorEnabled() {
+        return treecapitatorEnabled;
+    }
+
+    public int treecapitatorMaxBlocks() {
+        return treecapitatorMaxBlocks;
+    }
+
+    public boolean treecapitatorDefaultEnabled() {
+        return treecapitatorDefaultEnabled;
+    }
+
+    public long treecapitatorToggleCooldownMillis() {
+        return treecapitatorToggleCooldownMillis;
+    }
+
+    public boolean treecapitatorDiagonal() {
+        return treecapitatorDiagonal;
+    }
+
+    public Set<Material> treecapitatorMaterials() {
+        return treecapitatorMaterials;
     }
 }

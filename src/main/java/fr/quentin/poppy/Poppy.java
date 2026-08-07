@@ -21,6 +21,7 @@ import fr.quentin.poppy.commands.spawn.SetSpawnCommand;
 import fr.quentin.poppy.commands.spawn.SpawnCommand;
 import fr.quentin.poppy.commands.tpa.*;
 import fr.quentin.poppy.commands.trash.TrashCommand;
+import fr.quentin.poppy.commands.treecapitator.TreeCapitatorCommand;
 import fr.quentin.poppy.commands.veinminer.VeinMinerCommand;
 import fr.quentin.poppy.gui.home.ConfirmDeleteGUI;
 import fr.quentin.poppy.gui.home.ConfirmOverwriteGUI;
@@ -37,6 +38,7 @@ import fr.quentin.poppy.listeners.poppy.PoppyLoreListener;
 import fr.quentin.poppy.listeners.silkspawner.SilkSpawnerListener;
 import fr.quentin.poppy.listeners.sleep.SleepStatusListener;
 import fr.quentin.poppy.listeners.tab.TabHealthListener;
+import fr.quentin.poppy.listeners.treecapitator.TreeCapitatorListener;
 import fr.quentin.poppy.listeners.veinminer.VeinMinerListener;
 import fr.quentin.poppy.manager.afk.AfkManager;
 import fr.quentin.poppy.manager.afk.AutoAfkTask;
@@ -57,6 +59,7 @@ import fr.quentin.poppy.manager.spawn.SpawnManager;
 import fr.quentin.poppy.manager.teleport.TeleportManager;
 import fr.quentin.poppy.manager.tpa.TpaManager;
 import fr.quentin.poppy.manager.tpa.TpaQuitListener;
+import fr.quentin.poppy.manager.treecapitator.TreeCapitatorManager;
 import fr.quentin.poppy.manager.veinminer.VeinMinerManager;
 import fr.quentin.poppy.util.*;
 import fr.quentin.poppy.util.cooldown.CooldownManager;
@@ -101,6 +104,7 @@ public final class Poppy extends JavaPlugin {
         playtimeManager = new PlaytimeManager(this);
 
         VeinMinerManager veinMinerManager = new VeinMinerManager(this, config);
+        TreeCapitatorManager treeCapitatorManager = new TreeCapitatorManager(this, config);
 
         TpaManager tpaManager = new TpaManager(this, messages, config, poppyLogger, cooldownManager);
 
@@ -208,6 +212,8 @@ public final class Poppy extends JavaPlugin {
 
         Objects.requireNonNull(getCommand("veinminer")).setExecutor(
                 new VeinMinerCommand(this, veinMinerManager, messages, config, cooldownManager));
+        Objects.requireNonNull(getCommand("treecapitator")).setExecutor(
+                new TreeCapitatorCommand(this, treeCapitatorManager, messages, config, cooldownManager));
 
         getServer().getPluginManager().registerEvents(
                 new HomesGUIListener(this, homeManager, homesGUI, confirmDeleteGUI, confirmOverwriteGUI, teleportManager, messages, stats, poppyLogger), this);
@@ -232,6 +238,7 @@ public final class Poppy extends JavaPlugin {
         getServer().getPluginManager().registerEvents(messageManager, this);
         getServer().getPluginManager().registerEvents(new ChatFormatListener(messages, config, cooldownManager), this);
         getServer().getPluginManager().registerEvents(new VeinMinerListener(this, config, veinMinerManager), this);
+        getServer().getPluginManager().registerEvents(new TreeCapitatorListener(this, config, treeCapitatorManager), this);
 
         // Always scheduled now (rather than only if afk-auto-enabled at startup) —
         // AutoAfkTask checks the setting live each run, so it can be toggled via

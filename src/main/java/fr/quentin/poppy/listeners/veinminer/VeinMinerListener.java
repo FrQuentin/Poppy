@@ -2,6 +2,7 @@ package fr.quentin.poppy.listeners.veinminer;
 
 import fr.quentin.poppy.manager.veinminer.VeinMinerManager;
 import fr.quentin.poppy.util.PoppyConfig;
+import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
@@ -136,6 +137,11 @@ public class VeinMinerListener implements Listener {
             }
 
             Player player = event.getPlayer();
+
+            if (player.getGameMode() != GameMode.SURVIVAL) {
+                return;
+            }
+
             UUID uuid = player.getUniqueId();
 
             if (!veinMinerManager.isEnabled(uuid)) {

@@ -259,16 +259,16 @@ msg-cooldown-seconds: 5
 # entirely.
 chat-cooldown-seconds: 5
 
-# Veinminer : mine un bloc d'un minerai avec une pioche, tous les blocs du
-# même minerai directement adjacents (6 faces, pas de diagonale) sont minés
-# avec, jusqu'à veinminer-max-blocks. Coûte de la durabilité d'outil comme
-# si chaque bloc était cassé normalement, respecte l'enchantement Efficacité
-# Solide. S'arrête si l'outil casse en cours de route.
+# Veinminer: mine an ore block with a pickaxe, and all directly adjacent blocks
+# of the same ore (6 faces only, no diagonals) are mined as well, up to
+# veinminer-max-blocks. Consumes tool durability as if each block was broken
+# normally, respects the Efficiency enchantment. Stops if the tool breaks
+# during the process.
 veinminer-enabled: true
 veinminer-max-blocks: 64
-# Etat par défaut pour un joueur qui n'a jamais utilisé /veinminer.
 veinminer-default-enabled: false
 veinminer-toggle-cooldown-seconds: 2
+veinminer-diagonal: true
 veinminer-materials:
   - COAL_ORE
   - DEEPSLATE_COAL_ORE
@@ -290,8 +290,26 @@ veinminer-materials:
   - NETHER_GOLD_ORE
   - ANCIENT_DEBRIS
 
-# If true, veinminer also detects ore blocks touching only at an edge or
-# corner (26-direction adjacency), not just a full face (6-direction). A
-# diagonal-only connection is how two separate-looking ore pockets often
-# turn out to actually be the same vein.
-veinminer-diagonal: true
+# Treecapitator: chop a log with an axe, and all directly connected logs of the
+# same type (including diagonals by default) are chopped as well, up to
+# treecapitator-max-blocks. Consumes normal tool durability, respects
+# Solid Efficiency. Stops if the tool breaks.
+# Stripped logs (STRIPPED_*) are intentionally excluded by default to
+# prevent accidentally felling structures built with stripped wood.
+treecapitator-enabled: true
+treecapitator-max-blocks: 128
+treecapitator-default-enabled: false
+treecapitator-toggle-cooldown-seconds: 2
+treecapitator-diagonal: true
+treecapitator-materials:
+  - OAK_LOG
+  - SPRUCE_LOG
+  - BIRCH_LOG
+  - JUNGLE_LOG
+  - ACACIA_LOG
+  - DARK_OAK_LOG
+  - MANGROVE_LOG
+  - CHERRY_LOG
+  - PALE_OAK_LOG
+  - CRIMSON_STEM
+  - WARPED_STEM

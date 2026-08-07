@@ -165,6 +165,11 @@ commands:
     usage: /veinminer
     permission: poppy.veinminer
     permission-message: "&4[!] You don't have permission to do this."
+  treecapitator:
+    description: Toggle treecapitator — chop a whole connected tree at once.
+    usage: /treecapitator
+    permission: poppy.treecapitator
+    permission-message: "&4[!] You don't have permission to do this."
 
 permissions:
   poppy.*:
@@ -202,6 +207,7 @@ permissions:
       poppy.chat.bypass: true
       poppy.bugs: true
       poppy.veinminer: true
+      poppy.treecapitator: true
 
   poppy.sethome:
     description: Allows creating homes with /sethome.
@@ -307,4 +313,7 @@ permissions:
     default: true
   poppy.veinminer:
     description: Allows toggling veinminer with /veinminer.
+    default: true
+  poppy.treecapitator:
+    description: Allows toggling treecapitator with /treecapitator.
     default: true

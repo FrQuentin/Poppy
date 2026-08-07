@@ -2,9 +2,11 @@ package fr.quentin.poppy.listeners.veinminer;
 
 import fr.quentin.poppy.manager.veinminer.VeinMinerManager;
 import fr.quentin.poppy.util.PoppyConfig;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.enchantments.Enchantment;
+import org.bukkit.entity.ExperienceOrb;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -21,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
@@ -49,11 +52,18 @@ import java.util.logging.Level;
  * <p>Each extra block is broken via {@link Block#breakNaturally(ItemStack, boolean)}
  * — which does NOT itself fire another {@link BlockBreakEvent}, so
  * there's no reentrancy risk here — with drops/fortune/silk-touch
- * handled the same way a normal break would. Tool durability is tracked
- * manually (see {@link #damageTool}), respecting the Unbreaking
- * enchantment's real probability of avoiding damage; the vein stops
- * early the moment the tool breaks, leaving the rest of the ore for the
- * player to mine normally afterward.
+ * handled the same way a normal break would. {@code breakNaturally}
+ * itself never awards experience though (that's normally handled by the
+ * vanilla block-break pipeline the *initial*, real event-triggered break
+ * goes through, not by a programmatic break like this) — see
+ * {@link #rollExperience} for the manual XP roll that closes that gap;
+ * without it, only the one block the player actually clicked gave XP,
+ * every other block in the vein gave items but silently no experience.
+ *
+ * <p>Tool durability is tracked manually (see {@link #damageTool}),
+ * respecting the Unbreaking enchantment's real probability of avoiding
+ * damage; the vein stops early the moment the tool breaks, leaving the
+ * rest of the ore for the player to mine normally afterward.
  */
 public class VeinMinerListener implements Listener {
 
@@ -86,6 +96,27 @@ public class VeinMinerListener implements Listener {
         }
         return offsets.toArray(new int[0][]);
     }
+
+    /**
+     * Vanilla XP range (min, max inclusive) awarded when mining each ore
+     * directly. Iron/copper/gold ores and ancient debris intentionally
+     * have no entry — in vanilla, those award XP on smelting, not on
+     * mining.
+     */
+    private static final Map<Material, int[]> ORE_XP_RANGES = Map.ofEntries(
+            Map.entry(Material.COAL_ORE, new int[] {0, 2}),
+            Map.entry(Material.DEEPSLATE_COAL_ORE, new int[] {0, 2}),
+            Map.entry(Material.DIAMOND_ORE, new int[] {3, 7}),
+            Map.entry(Material.DEEPSLATE_DIAMOND_ORE, new int[] {3, 7}),
+            Map.entry(Material.EMERALD_ORE, new int[] {3, 7}),
+            Map.entry(Material.DEEPSLATE_EMERALD_ORE, new int[] {3, 7}),
+            Map.entry(Material.LAPIS_ORE, new int[] {2, 5}),
+            Map.entry(Material.DEEPSLATE_LAPIS_ORE, new int[] {2, 5}),
+            Map.entry(Material.REDSTONE_ORE, new int[] {1, 5}),
+            Map.entry(Material.DEEPSLATE_REDSTONE_ORE, new int[] {1, 5}),
+            Map.entry(Material.NETHER_QUARTZ_ORE, new int[] {2, 5}),
+            Map.entry(Material.NETHER_GOLD_ORE, new int[] {0, 1})
+    );
 
     private final JavaPlugin plugin;
     private final PoppyConfig config;
@@ -132,7 +163,16 @@ public class VeinMinerListener implements Listener {
                     break;
                 }
 
+                boolean silkTouch = currentTool.containsEnchantment(Enchantment.SILK_TOUCH);
+                Material blockMaterial = block.getType();
+                Location center = block.getLocation().add(0.5, 0.5, 0.5);
+
                 block.breakNaturally(currentTool, true);
+
+                int xp = rollExperience(blockMaterial, silkTouch);
+                if (xp > 0) {
+                    block.getWorld().spawn(center, ExperienceOrb.class, orb -> orb.setExperience(xp));
+                }
 
                 if (!damageTool(player, currentTool)) {
                     break;
@@ -179,6 +219,25 @@ public class VeinMinerListener implements Listener {
         }
 
         return result;
+    }
+
+    /**
+     * Rolls a random XP amount within {@link #ORE_XP_RANGES}' bounds for
+     * this material, or 0 if it's not an ore that awards direct mining
+     * XP, or 0 unconditionally under Silk Touch — matching vanilla's own
+     * rule that Silk Touch voids ore mining XP.
+     */
+    private int rollExperience(Material material, boolean silkTouch) {
+        if (silkTouch) {
+            return 0;
+        }
+
+        int[] range = ORE_XP_RANGES.get(material);
+        if (range == null) {
+            return 0;
+        }
+
+        return range[0] + ThreadLocalRandom.current().nextInt(range[1] - range[0] + 1);
     }
 
     /**

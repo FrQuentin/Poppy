@@ -160,6 +160,11 @@ commands:
     usage: /bugs
     permission: poppy.bugs
     permission-message: "&4[!] You don't have permission to do this."
+  veinminer:
+    description: Toggle veinminer — mine a whole connected ore vein at once.
+    usage: /veinminer
+    permission: poppy.veinminer
+    permission-message: "&4[!] You don't have permission to do this."
 
 permissions:
   poppy.*:
@@ -196,6 +201,7 @@ permissions:
       poppy.msg: true
       poppy.chat.bypass: true
       poppy.bugs: true
+      poppy.veinminer: true
 
   poppy.sethome:
     description: Allows creating homes with /sethome.
@@ -298,4 +304,7 @@ permissions:
     default: op
   poppy.bugs:
     description: Allows viewing the bug report link with /bugs.
+    default: true
+  poppy.veinminer:
+    description: Allows toggling veinminer with /veinminer.
     default: true

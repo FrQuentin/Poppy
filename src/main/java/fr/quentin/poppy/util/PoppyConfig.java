@@ -1,6 +1,7 @@
 package fr.quentin.poppy.util;
 
 import fr.quentin.poppy.util.io.AtomicYamlWriter;
+import org.bukkit.Material;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -10,9 +11,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.logging.Level;
 
 /**
@@ -131,6 +130,13 @@ public final class PoppyConfig {
 
     private volatile long chatCooldownMillis;
 
+    private volatile boolean veinminerEnabled;
+    private volatile int veinminerMaxBlocks;
+    private volatile boolean veinminerDefaultEnabled;
+    private volatile long veinminerToggleCooldownMillis;
+    private volatile Set<Material> veinminerMaterials;
+    private volatile boolean veinminerDiagonal;
+
     public PoppyConfig(JavaPlugin plugin) {
         this.plugin = plugin;
         reload();
@@ -244,6 +250,25 @@ public final class PoppyConfig {
         msgCooldownMillis = Math.max(0, c.getInt("msg-cooldown-seconds", 2)) * 1000L;
 
         chatCooldownMillis = Math.max(0, c.getInt("chat-cooldown-seconds", 5)) * 1000L;
+
+        veinminerEnabled = c.getBoolean("veinminer-enabled", true);
+        veinminerMaxBlocks = Math.max(1, c.getInt("veinminer-max-blocks", 64));
+        veinminerDefaultEnabled = c.getBoolean("veinminer-default-enabled", false);
+        veinminerToggleCooldownMillis = Math.max(0, c.getInt("veinminer-toggle-cooldown-seconds", 2)) * 1000L;
+        veinminerMaterials = parseVeinminerMaterials(c.getStringList("veinminer-materials"));
+        veinminerDiagonal = c.getBoolean("veinminer-diagonal", true);
+    }
+
+    private Set<Material> parseVeinminerMaterials(List<String> names) {
+        Set<Material> materials = new HashSet<>();
+        for (String name : names) {
+            try {
+                materials.add(Material.valueOf(name.toUpperCase(Locale.ROOT)));
+            } catch (IllegalArgumentException e) {
+                plugin.getLogger().warning("Skipping unknown veinminer-materials entry: " + name);
+            }
+        }
+        return Set.copyOf(materials);
     }
 
     /**
@@ -528,5 +553,29 @@ public final class PoppyConfig {
 
     public long chatCooldownMillis() {
         return chatCooldownMillis;
+    }
+
+    public boolean veinminerEnabled() {
+        return veinminerEnabled;
+    }
+
+    public int veinminerMaxBlocks() {
+        return veinminerMaxBlocks;
+    }
+
+    public boolean veinminerDefaultEnabled() {
+        return veinminerDefaultEnabled;
+    }
+
+    public long veinminerToggleCooldownMillis() {
+        return veinminerToggleCooldownMillis;
+    }
+
+    public Set<Material> veinminerMaterials() {
+        return veinminerMaterials;
+    }
+
+    public boolean veinminerDiagonal() {
+        return veinminerDiagonal;
     }
 }

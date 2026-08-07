@@ -258,3 +258,40 @@ msg-cooldown-seconds: 5
 # player. Set to 0 to disable. Players with poppy.chat.bypass skip this
 # entirely.
 chat-cooldown-seconds: 5
+
+# Veinminer : mine un bloc d'un minerai avec une pioche, tous les blocs du
+# même minerai directement adjacents (6 faces, pas de diagonale) sont minés
+# avec, jusqu'à veinminer-max-blocks. Coûte de la durabilité d'outil comme
+# si chaque bloc était cassé normalement, respecte l'enchantement Efficacité
+# Solide. S'arrête si l'outil casse en cours de route.
+veinminer-enabled: true
+veinminer-max-blocks: 64
+# Etat par défaut pour un joueur qui n'a jamais utilisé /veinminer.
+veinminer-default-enabled: false
+veinminer-toggle-cooldown-seconds: 2
+veinminer-materials:
+  - COAL_ORE
+  - DEEPSLATE_COAL_ORE
+  - IRON_ORE
+  - DEEPSLATE_IRON_ORE
+  - COPPER_ORE
+  - DEEPSLATE_COPPER_ORE
+  - GOLD_ORE
+  - DEEPSLATE_GOLD_ORE
+  - REDSTONE_ORE
+  - DEEPSLATE_REDSTONE_ORE
+  - LAPIS_ORE
+  - DEEPSLATE_LAPIS_ORE
+  - DIAMOND_ORE
+  - DEEPSLATE_DIAMOND_ORE
+  - EMERALD_ORE
+  - DEEPSLATE_EMERALD_ORE
+  - NETHER_QUARTZ_ORE
+  - NETHER_GOLD_ORE
+  - ANCIENT_DEBRIS
+
+# If true, veinminer also detects ore blocks touching only at an edge or
+# corner (26-direction adjacency), not just a full face (6-direction). A
+# diagonal-only connection is how two separate-looking ore pockets often
+# turn out to actually be the same vein.
+veinminer-diagonal: true

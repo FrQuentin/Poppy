@@ -223,3 +223,8 @@ chat:
 
 misc:
   bugs: "<#f49e0b>[!] Report bugs at <click:open_url:'https://github.com/frquentin/poppy/issues'>github.com/frquentin/poppy/issues</click>"
+
+veinminer:
+  enabled: "<#85cc16>[!] Veinminer enabled!"
+  disabled: "<#dc2625>[!] Veinminer disabled!"
+  cooldown: "<#dc2625>[!] Please wait {time} before toggling Veinminer again!"

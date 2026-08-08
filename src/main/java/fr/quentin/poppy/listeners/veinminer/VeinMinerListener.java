@@ -3,10 +3,7 @@ package fr.quentin.poppy.listeners.veinminer;
 import fr.quentin.poppy.manager.veinminer.VeinMinerManager;
 import fr.quentin.poppy.util.BulkBreakGuard;
 import fr.quentin.poppy.util.PoppyConfig;
-import org.bukkit.Bukkit;
-import org.bukkit.GameMode;
-import org.bukkit.Location;
-import org.bukkit.Material;
+import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.ExperienceOrb;
@@ -220,39 +217,90 @@ public class VeinMinerListener implements Listener {
     /**
      * Flood-fills outward from {@code origin} over blocks of the same
      * material, capped at {@code maxBlocks} — the origin block itself is
-     * excluded (it's already being broken by the triggering event). Uses
-     * {@link #ALL_OFFSETS} or {@link #FACE_OFFSETS} depending on
-     * {@code diagonal}.
+     * excluded (it's already being broken by the triggering event).
+     *
+     * <p>Never loads or generates a chunk to look for more of the vein — a
+     * player mining toward unexplored terrain, or along a chunk border
+     * (worse with {@code veinminer-diagonal}, which can span up to 4 chunks
+     * at an edge, 9 at a corner), could otherwise trigger a synchronous
+     * chunk load (or full terrain generation) on the main thread for every
+     * out-of-bounds neighbor — repeatable at will, no permission required.
+     * {@link World#isChunkLoaded(int, int)} is checked using raw coordinates
+     * BEFORE ever materializing a {@link Block} or calling {@code getType()}
+     * on it, since either of those can themselves force the load. Neighbors
+     * outside the world's actual height range are skipped the same way,
+     * before doing any chunk-load check at all.
+     *
+     * <p>Uses packed {@code long} coordinates ({@link #packCoords}) for
+     * {@code visited}/the work queue instead of {@link Block} instances —
+     * avoids allocating a {@code CraftBlock} for every one of the up to
+     * ~3,300 candidate neighbors scanned per break (128 blocks × 26
+     * directions), only ever constructing a real {@link Block} once a
+     * neighbor is confirmed loaded and worth inspecting.
      */
     private List<Block> findConnectedBlocks(Block origin, Material material, int maxBlocks, boolean diagonal) {
         int[][] offsets = diagonal ? ALL_OFFSETS : FACE_OFFSETS;
 
-        Set<Block> visited = new HashSet<>();
-        Deque<Block> queue = new ArrayDeque<>();
+        World world = origin.getWorld();
+        int minY = world.getMinHeight();
+        int maxY = world.getMaxHeight();
+
+        Set<Long> visited = new HashSet<>();
+        Deque<int[]> queue = new ArrayDeque<>();
         List<Block> result = new ArrayList<>();
 
-        visited.add(origin);
-        queue.add(origin);
+        int ox = origin.getX();
+        int oy = origin.getY();
+        int oz = origin.getZ();
+
+        visited.add(packCoords(ox, oy, oz));
+        queue.add(new int[] {ox, oy, oz});
 
         while (!queue.isEmpty() && result.size() < maxBlocks) {
-            Block current = queue.poll();
+            int[] current = queue.poll();
+
             for (int[] offset : offsets) {
-                Block neighbor = current.getRelative(offset[0], offset[1], offset[2]);
-                if (!visited.add(neighbor)) {
+                int nx = current[0] + offset[0];
+                int ny = current[1] + offset[1];
+                int nz = current[2] + offset[2];
+
+                if (ny < minY || ny >= maxY) {
                     continue;
                 }
+
+                long key = packCoords(nx, ny, nz);
+                if (!visited.add(key)) {
+                    continue;
+                }
+
+                if (!world.isChunkLoaded(nx >> 4, nz >> 4)) {
+                    continue;
+                }
+
+                Block neighbor = world.getBlockAt(nx, ny, nz);
                 if (neighbor.getType() != material) {
                     continue;
                 }
+
                 result.add(neighbor);
                 if (result.size() >= maxBlocks) {
                     break;
                 }
-                queue.add(neighbor);
+                queue.add(new int[] {nx, ny, nz});
             }
         }
 
         return result;
+    }
+
+    /**
+     * Packs a block position into a single {@code long} — x/z each get 26
+     * bits (roughly ±33.5M, far beyond any real world border), y gets 12
+     * bits after a +2048 offset (covers -2048..2047, comfortably beyond any
+     * standard or extended world height range).
+     */
+    private static long packCoords(int x, int y, int z) {
+        return ((long) (x & 0x3FFFFFF) << 38) | ((long) ((y + 2048) & 0xFFF) << 26) | ((long) (z & 0x3FFFFFF));
     }
 
     /**

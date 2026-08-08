@@ -34,26 +34,36 @@ import java.util.logging.Level;
 /**
  * Implements treecapitator: when a player breaks a log block whose
  * material is in {@code treecapitator-materials} using an axe, while
- * their personal toggle (see {@link TreeCapitatorManager}) and the
- * plugin-wide {@code treecapitator-enabled} switch are both on, every
+ * their personal toggle (see {@link TreeCapitatorManager}), the live
+ * {@code poppy.treecapitator} permission, and the plugin-wide
+ * {@code treecapitator-enabled} switch are all satisfied, every
  * connected block of the same log material is broken too, up to
- * {@code treecapitator-max-blocks}. Adjacency follows
- * {@code treecapitator-diagonal} the same way {@code VeinMinerListener}
- * does for ores.
+ * {@code treecapitator-max-blocks}.
  *
- * <p>Restricted to axes deliberately — checked via a {@code "_AXE"} name
- * suffix, which does not accidentally match pickaxes (e.g.
- * {@code "IRON_PICKAXE"} ends in {@code "KAXE"}, not {@code "_AXE"}).
+ * <p><b>Permission is re-checked live on every break</b> — see
+ * {@code VeinMinerListener}'s doc for the exact same reasoning
+ * ({@link TreeCapitatorManager}'s per-player override survives a
+ * revoked permission node).
+ *
+ * <p><b>Restricted to Survival</b> — same reasoning as
+ * {@code VeinMinerListener}.
+ *
+ * <p><b>Never chains onto — or through — a player-placed log</b>: see
+ * {@link PlacedLogManager}. Without this, felling an unrelated natural
+ * tree near a wooden build could accidentally chop the build down too.
+ * A placed log breaking directly doesn't trigger the feature at all
+ * (it's never treated as "the start of a natural tree"); one encountered
+ * mid-chain acts as a wall the flood fill stops at rather than passing
+ * through.
+ *
+ * <p>Adjacency, the synthetic per-block {@link BlockBreakEvent} (via
+ * {@link BulkBreakGuard}), the chunk-load-safe flood fill with packed
+ * coordinates, and manual tool durability all follow exactly the same
+ * reasoning as {@code VeinMinerListener} — see its class-level doc for
+ * the full explanation of each.
  *
  * <p>No experience is awarded for any of this — unlike ore mining,
- * chopping wood never grants XP in vanilla Minecraft, so there's nothing
- * to replicate here the way {@code VeinMinerListener} does for ores.
- * Leaves are left untouched entirely; vanilla's own leaf decay handles
- * them naturally once no log remains nearby.
- *
- * <p>Tool durability is tracked manually (see {@link #damageTool}),
- * respecting the Unbreaking enchantment's real probability of avoiding
- * damage; the fell stops early the moment the axe breaks.
+ * chopping wood never grants XP in vanilla Minecraft.
  */
 public class TreeCapitatorListener implements Listener {
 
@@ -103,15 +113,14 @@ public class TreeCapitatorListener implements Listener {
 
             Player player = event.getPlayer();
 
+            if (!player.hasPermission("poppy.treecapitator")) {
+                return;
+            }
+
             if (player.getGameMode() != GameMode.SURVIVAL) {
                 return;
             }
 
-            // A log the player themselves (or anyone) placed isn't part of a natural
-            // tree — chaining from it could fell a wooden build instead. Skip the
-            // whole feature for this break entirely rather than just excluding it
-            // from the chain, since a placed log breaking on its own is never a
-            // "start of a tree" in the first place.
             if (placedLogManager.isPlacedByPlayer(event.getBlock())) {
                 return;
             }
@@ -165,30 +174,6 @@ public class TreeCapitatorListener implements Listener {
         }
     }
 
-    /**
-     * Flood-fills outward from {@code origin} over blocks of the same
-     * material, capped at {@code maxBlocks} — the origin block itself is
-     * excluded (it's already being broken by the triggering event).
-     *
-     * <p>Never loads or generates a chunk to look for more of the vein — a
-     * player mining toward unexplored terrain, or along a chunk border
-     * (worse with {@code veinminer-diagonal}, which can span up to 4 chunks
-     * at an edge, 9 at a corner), could otherwise trigger a synchronous
-     * chunk load (or full terrain generation) on the main thread for every
-     * out-of-bounds neighbor — repeatable at will, no permission required.
-     * {@link World#isChunkLoaded(int, int)} is checked using raw coordinates
-     * BEFORE ever materializing a {@link Block} or calling {@code getType()}
-     * on it, since either of those can themselves force the load. Neighbors
-     * outside the world's actual height range are skipped the same way,
-     * before doing any chunk-load check at all.
-     *
-     * <p>Uses packed {@code long} coordinates ({@link #packCoords}) for
-     * {@code visited}/the work queue instead of {@link Block} instances —
-     * avoids allocating a {@code CraftBlock} for every one of the up to
-     * ~3,300 candidate neighbors scanned per break (128 blocks × 26
-     * directions), only ever constructing a real {@link Block} once a
-     * neighbor is confirmed loaded and worth inspecting.
-     */
     private List<Block> findConnectedBlocks(Block origin, Material material, int maxBlocks, boolean diagonal) {
         int[][] offsets = diagonal ? ALL_OFFSETS : FACE_OFFSETS;
 
@@ -231,9 +216,6 @@ public class TreeCapitatorListener implements Listener {
                 Block neighbor = world.getBlockAt(nx, ny, nz);
 
                 if (placedLogManager.isPlacedByPlayer(neighbor)) {
-                    // Treated as a wall for the flood fill — never counted, never
-                    // traversed through, so a player-built structure stops the chain
-                    // rather than just being skipped-but-tunneled-past.
                     continue;
                 }
 
@@ -252,12 +234,6 @@ public class TreeCapitatorListener implements Listener {
         return result;
     }
 
-    /**
-     * Packs a block position into a single {@code long} — x/z each get 26
-     * bits (roughly ±33.5M, far beyond any real world border), y gets 12
-     * bits after a +2048 offset (covers -2048..2047, comfortably beyond any
-     * standard or extended world height range).
-     */
     private static long packCoords(int x, int y, int z) {
         return ((long) (x & 0x3FFFFFF) << 38) | ((long) ((y + 2048) & 0xFFF) << 26) | ((long) (z & 0x3FFFFFF));
     }

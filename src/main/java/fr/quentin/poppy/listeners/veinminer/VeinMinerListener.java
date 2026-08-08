@@ -3,7 +3,11 @@ package fr.quentin.poppy.listeners.veinminer;
 import fr.quentin.poppy.manager.veinminer.VeinMinerManager;
 import fr.quentin.poppy.util.BulkBreakGuard;
 import fr.quentin.poppy.util.PoppyConfig;
-import org.bukkit.*;
+import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
+import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.ExperienceOrb;
@@ -32,54 +36,70 @@ import java.util.logging.Level;
 /**
  * Implements the actual veinmining: when a player breaks a block whose
  * material is in {@code veinminer-materials} using a pickaxe, while
- * their personal toggle (see {@link VeinMinerManager}) and the
- * plugin-wide {@code veinminer-enabled} switch are both on, every
- * connected block of the same material is broken too, up to
+ * their personal toggle (see {@link VeinMinerManager}), the live
+ * {@code poppy.veinminer} permission, and the plugin-wide
+ * {@code veinminer-enabled} switch are all satisfied, every connected
+ * block of the same material is broken too, up to
  * {@code veinminer-max-blocks}.
  *
- * <p>Adjacency depends on {@code veinminer-diagonal}: when off, only
- * blocks sharing a full face (6-direction, {@link #FACE_OFFSETS}) count
- * as connected; when on (the default), blocks touching only at an edge
- * or corner also count ({@link #ALL_OFFSETS}, 26-direction) — a
- * diagonal-only connection is a common real shape for an ore pocket that
- * would otherwise look like two disconnected veins to a face-only scan.
+ * <p><b>Permission is re-checked live on every break, not just at
+ * command dispatch</b> — {@link VeinMinerManager}'s per-player override
+ * persists across a reload, a restart, and crucially across a
+ * permissions plugin revoking {@code poppy.veinminer} (a VIP perk whose
+ * grant expired). Without checking {@code player.hasPermission(...)}
+ * here, a player who lost the node kept veinmining forever with no way
+ * to even disable it themselves, and {@code veinminer-default-enabled: true}
+ * would grant the feature to everyone regardless of the permission node.
  *
- * <p>Restricted to pickaxes deliberately — the default material list is
- * entirely ores/ancient debris, all of which require a pickaxe; an admin
- * who adds a non-ore material to the list should be aware veinminer will
- * simply never trigger for it unless mined with a pickaxe.
+ * <p><b>Restricted to Survival</b> — Creative already has instant,
+ * tool-free removal and infinite blocks; letting the chain logic run for
+ * a Creative player served no purpose and could fell/mine a build
+ * instantly with zero real cost.
  *
- * <p>Each extra block is broken via {@link Block#breakNaturally(ItemStack, boolean)}
- * — which does NOT itself fire another {@link BlockBreakEvent}, so
- * there's no reentrancy risk here — with drops/fortune/silk-touch
- * handled the same way a normal break would. {@code breakNaturally}
- * itself never awards experience though (that's normally handled by the
- * vanilla block-break pipeline the *initial*, real event-triggered break
- * goes through, not by a programmatic break like this) — see
- * {@link #rollExperience} for the manual XP roll that closes that gap;
- * without it, only the one block the player actually clicked gave XP,
- * every other block in the vein gave items but silently no experience.
+ * <p>Adjacency depends on {@code veinminer-diagonal}: off means only
+ * blocks sharing a full face ({@link #FACE_OFFSETS}) count as connected;
+ * on (the default) also counts blocks touching only at an edge or corner
+ * ({@link #ALL_OFFSETS}) — a diagonal-only connection is a common real
+ * shape for an ore pocket.
+ *
+ * <p><b>Every chained block goes through a real, synthetic
+ * {@link BlockBreakEvent}</b> — {@link Block#breakNaturally} on its own
+ * never fires one, which meant every protection plugin (WorldGuard,
+ * GriefPrevention), every logging plugin (CoreProtect), and even
+ * Poppy's own {@code DeathChestManager} were completely blind to the up
+ * to 63 extra blocks destroyed per chain: a player could click one
+ * unprotected block right at a claim's edge and have the flood fill
+ * destroy dozens of protected blocks inside it, untracked and
+ * unrollbackable. {@link BulkBreakGuard} suppresses this listener's (and
+ * {@code TreeCapitatorListener}'s) own reaction to that synthetic event,
+ * so a chain-broken block never starts its own nested flood fill.
+ *
+ * <p><b>{@link #findConnectedBlocks} never loads or generates a chunk to
+ * look for more of the vein</b> — a player mining toward unexplored
+ * terrain, or along a chunk border (worse with diagonals, which can span
+ * up to 9 chunks at a corner), could otherwise trigger a synchronous
+ * chunk load or full terrain generation on the main thread for every
+ * out-of-bounds neighbor. {@link World#isChunkLoaded(int, int)} is
+ * checked with raw coordinates before ever materializing a {@link Block}
+ * or calling {@code getType()} on it. Neighbor positions outside the
+ * world's real height range are skipped the same way. Visited/queued
+ * positions are tracked as packed {@code long}s ({@link #packCoords})
+ * rather than {@link Block} instances, avoiding an allocation for every
+ * one of the up to ~3,300 candidate neighbors scanned per break.
  *
  * <p>Tool durability is tracked manually (see {@link #damageTool}),
  * respecting the Unbreaking enchantment's real probability of avoiding
- * damage; the vein stops early the moment the tool breaks, leaving the
- * rest of the ore for the player to mine normally afterward.
+ * damage; the vein stops early the moment the tool breaks.
+ * {@code breakNaturally} never awards experience on its own either — see
+ * {@link #rollExperience} for the manual XP roll, matching vanilla
+ * ranges per ore and voiding it under Silk Touch.
  */
 public class VeinMinerListener implements Listener {
 
-    /**
-     * Relative (dx, dy, dz) offsets to every face-adjacent neighbor —
-     * used when {@code veinminer-diagonal} is off.
-     */
     private static final int[][] FACE_OFFSETS = {
             {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}, {1, 0, 0}, {-1, 0, 0}
     };
 
-    /**
-     * All 26 neighboring offsets — every block sharing at least an edge
-     * or a corner with the current one, not just a full face. Used when
-     * {@code veinminer-diagonal} is on (the default).
-     */
     private static final int[][] ALL_OFFSETS = buildAllOffsets();
 
     private static int[][] buildAllOffsets() {
@@ -131,10 +151,6 @@ public class VeinMinerListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBreak(@NonNull BlockBreakEvent event) {
         try {
-            // A synthetic event fired below, from this exact listener OR from
-            // TreeCapitatorListener, must never be treated as a fresh trigger —
-            // otherwise a chain-broken block would start its own nested flood
-            // fill from inside this loop.
             if (BulkBreakGuard.isActive()) {
                 return;
             }
@@ -144,6 +160,10 @@ public class VeinMinerListener implements Listener {
             }
 
             Player player = event.getPlayer();
+
+            if (!player.hasPermission("poppy.veinminer")) {
+                return;
+            }
 
             if (player.getGameMode() != GameMode.SURVIVAL) {
                 return;
@@ -176,18 +196,10 @@ public class VeinMinerListener implements Listener {
                     break;
                 }
 
-                // A real synthetic BlockBreakEvent per chained block — the only
-                // thing that lets a protection plugin, a logging plugin, or
-                // Poppy's own DeathChestManager see and potentially deny this
-                // specific block, the same way they would for a normal manual
-                // break.
                 BlockBreakEvent syntheticEvent = new BlockBreakEvent(block, player);
                 BulkBreakGuard.run(() -> Bukkit.getPluginManager().callEvent(syntheticEvent));
 
                 if (syntheticEvent.isCancelled()) {
-                    // Denied by something — leave this one block standing and
-                    // continue with the rest of the vein, exactly as if the
-                    // player had tried to break it manually and been blocked.
                     continue;
                 }
 
@@ -214,30 +226,6 @@ public class VeinMinerListener implements Listener {
         }
     }
 
-    /**
-     * Flood-fills outward from {@code origin} over blocks of the same
-     * material, capped at {@code maxBlocks} — the origin block itself is
-     * excluded (it's already being broken by the triggering event).
-     *
-     * <p>Never loads or generates a chunk to look for more of the vein — a
-     * player mining toward unexplored terrain, or along a chunk border
-     * (worse with {@code veinminer-diagonal}, which can span up to 4 chunks
-     * at an edge, 9 at a corner), could otherwise trigger a synchronous
-     * chunk load (or full terrain generation) on the main thread for every
-     * out-of-bounds neighbor — repeatable at will, no permission required.
-     * {@link World#isChunkLoaded(int, int)} is checked using raw coordinates
-     * BEFORE ever materializing a {@link Block} or calling {@code getType()}
-     * on it, since either of those can themselves force the load. Neighbors
-     * outside the world's actual height range are skipped the same way,
-     * before doing any chunk-load check at all.
-     *
-     * <p>Uses packed {@code long} coordinates ({@link #packCoords}) for
-     * {@code visited}/the work queue instead of {@link Block} instances —
-     * avoids allocating a {@code CraftBlock} for every one of the up to
-     * ~3,300 candidate neighbors scanned per break (128 blocks × 26
-     * directions), only ever constructing a real {@link Block} once a
-     * neighbor is confirmed loaded and worth inspecting.
-     */
     private List<Block> findConnectedBlocks(Block origin, Material material, int maxBlocks, boolean diagonal) {
         int[][] offsets = diagonal ? ALL_OFFSETS : FACE_OFFSETS;
 
@@ -294,21 +282,15 @@ public class VeinMinerListener implements Listener {
     }
 
     /**
-     * Packs a block position into a single {@code long} — x/z each get 26
-     * bits (roughly ±33.5M, far beyond any real world border), y gets 12
-     * bits after a +2048 offset (covers -2048..2047, comfortably beyond any
-     * standard or extended world height range).
+     * Packs a block position into a single {@code long} — x/z each get
+     * 26 bits (roughly ±33.5M, far beyond any real world border), y gets
+     * 12 bits after a +2048 offset (covers -2048..2047, comfortably
+     * beyond any standard or extended world height range).
      */
     private static long packCoords(int x, int y, int z) {
         return ((long) (x & 0x3FFFFFF) << 38) | ((long) ((y + 2048) & 0xFFF) << 26) | ((long) (z & 0x3FFFFFF));
     }
 
-    /**
-     * Rolls a random XP amount within {@link #ORE_XP_RANGES}' bounds for
-     * this material, or 0 if it's not an ore that awards direct mining
-     * XP, or 0 unconditionally under Silk Touch — matching vanilla's own
-     * rule that Silk Touch voids ore mining XP.
-     */
     private int rollExperience(Material material, boolean silkTouch) {
         if (silkTouch) {
             return 0;
@@ -322,12 +304,6 @@ public class VeinMinerListener implements Listener {
         return range[0] + ThreadLocalRandom.current().nextInt(range[1] - range[0] + 1);
     }
 
-    /**
-     * Applies one point of durability damage to {@code tool}, respecting
-     * Unbreaking's real probability of absorbing the hit
-     * ({@code 1 / (level + 1)} chance to actually take damage). Returns
-     * false (and removes the item) if this damage breaks the tool.
-     */
     private boolean damageTool(Player player, ItemStack tool) {
         ItemMeta meta = tool.getItemMeta();
         if (!(meta instanceof Damageable damageable) || meta.isUnbreakable()) {

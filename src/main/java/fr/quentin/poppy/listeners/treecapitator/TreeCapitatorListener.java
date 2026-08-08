@@ -1,5 +1,6 @@
 package fr.quentin.poppy.listeners.treecapitator;
 
+import fr.quentin.poppy.manager.treecapitator.PlacedLogManager;
 import fr.quentin.poppy.manager.treecapitator.TreeCapitatorManager;
 import fr.quentin.poppy.util.BulkBreakGuard;
 import fr.quentin.poppy.util.PoppyConfig;
@@ -80,11 +81,13 @@ public class TreeCapitatorListener implements Listener {
     private final JavaPlugin plugin;
     private final PoppyConfig config;
     private final TreeCapitatorManager treeCapitatorManager;
+    private final PlacedLogManager placedLogManager;
 
-    public TreeCapitatorListener(JavaPlugin plugin, PoppyConfig config, TreeCapitatorManager treeCapitatorManager) {
+    public TreeCapitatorListener(JavaPlugin plugin, PoppyConfig config, TreeCapitatorManager treeCapitatorManager, PlacedLogManager placedLogManager) {
         this.plugin = plugin;
         this.config = config;
         this.treeCapitatorManager = treeCapitatorManager;
+        this.placedLogManager = placedLogManager;
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -101,6 +104,15 @@ public class TreeCapitatorListener implements Listener {
             Player player = event.getPlayer();
 
             if (player.getGameMode() != GameMode.SURVIVAL) {
+                return;
+            }
+
+            // A log the player themselves (or anyone) placed isn't part of a natural
+            // tree — chaining from it could fell a wooden build instead. Skip the
+            // whole feature for this break entirely rather than just excluding it
+            // from the chain, since a placed log breaking on its own is never a
+            // "start of a tree" in the first place.
+            if (placedLogManager.isPlacedByPlayer(event.getBlock())) {
                 return;
             }
 
@@ -217,6 +229,14 @@ public class TreeCapitatorListener implements Listener {
                 }
 
                 Block neighbor = world.getBlockAt(nx, ny, nz);
+
+                if (placedLogManager.isPlacedByPlayer(neighbor)) {
+                    // Treated as a wall for the flood fill — never counted, never
+                    // traversed through, so a player-built structure stops the chain
+                    // rather than just being skipped-but-tunneled-past.
+                    continue;
+                }
+
                 if (neighbor.getType() != material) {
                     continue;
                 }

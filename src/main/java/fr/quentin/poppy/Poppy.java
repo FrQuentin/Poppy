@@ -59,6 +59,7 @@ import fr.quentin.poppy.manager.spawn.SpawnManager;
 import fr.quentin.poppy.manager.teleport.TeleportManager;
 import fr.quentin.poppy.manager.tpa.TpaManager;
 import fr.quentin.poppy.manager.tpa.TpaQuitListener;
+import fr.quentin.poppy.manager.treecapitator.PlacedLogManager;
 import fr.quentin.poppy.manager.treecapitator.TreeCapitatorManager;
 import fr.quentin.poppy.manager.veinminer.VeinMinerManager;
 import fr.quentin.poppy.util.*;
@@ -103,6 +104,7 @@ public final class Poppy extends JavaPlugin {
         poppyLogger = new PoppyLogger(this, config);
         playtimeManager = new PlaytimeManager(this);
 
+        PlacedLogManager placedLogManager = new PlacedLogManager();
         VeinMinerManager veinMinerManager = new VeinMinerManager(this, config);
         TreeCapitatorManager treeCapitatorManager = new TreeCapitatorManager(this, config);
 
@@ -238,7 +240,8 @@ public final class Poppy extends JavaPlugin {
         getServer().getPluginManager().registerEvents(messageManager, this);
         getServer().getPluginManager().registerEvents(new ChatFormatListener(messages, config, cooldownManager), this);
         getServer().getPluginManager().registerEvents(new VeinMinerListener(this, config, veinMinerManager), this);
-        getServer().getPluginManager().registerEvents(new TreeCapitatorListener(this, config, treeCapitatorManager), this);
+        getServer().getPluginManager().registerEvents(placedLogManager, this);
+        getServer().getPluginManager().registerEvents(new TreeCapitatorListener(this, config, treeCapitatorManager, placedLogManager), this);
 
         // Always scheduled now (rather than only if afk-auto-enabled at startup) —
         // AutoAfkTask checks the setting live each run, so it can be toggled via

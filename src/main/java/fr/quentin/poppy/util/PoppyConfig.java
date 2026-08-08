@@ -273,11 +273,48 @@ public final class PoppyConfig {
         treecapitatorMaterials = parseMaterialSet(c.getStringList("treecapitator-materials"));
     }
 
+    /**
+     * Materials that can never be chained by veinminer/treecapitator,
+     * regardless of what an admin puts in veinminer-materials or
+     * treecapitator-materials — defense in depth on top of the C-1 fix
+     * (the synthetic BlockBreakEvent), for the specific case of a block
+     * whose break behavior depends on something other than a simple
+     * item-drop: a spawner (SilkSpawnerListener's own logic), or any
+     * container that could hold player-placed loot (a chest, barrel,
+     * shulker box, etc. — bypassing DeathChestManager's own protection
+     * for a death chest specifically, or simply deleting someone's
+     * storage with its contents rather than dropping them).
+     */
+    private static final Set<Material> HARD_BLACKLIST = Set.of(
+            Material.SPAWNER,
+            Material.CHEST,
+            Material.TRAPPED_CHEST,
+            Material.BARREL,
+            Material.ENDER_CHEST,
+            Material.DISPENSER,
+            Material.DROPPER,
+            Material.HOPPER,
+            Material.FURNACE,
+            Material.BLAST_FURNACE,
+            Material.SMOKER,
+            Material.BREWING_STAND
+    );
+
+    private boolean isHardBlacklisted(Material material) {
+        return HARD_BLACKLIST.contains(material) || material.name().endsWith("_SHULKER_BOX");
+    }
+
     private Set<Material> parseMaterialSet(List<String> names) {
         Set<Material> materials = new HashSet<>();
         for (String name : names) {
             try {
-                materials.add(Material.valueOf(name.toUpperCase(Locale.ROOT)));
+                Material material = Material.valueOf(name.toUpperCase(Locale.ROOT));
+                if (isHardBlacklisted(material)) {
+                    plugin.getLogger().warning("Ignoring '" + name + "' in a veinminer/treecapitator material list — "
+                            + "this block is never allowed to be chain-broken, regardless of config.");
+                    continue;
+                }
+                materials.add(material);
             } catch (IllegalArgumentException e) {
                 plugin.getLogger().warning("Skipping unknown material in config: " + name);
             }

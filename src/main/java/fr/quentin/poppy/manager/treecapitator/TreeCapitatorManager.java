@@ -2,6 +2,7 @@ package fr.quentin.poppy.manager.treecapitator;
 
 import fr.quentin.poppy.util.PoppyConfig;
 import fr.quentin.poppy.util.io.AtomicYamlWriter;
+import org.bukkit.Bukkit;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -77,6 +78,7 @@ public class TreeCapitatorManager {
         for (Map.Entry<UUID, Boolean> entry : new HashMap<>(overrides).entrySet()) {
             yaml.set("players." + entry.getKey(), entry.getValue());
         }
-        AtomicYamlWriter.save(yaml, file, plugin, "treecapitator.yml");
+
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> AtomicYamlWriter.save(yaml, file, plugin, "treecapitator.yml"));
     }
 }

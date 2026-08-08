@@ -259,11 +259,12 @@ msg-cooldown-seconds: 5
 # entirely.
 chat-cooldown-seconds: 5
 
-# Veinminer: mine an ore block with a pickaxe, and all directly adjacent blocks
-# of the same ore (6 faces only, no diagonals) are mined as well, up to
-# veinminer-max-blocks. Consumes tool durability as if each block was broken
-# normally, respects the Efficiency enchantment. Stops if the tool breaks
-# during the process.
+# Veinminer: mining an ore with a pickaxe also mines every directly
+# connected block of the same ore — 6 faces, or all 26 surrounding
+# directions (including edges/corners) if veinminer-diagonal is on
+# below — up to veinminer-max-blocks. Costs tool durability as if every
+# block had been broken by hand, respects the Unbreaking enchantment.
+# Stops early if the tool breaks mid-vein.
 veinminer-enabled: true
 veinminer-max-blocks: 64
 veinminer-default-enabled: false
@@ -290,12 +291,16 @@ veinminer-materials:
   - NETHER_GOLD_ORE
   - ANCIENT_DEBRIS
 
-# Treecapitator: chop a log with an axe, and all directly connected logs of the
-# same type (including diagonals by default) are chopped as well, up to
-# treecapitator-max-blocks. Consumes normal tool durability, respects
-# Solid Efficiency. Stops if the tool breaks.
-# Stripped logs (STRIPPED_*) are intentionally excluded by default to
-# prevent accidentally felling structures built with stripped wood.
+# Treecapitator: chopping a log with an axe also chops every directly
+# connected block of the same log type — 6 faces, or all 26 surrounding
+# directions if treecapitator-diagonal is on — up to
+# treecapitator-max-blocks. The higher cap than veinminer (128 vs 64)
+# reflects that a large tree naturally spans more trunk blocks than a
+# typical ore vein — not an arbitrary difference. Costs tool durability
+# normally, respects the Unbreaking enchantment. Stops early if the tool
+# breaks. Stripped logs (STRIPPED_*) are deliberately excluded by
+# default, so felling a natural tree can't accidentally chop down a
+# stripped-wood build nearby.
 treecapitator-enabled: true
 treecapitator-max-blocks: 128
 treecapitator-default-enabled: false
@@ -313,3 +318,4 @@ treecapitator-materials:
   - PALE_OAK_LOG
   - CRIMSON_STEM
   - WARPED_STEM
+  - BAMBOO_BLOCK

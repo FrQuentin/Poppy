@@ -2,6 +2,7 @@ package fr.quentin.poppy.manager.veinminer;
 
 import fr.quentin.poppy.util.PoppyConfig;
 import fr.quentin.poppy.util.io.AtomicYamlWriter;
+import org.bukkit.Bukkit;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -74,11 +75,25 @@ public class VeinMinerManager {
         }
     }
 
+    /**
+     * Builds the YamlConfiguration synchronously (the {@code new HashMap<>(overrides)}
+     * snapshot is what makes this safe to read from the main thread even
+     * though the actual write happens elsewhere), then delegates the actual
+     * disk write — including the {@code fsync} inside
+     * {@link AtomicYamlWriter#save}, entirely synchronous on its own — to a
+     * background thread. Without this, every single /veinminer toggle
+     * reserialized and fsynced the ENTIRE file, containing every player who
+     * has ever toggled the feature, not just the one who changed — on a
+     * server with thousands of registered players, a handful of players
+     * alternating the command could turn into dozens of full-file synchronous
+     * disk writes per second on the main thread.
+     */
     private void save() {
         YamlConfiguration yaml = new YamlConfiguration();
         for (Map.Entry<UUID, Boolean> entry : new HashMap<>(overrides).entrySet()) {
             yaml.set("players." + entry.getKey(), entry.getValue());
         }
-        AtomicYamlWriter.save(yaml, file, plugin, "veinminer.yml");
+
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> AtomicYamlWriter.save(yaml, file, plugin, "veinminer.yml"));
     }
 }

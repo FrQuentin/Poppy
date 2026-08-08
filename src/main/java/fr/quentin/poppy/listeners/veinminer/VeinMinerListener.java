@@ -1,7 +1,9 @@
 package fr.quentin.poppy.listeners.veinminer;
 
 import fr.quentin.poppy.manager.veinminer.VeinMinerManager;
+import fr.quentin.poppy.util.BulkBreakGuard;
 import fr.quentin.poppy.util.PoppyConfig;
+import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -132,6 +134,14 @@ public class VeinMinerListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBreak(@NonNull BlockBreakEvent event) {
         try {
+            // A synthetic event fired below, from this exact listener OR from
+            // TreeCapitatorListener, must never be treated as a fresh trigger —
+            // otherwise a chain-broken block would start its own nested flood
+            // fill from inside this loop.
+            if (BulkBreakGuard.isActive()) {
+                return;
+            }
+
             if (!config.veinminerEnabled()) {
                 return;
             }
@@ -169,15 +179,33 @@ public class VeinMinerListener implements Listener {
                     break;
                 }
 
+                // A real synthetic BlockBreakEvent per chained block — the only
+                // thing that lets a protection plugin, a logging plugin, or
+                // Poppy's own DeathChestManager see and potentially deny this
+                // specific block, the same way they would for a normal manual
+                // break.
+                BlockBreakEvent syntheticEvent = new BlockBreakEvent(block, player);
+                BulkBreakGuard.run(() -> Bukkit.getPluginManager().callEvent(syntheticEvent));
+
+                if (syntheticEvent.isCancelled()) {
+                    // Denied by something — leave this one block standing and
+                    // continue with the rest of the vein, exactly as if the
+                    // player had tried to break it manually and been blocked.
+                    continue;
+                }
+
                 boolean silkTouch = currentTool.containsEnchantment(Enchantment.SILK_TOUCH);
                 Material blockMaterial = block.getType();
                 Location center = block.getLocation().add(0.5, 0.5, 0.5);
 
-                block.breakNaturally(currentTool, true);
-
-                int xp = rollExperience(blockMaterial, silkTouch);
-                if (xp > 0) {
-                    block.getWorld().spawn(center, ExperienceOrb.class, orb -> orb.setExperience(xp));
+                if (syntheticEvent.isDropItems()) {
+                    block.breakNaturally(currentTool, true);
+                    int xp = rollExperience(blockMaterial, silkTouch);
+                    if (xp > 0) {
+                        block.getWorld().spawn(center, ExperienceOrb.class, orb -> orb.setExperience(xp));
+                    }
+                } else {
+                    block.setType(Material.AIR);
                 }
 
                 if (!damageTool(player, currentTool)) {

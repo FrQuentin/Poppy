@@ -1,7 +1,9 @@
 package fr.quentin.poppy.listeners.treecapitator;
 
 import fr.quentin.poppy.manager.treecapitator.TreeCapitatorManager;
+import fr.quentin.poppy.util.BulkBreakGuard;
 import fr.quentin.poppy.util.PoppyConfig;
+import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
@@ -87,17 +89,16 @@ public class TreeCapitatorListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBreak(@NonNull BlockBreakEvent event) {
         try {
+            if (BulkBreakGuard.isActive()) {
+                return;
+            }
+
             if (!config.treecapitatorEnabled()) {
                 return;
             }
 
             Player player = event.getPlayer();
 
-            // Treecapitator only ever triggers in Survival — a Creative player already
-            // has instant, tool-free block removal and infinite blocks; letting the
-            // vein-fell logic run for them served no purpose and, worse, still applied
-            // durability damage bookkeeping against a tool that Creative doesn't
-            // actually consume, and could fell builds instantly with zero cost.
             if (player.getGameMode() != GameMode.SURVIVAL) {
                 return;
             }
@@ -129,7 +130,18 @@ public class TreeCapitatorListener implements Listener {
                     break;
                 }
 
-                block.breakNaturally(currentTool, true);
+                BlockBreakEvent syntheticEvent = new BlockBreakEvent(block, player);
+                BulkBreakGuard.run(() -> Bukkit.getPluginManager().callEvent(syntheticEvent));
+
+                if (syntheticEvent.isCancelled()) {
+                    continue;
+                }
+
+                if (syntheticEvent.isDropItems()) {
+                    block.breakNaturally(currentTool, true);
+                } else {
+                    block.setType(Material.AIR);
+                }
 
                 if (!damageTool(player, currentTool)) {
                     break;

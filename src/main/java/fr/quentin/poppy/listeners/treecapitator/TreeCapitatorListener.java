@@ -4,10 +4,7 @@ import fr.quentin.poppy.manager.treecapitator.PlacedLogManager;
 import fr.quentin.poppy.manager.treecapitator.TreeCapitatorManager;
 import fr.quentin.poppy.util.BulkBreakGuard;
 import fr.quentin.poppy.util.PoppyConfig;
-import org.bukkit.Bukkit;
-import org.bukkit.GameMode;
-import org.bukkit.Material;
-import org.bukkit.World;
+import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
@@ -15,6 +12,8 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.player.PlayerItemBreakEvent;
+import org.bukkit.event.player.PlayerItemDamageEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -40,27 +39,25 @@ import java.util.logging.Level;
  * connected block of the same log material is broken too, up to
  * {@code treecapitator-max-blocks}.
  *
- * <p><b>Permission is re-checked live on every break</b> — see
- * {@code VeinMinerListener}'s doc for the exact same reasoning
- * ({@link TreeCapitatorManager}'s per-player override survives a
- * revoked permission node).
+ * <p><b>Permission is re-checked live on every break</b> — same
+ * reasoning as {@code VeinMinerListener} ({@link TreeCapitatorManager}'s
+ * per-player override survives a revoked permission node).
  *
  * <p><b>Restricted to Survival</b> — same reasoning as
  * {@code VeinMinerListener}.
  *
  * <p><b>Never chains onto — or through — a player-placed log</b>: see
- * {@link PlacedLogManager}. Without this, felling an unrelated natural
- * tree near a wooden build could accidentally chop the build down too.
- * A placed log breaking directly doesn't trigger the feature at all
- * (it's never treated as "the start of a natural tree"); one encountered
- * mid-chain acts as a wall the flood fill stops at rather than passing
- * through.
+ * {@link PlacedLogManager}. A placed log breaking directly doesn't
+ * trigger the feature at all; one encountered mid-chain acts as a wall
+ * the flood fill stops at rather than passing through.
  *
  * <p>Adjacency, the synthetic per-block {@link BlockBreakEvent} (via
  * {@link BulkBreakGuard}), the chunk-load-safe flood fill with packed
- * coordinates, and manual tool durability all follow exactly the same
- * reasoning as {@code VeinMinerListener} — see its class-level doc for
- * the full explanation of each.
+ * coordinates, and only debiting tool durability for a block that was
+ * actually removed (checking {@link Block#breakNaturally}'s return
+ * value) all follow exactly the same reasoning as
+ * {@code VeinMinerListener} — see its class-level doc for the full
+ * explanation of each.
  *
  * <p>No experience is awarded for any of this — unlike ore mining,
  * chopping wood never grants XP in vanilla Minecraft.
@@ -159,13 +156,15 @@ public class TreeCapitatorListener implements Listener {
                     continue;
                 }
 
+                boolean broken;
                 if (syntheticEvent.isDropItems()) {
-                    block.breakNaturally(currentTool, true);
+                    broken = block.breakNaturally(currentTool, true);
                 } else {
                     block.setType(Material.AIR);
+                    broken = true;
                 }
 
-                if (!damageTool(player, currentTool)) {
+                if (broken && !damageTool(player, currentTool)) {
                     break;
                 }
             }
@@ -238,6 +237,22 @@ public class TreeCapitatorListener implements Listener {
         return ((long) (x & 0x3FFFFFF) << 38) | ((long) ((y + 2048) & 0xFFF) << 26) | ((long) (z & 0x3FFFFFF));
     }
 
+    /**
+     * Applies durability damage to {@code tool}, respecting Unbreaking's
+     * real probability of absorbing the hit, and firing the same two events
+     * a normal vanilla break would — {@link PlayerItemDamageEvent} for every
+     * point of damage (so any plugin reacting to tool wear, e.g. custom
+     * durability protection or an anticheat, sees this exactly like a manual
+     * break instead of being blind to 64 of the 65 hits in a chain) and
+     * {@link PlayerItemBreakEvent} plus the vanilla break sound if this hit
+     * destroys the tool. Without these, the tool simply vanished from the
+     * player's hand mid-chain with zero feedback — the kind of silent loss
+     * that turns into a "you stole my item" support ticket.
+     *
+     * <p>Returns false (and removes the item) if this damage breaks the
+     * tool. Only called by the caller once it's confirmed the corresponding
+     * block was actually broken.
+     */
     private boolean damageTool(Player player, ItemStack tool) {
         ItemMeta meta = tool.getItemMeta();
         if (!(meta instanceof Damageable damageable) || meta.isUnbreakable()) {
@@ -252,8 +267,16 @@ public class TreeCapitatorListener implements Listener {
             }
         }
 
-        int newDamage = damageable.getDamage() + 1;
+        PlayerItemDamageEvent damageEvent = new PlayerItemDamageEvent(player, tool, 1, damageable.getDamage());
+        Bukkit.getPluginManager().callEvent(damageEvent);
+        if (damageEvent.isCancelled()) {
+            return true;
+        }
+
+        int newDamage = damageable.getDamage() + damageEvent.getDamage();
         if (newDamage >= tool.getType().getMaxDurability()) {
+            player.getWorld().playSound(player.getLocation(), Sound.ENTITY_ITEM_BREAK, 1.0f, 1.0f);
+            Bukkit.getPluginManager().callEvent(new PlayerItemBreakEvent(player, tool));
             player.getInventory().setItemInMainHand(null);
             return false;
         }
